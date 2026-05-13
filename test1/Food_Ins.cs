@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
 
-// 구글 API 라이브러리 (NuGet에서 Google.Apis.Sheets.v4 설치 필요)
+// 구글 API 라이브러리
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
@@ -13,8 +13,8 @@ namespace test1
 {
     public partial class Food_Ins : Form
     {
-        // 1. 설정 정보
-        private readonly string credPath = @"C:\google\Google_key.json";
+        // 1. 설정 정보 (credPath는 이제 필요 없으므로 제거하거나 주석 처리합니다)
+        // private readonly string credPath = @"C:\google\Google_key.json"; 
         private readonly string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
 
         public Food_Ins()
@@ -22,32 +22,27 @@ namespace test1
             InitializeComponent();
         }
 
-        // '보내기' 버튼 클릭 시 실행되는 이벤트
         private void button1_Click(object sender, EventArgs e)
         {
             try
             {
                 SaveToGoogleSheet();
                 MessageBox.Show("성공적으로 저장되었습니다!");
-
-                // 입력 칸 초기화 (선택 사항)
                 ClearInputs();
             }
             catch (Exception ex)
             {
+                // 인증 정보를 못 찾을 경우 여기서 에러 메시지가 출력됩니다.
                 MessageBox.Show($"오류 발생: {ex.Message}");
             }
         }
 
         private void SaveToGoogleSheet()
         {
-            // 2. 구글 API 인증 세팅
-            GoogleCredential credential;
-            using (var stream = new FileStream(credPath, FileMode.Open, FileAccess.Read))
-            {
-                credential = GoogleCredential.FromStream(stream)
-                    .CreateScoped(SheetsService.Scope.Spreadsheets);
-            }
+            // 2. ADC 방식으로 구글 API 인증 세팅
+            // 파일 스트림을 여는 과정 없이, 시스템 환경(gcloud login 등)에서 인증 정보를 자동으로 가져옵니다.
+            GoogleCredential credential = GoogleCredential.GetApplicationDefault()
+                .CreateScoped(SheetsService.Scope.Spreadsheets);
 
             var service = new SheetsService(new BaseClientService.Initializer()
             {
@@ -55,7 +50,7 @@ namespace test1
                 ApplicationName = "Food Inventory App",
             });
 
-            // 3. 데이터 조립 (ValueRange)
+            // 3. 데이터 조립 (동일)
             var rowData = new List<object>
             {
                 textBox1.Text,      // 식재료 이름
@@ -63,8 +58,7 @@ namespace test1
                 textBox3.Text,      // 탄수화물
                 textBox4.Text,      // 단백질
                 textBox5.Text,      // 지방
-                comboBox1.Text,     // 알러지 여부
-               // DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") // 입력 시간
+                comboBox1.Text       // 알러지 여부
             };
 
             var valueRange = new ValueRange { Values = new List<IList<object>> { rowData } };
@@ -83,7 +77,7 @@ namespace test1
             textBox4.Clear();
             textBox5.Clear();
             comboBox1.SelectedIndex = -1;
-            textBox1.Focus(); // 다시 입력하기 편하게 이름 칸으로 커서 이동
+            textBox1.Focus();
         }
     }
 }
