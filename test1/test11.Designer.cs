@@ -54,7 +54,7 @@
             btnUpload.TabIndex = 1;
             btnUpload.Text = "CSV 업로드";
             btnUpload.UseVisualStyleBackColor = true;
-            btnUpload.Click += btnUpload_Click_1;
+            btnUpload.Click += btnUpload_Click;
             // 
             // btnLoad
             // 
@@ -64,6 +64,7 @@
             btnLoad.TabIndex = 2;
             btnLoad.Text = "시트 불러오기";
             btnLoad.UseVisualStyleBackColor = true;
+            btnLoad.Click += btnLoad_Click;
             // 
             // button3
             // 
@@ -80,6 +81,7 @@
             txtSearch.Name = "txtSearch";
             txtSearch.Size = new Size(378, 23);
             txtSearch.TabIndex = 4;
+            //txtSearch.TextChanged += txtSearch_TextChanged_1;
             // 
             // test11
             // 
@@ -94,7 +96,6 @@
             Margin = new Padding(2, 1, 2, 1);
             Name = "test11";
             Text = "test11";
-            Load += test11_Load;
             ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
             ResumeLayout(false);
             PerformLayout();

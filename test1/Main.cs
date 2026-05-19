@@ -84,5 +84,10 @@ namespace test1
             t2.Location = new Point(this.Location.X + 40, this.Location.Y + 100);
             t2.ShowDialog();
         }
+
+        private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+
+        }
     }
 }

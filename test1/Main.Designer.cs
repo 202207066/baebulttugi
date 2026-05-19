@@ -43,94 +43,99 @@
             // 
             // menuStrip1
             // 
+            menuStrip1.AutoSize = false;
             menuStrip1.ImageScalingSize = new Size(32, 32);
             menuStrip1.Items.AddRange(new ToolStripItem[] { Food_ToolStripMenuItem, Menu_ToolStripMenuItem, testToolStripMenuItem });
-            menuStrip1.Location = new Point(2, 30);
+            menuStrip1.Location = new Point(2, 34);
             menuStrip1.Name = "menuStrip1";
             menuStrip1.Padding = new Padding(3, 1, 0, 1);
-            menuStrip1.Size = new Size(672, 24);
+            menuStrip1.Size = new Size(821, 57);
             menuStrip1.TabIndex = 0;
             menuStrip1.Text = "menuStrip1";
+            menuStrip1.ItemClicked += menuStrip1_ItemClicked;
             // 
             // Food_ToolStripMenuItem
             // 
             Food_ToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { Food_Ins_ToolStripMenuItem, Food_Upd_ToolStripMenuItem });
+            Food_ToolStripMenuItem.Font = new Font("맑은 고딕", 20F);
             Food_ToolStripMenuItem.Name = "Food_ToolStripMenuItem";
-            Food_ToolStripMenuItem.Size = new Size(55, 22);
+            Food_ToolStripMenuItem.Size = new Size(110, 55);
             Food_ToolStripMenuItem.Text = "식재료";
             // 
             // Food_Ins_ToolStripMenuItem
             // 
             Food_Ins_ToolStripMenuItem.Name = "Food_Ins_ToolStripMenuItem";
-            Food_Ins_ToolStripMenuItem.Size = new Size(138, 22);
+            Food_Ins_ToolStripMenuItem.Size = new Size(238, 42);
             Food_Ins_ToolStripMenuItem.Text = "식재료 입력";
             Food_Ins_ToolStripMenuItem.Click += Food_Ins_ToolStripMenuItem_Click;
             // 
             // Food_Upd_ToolStripMenuItem
             // 
             Food_Upd_ToolStripMenuItem.Name = "Food_Upd_ToolStripMenuItem";
-            Food_Upd_ToolStripMenuItem.Size = new Size(138, 22);
+            Food_Upd_ToolStripMenuItem.Size = new Size(238, 42);
             Food_Upd_ToolStripMenuItem.Text = "식재료 수정";
             Food_Upd_ToolStripMenuItem.Click += Food_Upd_ToolStripMenuItem_Click;
             // 
             // Menu_ToolStripMenuItem
             // 
             Menu_ToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { Menu_Ins_ToolStripMenuItem, Menu_Upd_ToolStripMenuItem });
+            Menu_ToolStripMenuItem.Font = new Font("맑은 고딕", 20F);
             Menu_ToolStripMenuItem.Name = "Menu_ToolStripMenuItem";
-            Menu_ToolStripMenuItem.Size = new Size(43, 22);
+            Menu_ToolStripMenuItem.Size = new Size(83, 55);
             Menu_ToolStripMenuItem.Text = "메뉴";
             // 
             // Menu_Ins_ToolStripMenuItem
             // 
             Menu_Ins_ToolStripMenuItem.Name = "Menu_Ins_ToolStripMenuItem";
-            Menu_Ins_ToolStripMenuItem.Size = new Size(126, 22);
+            Menu_Ins_ToolStripMenuItem.Size = new Size(211, 42);
             Menu_Ins_ToolStripMenuItem.Text = "매뉴 입력";
             Menu_Ins_ToolStripMenuItem.Click += Menu_Ins_ToolStripMenuItem_Click;
             // 
             // Menu_Upd_ToolStripMenuItem
             // 
             Menu_Upd_ToolStripMenuItem.Name = "Menu_Upd_ToolStripMenuItem";
-            Menu_Upd_ToolStripMenuItem.Size = new Size(126, 22);
+            Menu_Upd_ToolStripMenuItem.Size = new Size(211, 42);
             Menu_Upd_ToolStripMenuItem.Text = "메뉴 수정";
             Menu_Upd_ToolStripMenuItem.Click += Menu_Upd_ToolStripMenuItem_Click;
             // 
             // testToolStripMenuItem
             // 
             testToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { toolStripMenuItem2, toolStripMenuItem3 });
+            testToolStripMenuItem.Font = new Font("맑은 고딕", 20F);
             testToolStripMenuItem.Name = "testToolStripMenuItem";
-            testToolStripMenuItem.Size = new Size(38, 22);
+            testToolStripMenuItem.Size = new Size(73, 55);
             testToolStripMenuItem.Text = "test";
             // 
             // toolStripMenuItem2
             // 
             toolStripMenuItem2.Name = "toolStripMenuItem2";
-            toolStripMenuItem2.Size = new Size(102, 22);
+            toolStripMenuItem2.Size = new Size(154, 42);
             toolStripMenuItem2.Text = "11";
             toolStripMenuItem2.Click += toolStripMenuItem2_Click;
             // 
             // toolStripMenuItem3
             // 
             toolStripMenuItem3.Name = "toolStripMenuItem3";
-            toolStripMenuItem3.Size = new Size(102, 22);
+            toolStripMenuItem3.Size = new Size(154, 42);
             toolStripMenuItem3.Text = "1213";
             toolStripMenuItem3.Click += toolStripMenuItem3_Click;
             // 
             // Main
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(676, 355);
+            ClientSize = new Size(825, 436);
             Controls.Add(menuStrip1);
+            Font = new Font("맑은 고딕", 10F);
             IsMdiContainer = true;
             MainMenuStrip = menuStrip1;
             Margin = new Padding(2, 1, 2, 1);
             Name = "Main";
-            Padding = new Padding(2, 30, 2, 1);
+            Padding = new Padding(2, 34, 2, 1);
             Text = "Form1";
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             ResumeLayout(false);
-            PerformLayout();
         }
 
         #endregion

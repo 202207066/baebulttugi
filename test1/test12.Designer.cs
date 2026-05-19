@@ -42,7 +42,6 @@
             dataGridView1.ReadOnly = true;
             dataGridView1.Size = new Size(646, 320);
             dataGridView1.TabIndex = 0;
-            //dataGridView1.CellContentClick += dataGridView1_CellContentClick;
             // 
             // test12
             // 
@@ -52,6 +51,7 @@
             Controls.Add(dataGridView1);
             Name = "test12";
             Text = "test12";
+            Load += test12_Load;
             ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
             ResumeLayout(false);
         }

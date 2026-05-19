@@ -16,7 +16,7 @@ namespace test1
     {
         // 구글 시트 정보 (본인의 것으로 변경 필요)
         private string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private string jsonKeyPath = "your-key-file.json"; // 구글에서 받은 인증키 파일 경로
+        private string jsonKeyPath = @"C:\google\Google_key.json"; // 구글에서 받은 인증키 파일 경로
 
         public test11()
         {
@@ -24,6 +24,28 @@ namespace test1
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         }
 
+        // [공통 로직] txtSearch 텍스트박스에서 사용자가 입력한 시트 이름을 가져옵니다.
+        private string GetTargetSheetName()
+        {
+            // 실제 이름인 txtSearch를 반영했습니다.
+            string sheetName = txtSearch.Text.Trim();
+
+            // 만약 아무것도 입력하지 않았다면 경고를 띄우고 기본값으로 Sheet1을 지정합니다.
+            if (string.IsNullOrEmpty(sheetName))
+            {
+                MessageBox.Show("시트 이름을 입력하지 않아 기본값('Sheet1')으로 진행합니다.", "안내");
+                return "Sheet1";
+            }
+            return sheetName;
+        }
+
+        // 1. 시트 불러오기 버튼 클릭 이벤트
+        private void btnLoad_Click(object sender, EventArgs e)
+        {
+            LoadDataFromGoogleSheet();
+        }
+
+        // 2. CSV 업로드 버튼 클릭 이벤트
         private void btnUpload_Click(object sender, EventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog { Filter = "CSV 파일 (*.csv)|*.csv" };
@@ -33,52 +55,16 @@ namespace test1
             }
         }
 
-        private void btnLoad_Click(object sender, EventArgs e)
-        {
-            LoadDataFromGoogleSheet();
-        }
-
-        private void txtSearch_TextChanged(object sender, EventArgs e)
-        {
-            DataTable dt = (DataTable)dataGridView1.DataSource;
-            if (dt == null) return;
-
-            string searchText = txtSearch.Text.Replace("'", "''"); // 작은따옴표 입력 에러 방지
-
-            // 검색어가 없으면 전체 리스트 표시
-            if (string.IsNullOrWhiteSpace(searchText))
-            {
-                dt.DefaultView.RowFilter = "";
-                return;
-            }
-
-            string filter = "";
-            foreach (DataColumn column in dt.Columns)
-            {
-                if (filter.Length > 0) filter += " OR ";
-
-                // 핵심 수정: Convert(열이름, 'System.String')를 사용하여 숫자/날짜 열에서도 LIKE 검색이 가능하게 함
-                filter += string.Format("Convert([{0}], 'System.String') LIKE '%{1}%'", column.ColumnName, searchText);
-            }
-
-            try
-            {
-                dt.DefaultView.RowFilter = filter;
-            }
-            catch (Exception ex)
-            {
-                // 필터 형식이 잘못되었을 경우 에러 메시지 출력 (디버깅용)
-                Console.WriteLine("검색 필터 오류: " + ex.Message);
-            }
-        }
-
+        // 구글 시트에 내가 입력한 시트 이름으로 CSV 업로드
         private void UploadCsvToGoogleSheet(string filePath)
         {
             try
             {
                 var service = GetSheetsService();
-                // 한글 인코딩(ANSI) 지원을 위해 euc-kr 사용
                 var lines = File.ReadAllLines(filePath, Encoding.GetEncoding("euc-kr"));
+
+                // txtSearch에 입력한 시트 이름을 가져옴
+                string userSheetName = GetTargetSheetName();
 
                 var valueRange = new ValueRange { Values = new List<IList<object>>() };
                 foreach (var line in lines)
@@ -86,21 +72,33 @@ namespace test1
                     valueRange.Values.Add(line.Split(',').Cast<object>().ToList());
                 }
 
-                var updateRequest = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, "Sheet1!A1");
+                // 입력한 시트 이름의 A1 셀부터 데이터 저장 (예: "과일목록!A1")
+                string targetRange = $"{userSheetName}!A1";
+
+                var updateRequest = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, targetRange);
                 updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
                 updateRequest.Execute();
 
-                MessageBox.Show("구글 시트 업로드 성공!");
+                MessageBox.Show($"구글 시트 [{userSheetName}] 탭에 업로드 성공!");
             }
-            catch (Exception ex) { MessageBox.Show("업로드 에러: " + ex.Message); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("업로드 에러: " + ex.Message + "\n\n구글 시트에 해당 이름의 탭이 실제로 존재하는지 확인해 주세요.");
+            }
         }
 
-        private void    LoadDataFromGoogleSheet()
+        // 구글 시트에서 내가 입력한 시트 이름의 데이터 가져오기
+        private void LoadDataFromGoogleSheet()
         {
             try
             {
                 var service = GetSheetsService();
-                var request = service.Spreadsheets.Values.Get(spreadsheetId, "Sheet1!A1:Z1000");
+
+                // txtSearch에 입력한 시트 이름을 가져옴
+                string userSheetName = GetTargetSheetName();
+                string targetRange = $"{userSheetName}!A1:Z1000";
+
+                var request = service.Spreadsheets.Values.Get(spreadsheetId, targetRange);
                 var response = request.Execute();
                 var values = response.Values;
 
@@ -115,14 +113,24 @@ namespace test1
                         while (row.Count < dt.Columns.Count) row.Add("");
                         dt.Rows.Add(row.ToArray());
                     }
+
+                    dataGridView1.DataSource = dt;
+                    dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+                    dataGridView1.AllowUserToAddRows = false;
                 }
-                dataGridView1.DataSource = dt;
-                dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
-                dataGridView1.AllowUserToAddRows = false;
+                else
+                {
+                    MessageBox.Show($"[{userSheetName}] 시트에 가져올 데이터가 없습니다.");
+                    dataGridView1.DataSource = null;
+                }
             }
-            catch (Exception ex) { MessageBox.Show("불러오기 에러: " + ex.Message); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("불러오기 에러: " + ex.Message + "\n\n구글 시트에 해당 이름의 탭이 실제로 존재하는지 확인해 주세요.");
+            }
         }
 
+        // 구글 인증 서비스 생성
         private SheetsService GetSheetsService()
         {
             GoogleCredential credential;
@@ -135,16 +143,6 @@ namespace test1
                 HttpClientInitializer = credential,
                 ApplicationName = "GoogleSheetCSVApp",
             });
-        }
-
-        private void test11_Load(object sender, EventArgs e)
-        {
-
-        }
-
-        private void btnUpload_Click_1(object sender, EventArgs e)
-        {
-
         }
     }
 }

@@ -70,5 +70,10 @@ namespace test1
                 MessageBox.Show("오류가 발생했습니다: " + ex.Message);
             }
         }
+
+        private void test12_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }
