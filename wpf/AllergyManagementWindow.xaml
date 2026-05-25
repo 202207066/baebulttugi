@@ -1,0 +1,255 @@
+﻿<Window x:Class="wpf.AllergyManagementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Allergy Management" Height="720" Width="1100"
+        Background="#F8FAFC"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <!-- 카드 스타일: CornerRadius 8, 순수 흰색, DropShadowOpacity 0.04 -->
+        <Style x:Key="CardBorderStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" BlurRadius="16" ShadowDepth="0" Opacity="0.04"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 공통 기본 버튼 스타일 -->
+        <Style x:Key="PrimaryButtonBase" TargetType="Button">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+
+        <!-- 작은 보조 버튼 스타일 -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="4"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 상단 배너: 다크 그레이 그라데이션, 흰색 굵은 타이틀 -->
+        <Border Grid.Row="0" Height="72" CornerRadius="8" ClipToBounds="True">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#111827" Offset="0.0"/>
+                    <GradientStop Color="#374151" Offset="1.0"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <TextBlock Text="🛡️ AllergySafe 스마트 케어 센터"
+                       Foreground="White"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"
+                       Margin="20,0"/>
+        </Border>
+
+        <!-- 본문: 카드 내부에 TabControl -->
+        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0,16,0,0">
+            <TabControl Background="Transparent" BorderThickness="0">
+                <!-- 탭 1: 환자 정보 및 알러지 등록 -->
+                <TabItem Header="👤 환자 정보 및 알러지 등록" Padding="8">
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="420"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 좌측 입력 폼 카드 -->
+                        <Border Grid.Column="0" Grid.RowSpan="3" Style="{StaticResource CardBorderStyle}" Padding="12" Margin="0,0,8,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Orientation="Vertical" Margin="0,0,0,8">
+                                    <TextBlock Text="성명" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtPatientName" Height="30"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Vertical" Grid.Row="1" Margin="0,8,0,8">
+                                    <TextBlock Text="대상 분류" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="CmbPatientCategory" Height="30">
+                                        <ComboBoxItem>일반</ComboBoxItem>
+                                        <ComboBoxItem>영유아</ComboBoxItem>
+                                        <ComboBoxItem>고령자</ComboBoxItem>
+                                        <ComboBoxItem>특별관리</ComboBoxItem>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- 변경: StackPanel 대신 Grid 사용하여 ScrollViewer가 가용 공간을 채우도록 함 -->
+                                <Grid Grid.Row="2" Margin="0,8,0,8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Text="식약처 지정 알러지 목록" FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <WrapPanel Orientation="Horizontal" ItemWidth="180" ItemHeight="28">
+                                            <CheckBox Content="우유" Margin="4"/>
+                                            <CheckBox Content="달걀" Margin="4"/>
+                                            <CheckBox Content="땅콩" Margin="4"/>
+                                            <CheckBox Content="대두" Margin="4"/>
+                                            <CheckBox Content="밀" Margin="4"/>
+                                            <CheckBox Content="조개류" Margin="4"/>
+                                            <CheckBox Content="새우" Margin="4"/>
+                                            <CheckBox Content="게" Margin="4"/>
+                                            <CheckBox Content="고등어" Margin="4"/>
+                                            <CheckBox Content="굴" Margin="4"/>
+                                            <CheckBox Content="복숭아" Margin="4"/>
+                                            <CheckBox Content="호두" Margin="4"/>
+                                            <CheckBox Content="아몬드" Margin="4"/>
+                                            <CheckBox Content="참깨" Margin="4"/>
+                                            <CheckBox Content="소고기" Margin="4"/>
+                                            <CheckBox Content="닭고기" Margin="4"/>
+                                            <CheckBox Content="콩류(기타)" Margin="4"/>
+                                        </WrapPanel>
+                                    </ScrollViewer>
+                                </Grid>
+
+                                <StackPanel Grid.Row="3" Orientation="Vertical" Margin="0,8,0,0">
+                                    <TextBlock Text="선호 메모" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtPatientNote" AcceptsReturn="True" Height="80" TextWrapping="Wrap"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,8,0,0">
+                                        <Button x:Name="BtnSavePatient"
+                                                Content="💾 신규 피급식자 DB 등록"
+                                                Background="#2563EB"
+                                                Foreground="White"
+                                                FontWeight="Bold"
+                                                Style="{StaticResource PrimaryButtonBase}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 우측 리스트 영역 -->
+                        <StackPanel Grid.Column="2" Grid.Row="0" Grid.RowSpan="3" Orientation="Vertical">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+                                <TextBox x:Name="TxtSearchPatient" Width="300" Height="30" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnSearchPatient" Content="🔍 검색" Height="30" VerticalAlignment="Center" Style="{StaticResource SecondaryButton}"/>
+                            </StackPanel>
+
+                            <DataGrid x:Name="DgPatients" AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column" RowHeight="32" Margin="0,0,0,8">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
+                                    <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="분류" Binding="{Binding Category}" Width="120"/>
+                                    <DataGridTextColumn Header="메모" Binding="{Binding Note}" Width="220"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button x:Name="BtnUpdatePatient" Content="✏️ 정보 수정" Margin="4" Style="{StaticResource SecondaryButton}"/>
+                                <Button x:Name="BtnDeletePatient" Content="🗑️ 명단 삭제" Margin="4" Style="{StaticResource SecondaryButton}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- 탭 2: 실시간 식단 필터 모니터링 -->
+                <TabItem Header="🚨 실시간 식단 필터 모니터링" Padding="8">
+                    <Grid Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 상단: 날짜 선택 + 스캔 버튼 -->
+                        <StackPanel Grid.ColumnSpan="2" Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                            <DatePicker x:Name="DpMonitorDate" Height="30" Margin="0,0,12,0"/>
+                            <Button x:Name="BtnScanAllergy"
+                                    Content="⚡ 알러지 위험 요인 스캔 프로세스 실행"
+                                    Background="#EF4444"
+                                    Foreground="White"
+                                    FontWeight="Bold"
+                                    Style="{StaticResource PrimaryButtonBase}"/>
+                        </StackPanel>
+
+                        <!-- 하단 좌측: 당일 메뉴 성분표 -->
+                        <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource CardBorderStyle}" Margin="4" Padding="12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="당일 메뉴 성분표" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <DataGrid x:Name="DgDailyMenu" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="28" Margin="0,0,0,8">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="메뉴명" Binding="{Binding MenuName}" Width="*"/>
+                                        <DataGridTextColumn Header="성분" Binding="{Binding Ingredients}" Width="220"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <Button x:Name="BtnManualMenuInput" Content="➕ 신규 메뉴 수동 등록" HorizontalAlignment="Left" Grid.Row="2" Style="{StaticResource SecondaryButton}"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- 하단 우측: 알러지 환자 추출 및 대체 제안 -->
+                        <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Margin="4" Padding="12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="알러지 환자 추출 및 대체 메뉴 제안" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <DataGrid x:Name="DgAllergicMatches" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="28" Margin="0,0,0,8">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="환자명" Binding="{Binding PatientName}" Width="*"/>
+                                        <DataGridTextColumn Header="위험성분" Binding="{Binding RiskIngredients}" Width="220"/>
+                                        <DataGridTextColumn Header="제안 메뉴" Binding="{Binding SuggestedAlternative}" Width="220"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <Button x:Name="BtnConfirmAlternativeMenu"
+                                        Content="🔄 대체 식단 승인 및 최종 확정"
+                                        Background="#10B981"
+                                        Foreground="White"
+                                        FontWeight="Bold"
+                                        Style="{StaticResource PrimaryButtonBase}"
+                                        HorizontalAlignment="Left"
+                                        Grid.Row="2"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Border>
+    </Grid>
+</Window>
