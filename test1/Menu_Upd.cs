@@ -74,5 +74,15 @@ namespace test1
             string result = string.Join(", ", selectedItems.Cast<string>());
             MessageBox.Show("선택된 재료: " + result);
         }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }
