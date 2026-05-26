@@ -4,19 +4,23 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading; // <-- OAuth 비동기 처리를 위해 추가
 using System.Windows.Forms;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 using Google.Apis.Services;
+using Google.Apis.Util.Store; // <-- 인증 토큰 저장을 위해 추가
+using Microsoft.VisualBasic.FileIO;
 
 namespace test1
 {
     public partial class test11 : Form
     {
-        // 구글 시트 정보 (본인의 것으로 변경 필요)
         private string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private string jsonKeyPath = @"C:\google\Google_key.json"; // 구글에서 받은 인증키 파일 경로
+
+        // [수정] 서비스 계정 키 대신 구글 클라우드에서 받은 '클라이언트 비밀번호 JSON' 경로를 적어줍니다.
+        private string clientSecretPath = @"C:\google\client_secret.json";
 
         public test11()
         {
@@ -24,13 +28,9 @@ namespace test1
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         }
 
-        // [공통 로직] txtSearch 텍스트박스에서 사용자가 입력한 시트 이름을 가져옵니다.
         private string GetTargetSheetName()
         {
-            // 실제 이름인 txtSearch를 반영했습니다.
             string sheetName = txtSearch.Text.Trim();
-
-            // 만약 아무것도 입력하지 않았다면 경고를 띄우고 기본값으로 Sheet1을 지정합니다.
             if (string.IsNullOrEmpty(sheetName))
             {
                 MessageBox.Show("시트 이름을 입력하지 않아 기본값('Sheet1')으로 진행합니다.", "안내");
@@ -39,13 +39,11 @@ namespace test1
             return sheetName;
         }
 
-        // 1. 시트 불러오기 버튼 클릭 이벤트
         private void btnLoad_Click(object sender, EventArgs e)
         {
             LoadDataFromGoogleSheet();
         }
 
-        // 2. CSV 업로드 버튼 클릭 이벤트
         private void btnUpload_Click(object sender, EventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog { Filter = "CSV 파일 (*.csv)|*.csv" };
@@ -55,26 +53,31 @@ namespace test1
             }
         }
 
-        // 구글 시트에 내가 입력한 시트 이름으로 CSV 업로드
         private void UploadCsvToGoogleSheet(string filePath)
         {
             try
             {
                 var service = GetSheetsService();
-                var lines = File.ReadAllLines(filePath, Encoding.GetEncoding("euc-kr"));
-
-                // txtSearch에 입력한 시트 이름을 가져옴
                 string userSheetName = GetTargetSheetName();
-
                 var valueRange = new ValueRange { Values = new List<IList<object>>() };
-                foreach (var line in lines)
+
+                using (TextFieldParser parser = new TextFieldParser(filePath, Encoding.GetEncoding("euc-kr")))
                 {
-                    valueRange.Values.Add(line.Split(',').Cast<object>().ToList());
+                    parser.TextFieldType = FieldType.Delimited;
+                    parser.SetDelimiters(",");
+                    parser.HasFieldsEnclosedInQuotes = true;
+
+                    while (!parser.EndOfData)
+                    {
+                        string[] fields = parser.ReadFields();
+                        if (fields != null)
+                        {
+                            valueRange.Values.Add(fields.Cast<object>().ToList());
+                        }
+                    }
                 }
 
-                // 입력한 시트 이름의 A1 셀부터 데이터 저장 (예: "과일목록!A1")
                 string targetRange = $"{userSheetName}!A1";
-
                 var updateRequest = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, targetRange);
                 updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
                 updateRequest.Execute();
@@ -83,18 +86,15 @@ namespace test1
             }
             catch (Exception ex)
             {
-                MessageBox.Show("업로드 에러: " + ex.Message + "\n\n구글 시트에 해당 이름의 탭이 실제로 존재하는지 확인해 주세요.");
+                MessageBox.Show("업로드 에러: " + ex.Message);
             }
         }
 
-        // 구글 시트에서 내가 입력한 시트 이름의 데이터 가져오기
         private void LoadDataFromGoogleSheet()
         {
             try
             {
                 var service = GetSheetsService();
-
-                // txtSearch에 입력한 시트 이름을 가져옴
                 string userSheetName = GetTargetSheetName();
                 string targetRange = $"{userSheetName}!A1:Z1000";
 
@@ -126,18 +126,32 @@ namespace test1
             }
             catch (Exception ex)
             {
-                MessageBox.Show("불러오기 에러: " + ex.Message + "\n\n구글 시트에 해당 이름의 탭이 실제로 존재하는지 확인해 주세요.");
+                MessageBox.Show("불러오기 에러: " + ex.Message);
             }
         }
 
-        // 구글 인증 서비스 생성
+        // [핵심 핵심 핵심수정] 구글 OAuth 2.0 사용자 인증 서비스 생성
         private SheetsService GetSheetsService()
         {
-            GoogleCredential credential;
-            using (var stream = new FileStream(jsonKeyPath, FileMode.Open, FileAccess.Read))
+            UserCredential credential;
+
+            // 구글 클라우드에서 다운로드한 client_secret.json 파일을 읽습니다.
+            using (var stream = new FileStream(clientSecretPath, FileMode.Open, FileAccess.Read))
             {
-                credential = GoogleCredential.FromStream(stream).CreateScoped(SheetsService.Scope.Spreadsheets);
+                // 로그인 완료 후 발급받은 액세스 토큰을 저장할 PC 내부 폴더 경로입니다.
+                // "MyWorkspace" 부분은 프로그램에 맞게 자유롭게 이름을 바꾸셔도 됩니다.
+                string credPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".credentials/sheets.googleapis.com-MyWorkspace.json");
+
+                // 브라우저를 열어 구글 로그인을 진행하고 인증을 획득합니다.
+                credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
+                    GoogleClientSecrets.FromStream(stream).Secrets,
+                    new[] { SheetsService.Scope.Spreadsheets }, // 시트 읽기/쓰기 권한 요청
+                    "user", // 필요 시 "user" 대신 로그인한 사원ID 등을 넣으면 계정별 토큰 분리 관리가 가능합니다.
+                    CancellationToken.None,
+                    new FileDataStore(credPath, true)).Result;
             }
+
+            // 인증된 사용자의 권한으로 구글 시트 서비스 객체를 생성하여 반환합니다.
             return new SheetsService(new BaseClientService.Initializer()
             {
                 HttpClientInitializer = credential,

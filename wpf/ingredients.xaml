@@ -52,6 +52,16 @@
         </Border>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,20">
+
+            <TextBlock Text="📄 선택된 시트:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,0"/>
+            <ComboBox x:Name="cmbSheets" Width="160" Height="40" VerticalContentAlignment="Center" Margin="0,0,15,0" FontSize="13" Foreground="#2D3748">
+                <ComboBox.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </ComboBox.Resources>
+            </ComboBox>
+
             <Button x:Name="btnUpload" Content="📤 시트에 업로드" Click="btnUpload_Click"
                     Width="140" Height="40" Background="#3182CE" BorderThickness="0" 
                     Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
