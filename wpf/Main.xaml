@@ -3,233 +3,133 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:wpf"
         mc:Ignorable="d"
-        Title="알러지 케어 맞춤형 식단 관리 시스템" Height="768" Width="1366"
-        WindowStartupLocation="CenterScreen" Background="#F5F6FA">
+        Title="스마트 급식 및 알러지 케어 솔루션" Height="800" Width="1400"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F6FA"
+        FontFamily="Segoe UI, Malgun Gothic">
+
+    <Window.Resources>
+        <Style x:Key="SidebarButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="46"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="6" 
+                                Padding="15,0">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#EDF2F7"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <!-- 사이드바 너비: 250px -->
-            <ColumnDefinition Width="250"/>
-            <!-- 메인 콘텐츠 영역 -->
+            <ColumnDefinition Width="260"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- ========================================== -->
-        <!-- 1. 왼쪽 사이드 내비게이션 메뉴 -->
-        <!-- ========================================== -->
-        <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0">
-            <Grid>
+        <Border Grid.Column="0" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0">
+            <Grid Margin="20,25">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="80"/>
-                    <!-- 로고 영역 -->
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="40"/>
                     <RowDefinition Height="*"/>
-                    <!-- 메뉴 리스트 -->
-                    <RowDefinition Height="60"/>
-                    <!-- 하단 상태 표시 -->
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- 로고 타이틀 -->
-                <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="20,0">
-                    <TextBlock Text="AllergyCare" FontSize="22" FontWeight="Bold" Foreground="#4A90E2"/>
-                    <TextBlock Text="식단 관리 시스템 v1.0" FontSize="11" Foreground="#A0AEC0" Margin="2,2,0,0"/>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="32" Height="32" Fill="#4A90E2" Margin="0,0,10,0"/>
+                    <StackPanel>
+                        <TextBlock Text="MealCare AI" FontSize="18" FontWeight="Bold" Foreground="#1A202C"/>
+                        <TextBlock Text="v2.0 Enterprise" FontSize="11" Foreground="#A0AEC0" Margin="1,0,0,0"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- 메뉴 버튼들 -->
-                <StackPanel Grid.Row="1" Margin="10,20,10,0">
-                    <!-- 현재 선택된 메뉴 스타일 (Background 부여) -->
-                    <Button Background="#EBF8FF" Foreground="#2B6CB0" BorderThickness="0" Height="45" Margin="0,2" Padding="15,0" HorizontalContentAlignment="Left">
-                        <TextBlock Text="🏠 메인 대시보드" FontSize="14" FontWeight="SemiBold"/>
-                    </Button>
-                    <Button Background="Transparent" Foreground="#4A5568" BorderThickness="0" Height="45" Margin="0,2" Padding="15,0" HorizontalContentAlignment="Left">
-                        <TextBlock Text="⚙️ 식단 자동 조합" FontSize="14"/>
-                    </Button>
-                    <Button Background="Transparent" Foreground="#4A5568" BorderThickness="0" Height="45" Margin="0,2" Padding="15,0" HorizontalContentAlignment="Left">
-                        <TextBlock Text="📂 메뉴 및 식재료 DB" FontSize="14"/>
-                    </Button>
-                    <Button Background="Transparent" Foreground="#4A5568" BorderThickness="0" Height="45" Margin="0,2" Padding="15,0" HorizontalContentAlignment="Left">
-                        <TextBlock Text="👥 피급식자 관리" FontSize="14"/>
-                    </Button>
-                    <Button Background="Transparent" Foreground="#4A5568" BorderThickness="0" Height="45" Margin="0,2" Padding="15,0" HorizontalContentAlignment="Left">
-                        <TextBlock Text="💵 원가 / 소요량 계산" FontSize="14"/>
-                    </Button>
-                    <Button Background="Transparent" Foreground="#4A5568" BorderThickness="0" Height="45" Margin="0,2" Padding="15,0" HorizontalContentAlignment="Left">
-                        <TextBlock Text="📅 이벤트 달력" FontSize="14"/>
-                    </Button>
-                </StackPanel>
+                <StackPanel Grid.Row="2" VerticalAlignment="Top" Margin="0,10,0,0">
 
-                <!-- 하단 구글 스프레드 시트 연결 상태 표시 바 -->
-                <Border Grid.Row="2" Background="#EDF2F7" CornerRadius="5" Margin="10" Padding="10,0">
-                    <Grid VerticalAlignment="Center">
+                    <Button x:Name="BtnDashboard" Style="{StaticResource SidebarButtonStyle}" Click="BtnDashboard_Click">
                         <StackPanel Orientation="Horizontal">
-                            <!-- 연결 상태 LED 효과 (초록색) -->
-                            <Ellipse Width="8" Height="8" Fill="#48BB78" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="구글 시트 연동 완료" FontSize="12" Foreground="#4A5568" VerticalAlignment="Center"/>
+                            <TextBlock Text="🏠" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="종합 대시보드" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnMenuTable" Style="{StaticResource SidebarButtonStyle}" Click="BtnMenuTable_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚙️" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="식단 자동 조합" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnMenuManage" Style="{StaticResource SidebarButtonStyle}" Click="BtnMenuManage_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🍳" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="메뉴(레시피) 관리" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnIngredientsDb" Style="{StaticResource SidebarButtonStyle}" Click="BtnIngredientsDb_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🌿" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="식재료 원천 DB" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnManagement" Style="{StaticResource SidebarButtonStyle}" Click="BtnManagement_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="👥" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="피급식자 알러지 관리" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnCalculate" Style="{StaticResource SidebarButtonStyle}" Click="BtnCalculate_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="💵" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="원가 / 소요량 계산" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="BtnCalendar" Style="{StaticResource SidebarButtonStyle}" Click="BtnCalendar_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📅" FontSize="16" Margin="0,0,12,0"/>
+                            <TextBlock Text="이벤트 및 절기 달력" FontSize="14" Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Button>
+
+                </StackPanel>
+
+                <Border Grid.Row="3" Background="#F7FAFC" CornerRadius="8" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Ellipse Grid.Column="0" Width="36" Height="36" Fill="#CBD5E0" Margin="0,0,10,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="영양사 최고관리자" FontSize="13" FontWeight="SemiBold" Foreground="#2D3748"/>
+                            <TextBlock Text="영양관리부" FontSize="11" Foreground="#718096"/>
                         </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- ========================================== -->
-        <!-- 2. 오른쪽 메인 대시보드 콘텐츠 영역 -->
-        <!-- ========================================== -->
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-            <Grid Margin="30">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <!-- 상단 타이틀 -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- 요약 카드 (위젯) -->
-                    <RowDefinition Height="*"/>
-                    <!-- 메인 콘텐츠 (식단 / 알러지) -->
-                </Grid.RowDefinitions>
-
-                <!-- 상단 타이틀 및 오늘 날짜 -->
-                <Grid Grid.Row="0" Margin="0,0,0,25">
-                    <TextBlock Text="대시보드" FontSize="26" FontWeight="Bold" Foreground="#1A202C"/>
-                    <TextBlock Text="오늘 날짜: 2026년 5월 24일 (일)" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="14" Foreground="#718096"/>
-                </Grid>
-
-                <!-- 상단 요약 카드 (3열 배열) -->
-                <Grid Grid.Row="1" Margin="0,0,0,25">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- 카드 1: 등록 피급식자 -->
-                    <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="10" Padding="20" Margin="0,0,15,0" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="총 관리 피급식자 수" FontSize="14" Foreground="#718096"/>
-                            <TextBlock Text="128 명" FontSize="28" FontWeight="Bold" Foreground="#2D3748" Margin="0,10,0,0"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 카드 2: 알러지 보유자 -->
-                    <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="10" Padding="20" Margin="10,0,10,0" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="주의 필요 알러지 환자" FontSize="14" Foreground="#718096"/>
-                            <TextBlock Text="24 명" FontSize="28" FontWeight="Bold" Foreground="#E53E3E" Margin="0,10,0,0"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 카드 3: 식단 생성 상태 -->
-                    <Border Grid.Column="2" Background="#FFFFFF" CornerRadius="10" Padding="20" Margin="15,0,0,0" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="금일 식단 구성 상태" FontSize="14" Foreground="#718096"/>
-                            <TextBlock Text="구성 완료 (대치 3건)" FontSize="24" FontWeight="Bold" Foreground="#3182CE" Margin="0,13,0,0"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <!-- 메인 하단 콘텐츠: 오늘 식단 및 알러지 필터링 대치 보드 -->
-                <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*"/>
-                        <!-- 오늘의 기본 식단 -->
-                        <ColumnDefinition Width="3*"/>
-                        <!-- 알러지 대치 현황 -->
-                    </Grid.ColumnDefinitions>
-
-                    <!-- 왼쪽: 오늘의 기본 식단 카드 -->
-                    <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="10" Padding="25" Margin="0,0,15,0" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Text="🍱 오늘의 기본 식단" FontSize="18" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,20"/>
-
-                            <!-- 식단 리스트 표기 영역 -->
-                            <StackPanel Grid.Row="1" VerticalAlignment="Center">
-                                <Border Background="#F7FAFC" Padding="15" Margin="0,5" CornerRadius="5">
-                                    <TextBlock Text="🍚 밥 : 발아현미밥" FontSize="15" FontWeight="Medium"/>
-                                </Border>
-                                <Border Background="#F7FAFC" Padding="15" Margin="0,5" CornerRadius="5">
-                                    <TextBlock Text="🍖 메인 : 땅콩 소스 닭강정" FontSize="15" FontWeight="Medium" Foreground="#DD6B20"/>
-                                </Border>
-                                <Border Background="#F7FAFC" Padding="15" Margin="0,5" CornerRadius="5">
-                                    <TextBlock Text="🥗 반찬 : 삼색나물무침" FontSize="15" FontWeight="Medium"/>
-                                </Border>
-                                <Border Background="#F7FAFC" Padding="15" Margin="0,5" CornerRadius="5">
-                                    <TextBlock Text="🍲 국 : 새우 완탕 국" FontSize="15" FontWeight="Medium" Foreground="#DD6B20"/>
-                                </Border>
-                                <Border Background="#F7FAFC" Padding="15" Margin="0,5" CornerRadius="5">
-                                    <TextBlock Text="🍮 디저트 : 요구르트 푸딩" FontSize="15" FontWeight="Medium"/>
-                                </Border>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <!-- 오른쪽: 실시간 알러지 필터링 & 식단 대치 현황 -->
-                    <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="10" Padding="25" Margin="15,0,0,0" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-
-                            <StackPanel Grid.Row="0" Margin="0,0,0,15">
-                                <TextBlock Text="⚠️ 알러지 환자별 자동 대치 식단" FontSize="18" FontWeight="Bold" Foreground="#2D3748"/>
-                                <TextBlock Text="시스템 규칙 및 구글 DB 기반으로 위험 요소를 필터링한 결과입니다." FontSize="12" Foreground="#A0AEC0" Margin="0,4,0,0"/>
-                            </StackPanel>
-
-                            <!-- 대치 리스트 (DataGrid 또는 Custom List) -->
-                            <ListBox Grid.Row="1" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-
-                                <!-- 샘플 대치 아이템 1 -->
-                                <ListBoxItem Margin="0,0,0,12" Padding="0">
-                                    <Border Background="#FFF5F5" BorderBrush="#FED7D7" BorderThickness="1" CornerRadius="8" Padding="15" Width="580">
-                                        <Grid>
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Border Background="#2E7D32" CornerRadius="3" Padding="6,2">
-                                                        <TextBlock Text="견과류 알러지" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                                                    </Border>
-                                                    <TextBlock Text="대상자: 김철수 외 4명" FontSize="13" FontWeight="Bold" Margin="10,0,0,0" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                                <!-- 변경 전/후 비교 -->
-                                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                                    <TextBlock Text="기본 메뉴: 땅콩 소스 닭강정" FontSize="13" Foreground="#718096" TextDecorations="StrikeThrough"/>
-                                                    <TextBlock Text=" ▶ " FontSize="13" Foreground="#A0AEC0" Margin="10,0"/>
-                                                    <TextBlock Text="대치 메뉴: 달콤 마늘 닭강정" FontSize="13" FontWeight="Bold" Foreground="#38A169"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </ListBoxItem>
-
-                                <!-- 샘플 대치 아이템 2 -->
-                                <ListBoxItem Margin="0,0,0,12" Padding="0">
-                                    <Border Background="#FFF5F5" BorderBrush="#FED7D7" BorderThickness="1" CornerRadius="8" Padding="15" Width="580">
-                                        <Grid>
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Border Background="#2E7D32" CornerRadius="3" Padding="6,2">
-                                                        <TextBlock Text="갑각류 알러지" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                                                    </Border>
-                                                    <TextBlock Text="대상자: 이영희 외 2명" FontSize="13" FontWeight="Bold" Margin="10,0,0,0" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                                <!-- 변경 전/후 비교 -->
-                                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                                    <TextBlock Text="기본 메뉴: 새우 완탕 국" FontSize="13" Foreground="#718096" TextDecorations="StrikeThrough"/>
-                                                    <TextBlock Text=" ▶ " FontSize="13" Foreground="#A0AEC0" Margin="10,0"/>
-                                                    <TextBlock Text="대치 메뉴: 맑은 계란 완탕 국" FontSize="13" FontWeight="Bold" Foreground="#38A169"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </ListBoxItem>
-
-                            </ListBox>
-                        </Grid>
-                    </Border>
-                </Grid>
-            </Grid>
-        </ScrollViewer>
+        <Grid Grid.Column="1">
+            <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden"/>
+        </Grid>
     </Grid>
 </Window>
