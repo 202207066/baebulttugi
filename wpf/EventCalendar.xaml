@@ -1,0 +1,77 @@
+﻿<Page x:Class="wpf.EventCalendar"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:wpf"
+      mc:Ignorable="d" 
+      Title="EventCalendar" Height="650" Width="950"
+      Background="#F5F6FA">
+
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <StackPanel>
+                <TextBlock Text="이벤트 및 절기 달력" FontSize="24" FontWeight="Bold" Foreground="#1A202C"/>
+                <TextBlock Text="학교/기업의 주요 이벤트, 학사 일정 및 전통 절기별 맞춤 식단 제안 요소를 관리합니다." FontSize="12" Foreground="#A0AEC0" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="10" Padding="20" Margin="0,0,15,0" BorderBrush="#E2E8F0" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="📅 스케줄러" FontSize="16" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,15"/>
+
+                    <Calendar Grid.Row="1" x:Name="MainCalendar" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0">
+                    </Calendar>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="10" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="🔍 일별 세부 정보" FontSize="16" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,10"/>
+                    <Separator Grid.Row="1" Background="#E2E8F0" Margin="0,0,0,15"/>
+
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="선택된 날짜:" FontSize="13" Foreground="#718096" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="txtSelectedDate" Text="2026년 05월 26일" FontSize="18" FontWeight="Bold" Foreground="#3182CE" Margin="0,0,0,20"/>
+
+                        <TextBlock Text="📌 등록된 급식 이벤트 / 특이 절기" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,8"/>
+                        <Border Background="#F7FAFC" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                            <TextBlock Text="💡 단오 (전통 절기 맞춤 수리취떡 제공 권장)" FontSize="13" Foreground="#2D3748" TextWrapping="Wrap"/>
+                        </Border>
+                    </StackPanel>
+
+                    <Button Grid.Row="4" x:Name="btnAddEvent" Content="➕ 새 일정 등록" Height="40" Background="#3182CE" BorderThickness="0" Foreground="White" FontWeight="Bold">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="6"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>

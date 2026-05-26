@@ -47,7 +47,7 @@ namespace wpf
             MainFrame.Navigate(new Uri("Menu_table.xaml", UriKind.Relative));
         }
 
-        // 🍳 3. 메뉴(레시피) 관리 버튼 클릭 이벤트 (★방금 만든 MenuInputPage 연동 완료★)
+        // 🍳 3. 메뉴(레시피) 관리 버튼 클릭 이벤트
         private void BtnMenuManage_Click(object sender, RoutedEventArgs e)
         {
             ResetAllButtonsActive();
@@ -86,13 +86,21 @@ namespace wpf
             MessageBox.Show("원가 및 소요량 계산 페이지를 로드합니다. (준비 중)", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        // 📅 7. 이벤트 달력 버튼 클릭 이벤트
+        // 📅 7. 이벤트 및 절기 달력 버튼 클릭 이벤트 (★EventCalendar 연동 수정 완료★)
         private void BtnCalendar_Click(object sender, RoutedEventArgs e)
         {
             ResetAllButtonsActive();
             SetButtonActive(BtnCalendar, true);
 
-            MessageBox.Show("이벤트 달력 페이지를 로드합니다. (준비 중)", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            try
+            {
+                // 팝업 창을 띄우는 대신, 새로 만든 EventCalendar.xaml 페이지를 프레임에 주입합니다.
+                MainFrame.Navigate(new Uri("EventCalendar.xaml", UriKind.Relative));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("EventCalendar.xaml 페이지를 전환하는 중 오류가 발생했습니다.\n" + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
 
@@ -188,7 +196,7 @@ namespace wpf
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
 
-            // 3-1. ① 왼쪽: 오늘의 기본 식단 구성
+            // 3-1. ① ① 왼쪽: 오늘의 기본 식단 구성
             Border leftCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(25), Margin = new Thickness(0, 0, 15, 0), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
             Grid leftGrid = new Grid();
             leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
