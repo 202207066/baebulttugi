@@ -1,0 +1,123 @@
+﻿<Page x:Class="wpf.CalculatePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:wpf"
+      mc:Ignorable="d" 
+      Title="CalculatePage" Height="730" Width="1130"
+      Background="#F5F6FA">
+
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <StackPanel>
+                <TextBlock Text="💵 원가 및 식재료 소요량 산출" FontSize="24" FontWeight="Bold" Foreground="#1A202C"/>
+                <TextBlock Text="선택한 식단레시피와 예상 피급식자 수, 목표 단가를 바탕으로 실시간 소요량과 예산을 시뮬레이션합니다." FontSize="12" Foreground="#A0AEC0" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="20" Margin="0,0,0,20" BorderBrush="#E2E8F0" BorderThickness="1">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Margin="0,0,20,0">
+                    <TextBlock Text="식단(메뉴) 선택" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,6"/>
+                    <ComboBox x:Name="cbTargetMenu" Width="260" Height="38" Padding="10,0" VerticalContentAlignment="Center" Background="#F7FAFC" SelectedIndex="0">
+                        <ComboBoxItem Content="[A코스] 불고기정식 + 두부된장국 + 수리취떡"/>
+                        <ComboBoxItem Content="[B코스] 닭갈비덮밥 + 계란파국 + 백김치"/>
+                        <ComboBoxItem Content="[특식] 단오 맞춤 절기식단 (앵두화채 포함)"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,20,0">
+                    <TextBlock Text="예상 피급식자 수 (명)" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,6"/>
+                    <TextBox x:Name="txtHeadCount" Text="300" Width="110" Height="38" VerticalContentAlignment="Center" Padding="10,0" FontSize="14" FontWeight="Bold" Foreground="#3182CE" Background="#F7FAFC" BorderBrush="#E2E8F0"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,20,0">
+                    <TextBlock Text="인당 목표 급식비 (원)" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,6"/>
+                    <TextBox x:Name="txtBudgetPerPerson" Text="5000" Width="130" Height="38" VerticalContentAlignment="Center" Padding="10,0" FontSize="14" FontWeight="Bold" Foreground="#48BB78" Background="#F7FAFC" BorderBrush="#E2E8F0"/>
+                </StackPanel>
+
+                <Button x:Name="btnRunCalculate" Content="⚡ 실시간 원가 산출" Click="btnRunCalculate_Click" Width="150" Height="38" Margin="0,20,0,0" Background="#3182CE" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <UniformGrid Grid.Row="2" Columns="3" Margin="0,0,0,20">
+            <Border Background="White" CornerRadius="12" Padding="20" Margin="0,0,10,0" BorderBrush="#E2E8F0" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="📦 총 식재료 품목 수" FontSize="13" Foreground="#718096" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="txtTotalCount" Text="0 종" FontSize="24" FontWeight="Bold" Foreground="#3182CE" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="White" CornerRadius="12" Padding="20" Margin="5,0,5,0" BorderBrush="#E2E8F0" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="🍽️ 1인당 실제 식단 원가" FontSize="13" Foreground="#718096" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="txtCostPerPerson" Text="₩ 0" FontSize="24" FontWeight="Bold" Foreground="#2D3748" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="White" CornerRadius="12" Padding="20" Margin="10,0,0,0" BorderBrush="#E2E8F0" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="💰 총 예상 소요 원가" FontSize="13" Foreground="#718096" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="txtTotalCost" Text="₩ 0" FontSize="24" FontWeight="Bold" Foreground="#E53E3E" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Border Grid.Row="3" Background="White" CornerRadius="12" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="📋 식재료별 세부 소요량 명세표" FontSize="15" FontWeight="Bold" Foreground="#2D3748" VerticalAlignment="Center"/>
+                    <Button x:Name="btnExportExcel" Content="📥 Excel 파일 내보내기" Click="btnExportExcel_Click" HorizontalAlignment="Right" Width="160" Height="32" Background="#48BB78" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </Grid>
+
+                <DataGrid Grid.Row="1" x:Name="dgCalculationResult" AutoGenerateColumns="False" IsReadOnly="True" 
+                          Background="White" BorderThickness="0" RowHeight="35" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7">
+                    <DataGrid.Resources>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#F7FAFC"/>
+                            <Setter Property="Foreground" Value="#4A5568"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Padding" Value="10,8"/>
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                        </Style>
+                    </DataGrid.Resources>
+
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="식재료명" Binding="{Binding Name}" Width="2*"/>
+                        <DataGridTextColumn Header="분류" Binding="{Binding Category}" Width="1*"/>
+                        <DataGridTextColumn Header="1인당 소요량" Binding="{Binding UnitWeightDisplay}" Width="1.2*"/>
+                        <DataGridTextColumn Header="총 소요량" Binding="{Binding TotalWeightDisplay}" Width="1.5*"/>
+                        <DataGridTextColumn Header="시장 단가" Binding="{Binding UnitPriceDisplay}" Width="1.2*"/>
+                        <DataGridTextColumn Header="총 소요금액" Binding="{Binding TotalPriceDisplay}" Width="1.5*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

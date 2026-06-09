@@ -92,12 +92,22 @@ namespace wpf
         }
 
         // 💵 6. 원가 / 소요량 계산 버튼 클릭 이벤트
+        // 💵 6. 원가 / 소요량 계산 버튼 클릭 이벤트
         private void BtnCalculate_Click(object sender, RoutedEventArgs e)
         {
+            // 기존 사이드바 버튼 스타일 초기화 및 현재 버튼 활성화
             ResetAllButtonsActive();
             SetButtonActive(BtnCalculate, true);
 
-            MessageBox.Show("원가 및 소요량 계산 페이지를 로드합니다. (준비 중)", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+            try
+            {
+                // 💡 수정된 핵심 부분: 다른 버튼들과 똑같이 Uri 상대 경로 방식으로 통일!
+                MainFrame.Navigate(new Uri("CalculatePage.xaml", UriKind.Relative));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("CalculatePage.xaml 페이지를 로드하는 중 시스템 오류가 발생했습니다.\n" + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         // 📅 7. 이벤트 및 절기 달력 버튼 클릭 이벤트
