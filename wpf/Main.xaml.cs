@@ -19,22 +19,36 @@ namespace wpf
     /// </summary>
     public partial class Main : Window
     {
+        // 💡 구글 시트 데이터 서비스 객체 생성 (같은 네임스페이스이므로 바로 인식)
+        private readonly GoogleSheetsService _sheetsService = new GoogleSheetsService();
+
         public Main()
         {
             InitializeComponent();
 
-            // 프로그램이 실행될 때 첫 화면으로 메인 대시보드 UI를 동적으로 로드합니다.
-            LoadDefaultDashboard();
+            // 화면이 완전히 로드된 후 비동기 메서드를 안전하게 호출하기 위해 Loaded 이벤트를 연결합니다.
+            this.Loaded += Main_Loaded;
         }
 
-        // 🏠 1. 종합 대시보드 홈 버튼 클릭 이벤트
-        private void BtnDashboard_Click(object sender, RoutedEventArgs e)
+        // 🚀 프로그램 시작 시 실행되는 이벤트
+        private async void Main_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 홈 버튼 활성화 스타일 적용
+            ResetAllButtonsActive();
+            SetButtonActive(BtnDashboard, true);
+
+            // 첫 화면으로 구글 시트 데이터를 반영한 대시보드를 비동기로 로드합니다.
+            await LoadDefaultDashboardAsync();
+        }
+
+        // 🏠 1. 종합 대시보드 홈 버튼 클릭 이벤트 (비동기 처리 추가)
+        private async void BtnDashboard_Click(object sender, RoutedEventArgs e)
         {
             ResetAllButtonsActive();
             SetButtonActive(BtnDashboard, true);
 
             // 대시보드 화면 새로고침/전환
-            LoadDefaultDashboard();
+            await LoadDefaultDashboardAsync();
         }
 
         // ⚙️ 2. 식단 자동 조합 버튼 클릭 이벤트
@@ -86,7 +100,7 @@ namespace wpf
             MessageBox.Show("원가 및 소요량 계산 페이지를 로드합니다. (준비 중)", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        // 📅 7. 이벤트 및 절기 달력 버튼 클릭 이벤트 (★EventCalendar 연동 수정 완료★)
+        // 📅 7. 이벤트 및 절기 달력 버튼 클릭 이벤트
         private void BtnCalendar_Click(object sender, RoutedEventArgs e)
         {
             ResetAllButtonsActive();
@@ -160,10 +174,14 @@ namespace wpf
         }
 
         /// <summary>
-        /// 기존 Main.xaml의 대시보드 레이아웃 구조를 무너뜨리지 않고 Page 형태로 랩핑하여 Frame에 렌더링합니다.
+        /// 구글 스프레드시트에서 데이터를 비동기로 받아와 대시보드 UI를 동적으로 구성합니다.
         /// </summary>
-        private void LoadDefaultDashboard()
+        private async Task LoadDefaultDashboardAsync()
         {
+            // 1. 구글 시트 API를 통해 데이터 수신 (네트워크 통신 중에도 UI 멈춤 없음)
+            DashboardData dbData = await _sheetsService.GetDashboardDataAsync();
+
+            // 2. 동적 UI 레이아웃 생성 시작
             Page dashboardPage = new Page { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F5F6FA")) };
 
             ScrollViewer scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -172,31 +190,34 @@ namespace wpf
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            // 1. 타이틀 그리드 (대시보드 타이틀 & 날짜 표기)
+            // 2-1. 타이틀 그리드 (대시보드 타이틀 & PC 현재 실시간 날짜 표기)
             Grid titleGrid = new Grid { Margin = new Thickness(0, 0, 0, 25) };
             titleGrid.Children.Add(new TextBlock { Text = "대시보드", FontSize = 26, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A202C")) });
-            titleGrid.Children.Add(new TextBlock { Text = "오늘 날짜: 2026년 5월 24일 (일)", HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, FontSize = 14, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#718096")) });
+
+            // 날짜 표기를 PC의 현재 시간 시스템 날짜로 자동 연동되게 변경했습니다.
+            string todayText = DateTime.Now.ToString("yyyy년 MM월 dd일 (ddd)");
+            titleGrid.Children.Add(new TextBlock { Text = $"오늘 날짜: {todayText}", HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, FontSize = 14, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#718096")) });
             Grid.SetRow(titleGrid, 0);
             mainGrid.Children.Add(titleGrid);
 
-            // 2. 상단 요약 현황 카드 그리드 (3개 컬럼 배치)
+            // 2-2. 상단 요약 현황 카드 그리드 (★구글 시트 연동 실시간 데이터 반영★)
             Grid cardGrid = new Grid { Margin = new Thickness(0, 0, 0, 25) };
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            cardGrid.Children.Add(CreateWidgetCard("총 관리 피급식자 수", "128 명", "#2D3748", new Thickness(0, 0, 15, 0), 0));
-            cardGrid.Children.Add(CreateWidgetCard("주의 필요 알러지 환자", "24 명", "#E53E3E", new Thickness(10, 0, 10, 0), 1));
-            cardGrid.Children.Add(CreateWidgetCard("금일 식단 구성 상태", "구성 완료 (대치 3건)", "#3182CE", new Thickness(15, 0, 0, 0), 2, true));
+            cardGrid.Children.Add(CreateWidgetCard("총 관리 피급식자 수", dbData.TotalPatients, "#2D3748", new Thickness(0, 0, 15, 0), 0));
+            cardGrid.Children.Add(CreateWidgetCard("주의 필요 알러지 환자", dbData.AllergyPatients, "#E53E3E", new Thickness(10, 0, 10, 0), 1));
+            cardGrid.Children.Add(CreateWidgetCard("금일 식단 구성 상태", dbData.DietStatus, "#3182CE", new Thickness(15, 0, 0, 0), 2, true));
             Grid.SetRow(cardGrid, 1);
             mainGrid.Children.Add(cardGrid);
 
-            // 3. 하단 메인 콘텐츠 그리드 (오늘의 식단 2 : 알러지 대치 3 비율)
+            // 2-3. 하단 메인 콘텐츠 그리드 (오늘의 식단 2 : 알러지 대치 3 비율)
             Grid contentGrid = new Grid();
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
 
-            // 3-1. ① ① 왼쪽: 오늘의 기본 식단 구성
+            // 3-1. ① 왼쪽: 오늘의 기본 식단 구성 (★구글 시트 연동 실시간 데이터 반영★)
             Border leftCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(25), Margin = new Thickness(0, 0, 15, 0), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
             Grid leftGrid = new Grid();
             leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -204,18 +225,29 @@ namespace wpf
             leftGrid.Children.Add(new TextBlock { Text = "🍱 오늘의 기본 식단", FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D3748")), Margin = new Thickness(0, 0, 0, 20) });
 
             StackPanel menuStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            menuStack.Children.Add(CreateMenuBadge("🍚 밥 : 발아현미밥", "#2D3748"));
-            menuStack.Children.Add(CreateMenuBadge("🍖 메인 : 땅콩 소스 닭강정", "#DD6B20"));
-            menuStack.Children.Add(CreateMenuBadge("🥗 반찬 : 삼색나물무침", "#2D3748"));
-            menuStack.Children.Add(CreateMenuBadge("🍲 국 : 새우 완탕 국", "#DD6B20"));
-            menuStack.Children.Add(CreateMenuBadge("🍮 디저트 : 요구르트 푸딩", "#2D3748"));
+
+            // 시트에서 가져온 메뉴 리스트가 존재할 경우 반복문으로 동적 생성
+            if (dbData.TodayMenu != null && dbData.TodayMenu.Count > 0)
+            {
+                foreach (string menu in dbData.TodayMenu)
+                {
+                    // 단백질류나 메인 메뉴 성격의 키워드가 감지되면 주황색 강조색을 넣는 간단한 UI 로직 포함
+                    string colorHex = (menu.Contains("닭") || menu.Contains("고기") || menu.Contains("새우") || menu.Contains("탕")) ? "#DD6B20" : "#2D3748";
+                    menuStack.Children.Add(CreateMenuBadge(menu, colorHex));
+                }
+            }
+            else
+            {
+                menuStack.Children.Add(CreateMenuBadge("조회된 식단 데이터가 없습니다.", "#A0AEC0"));
+            }
+
             Grid.SetRow(menuStack, 1);
             leftGrid.Children.Add(menuStack);
             leftCard.Child = leftGrid;
             Grid.SetColumn(leftCard, 0);
             contentGrid.Children.Add(leftCard);
 
-            // 3-2. ② 오른쪽: 알러지 환자 대치 식단 목록 구성
+            // 3-2. ② 오른쪽: 알러지 환자 대치 식단 목록 구성 (필요시 차후 알러지 데이터 전용 시트 구조와 연동 확장 가능)
             Border rightCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(25), Margin = new Thickness(15, 0, 0, 0), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
             Grid rightGrid = new Grid();
             rightGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -242,7 +274,7 @@ namespace wpf
             scrollViewer.Content = mainGrid;
             dashboardPage.Content = scrollViewer;
 
-            // 최종적으로 완전하게 빌드된 Page 노드를 프레임에 로드합니다.
+            // 최종적으로 데이터가 완벽히 로딩 및 바인딩된 Page 노드를 프레임에 로드합니다.
             MainFrame.Navigate(dashboardPage);
         }
 
