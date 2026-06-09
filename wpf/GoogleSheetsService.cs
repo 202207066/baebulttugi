@@ -27,7 +27,8 @@ namespace wpf
     {
         // ⚠️ [필수 변경] 본인의 구글 스프레드시트 URL에 있는 고유 ID를 입력하세요.
         // 예: https://docs.google.com/spreadsheets/d/이부분이_스프레드시트_ID입니다/edit
-        private readonly string _spreadsheetId = "YOUR_SPREADSHEET_ID_HERE";
+        private readonly string _spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
+
 
         private readonly SheetsService _service;
 

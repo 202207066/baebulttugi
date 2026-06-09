@@ -427,3 +427,7 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# 구글 인증키 보안 유출 방지
+wpf/credentials.json
+
