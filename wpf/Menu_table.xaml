@@ -47,7 +47,6 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <Grid.ColumnDefinitions>
@@ -76,31 +75,31 @@
                         </Grid.Resources>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="탄수화물 적정량"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Tag="탄수화물 적정량 입력"/>
+                        <TextBox x:Name="TxtCarb" Grid.Row="0" Grid.Column="1" Tag="탄수화물 적정량 입력"/>
                         <TextBlock Grid.Row="0" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="단백질 적정량"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Tag="단백질 적정량 입력"/>
+                        <TextBox x:Name="TxtProtein" Grid.Row="1" Grid.Column="1" Tag="단백질 적정량 입력"/>
                         <TextBlock Grid.Row="1" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
 
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="지방 적정량"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" Tag="지방 적정량 입력"/>
+                        <TextBox x:Name="TxtFat" Grid.Row="2" Grid.Column="1" Tag="지방 적정량 입력"/>
                         <TextBlock Grid.Row="2" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
 
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="총 칼로리 권장량" Foreground="#4A90E2"/>
-                        <TextBox Grid.Row="3" Grid.Column="1" Tag="칼로리 적정량 입력" BorderBrush="#90CDF4" Background="#F0F8FF"/>
+                        <TextBox x:Name="TxtCalories" Grid.Row="3" Grid.Column="1" Tag="칼로리 적정량 입력" BorderBrush="#90CDF4" Background="#F0F8FF"/>
                         <TextBlock Grid.Row="3" Grid.Column="2" Text="kcal" Foreground="#A0AEC0" Margin="10,0,0,0"/>
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,30,0,0">
-                        <Button Content="초기화" Width="100" Height="40" Background="#EDF2F7" Foreground="#4A5568" BorderThickness="0" Margin="0,0,10,0">
+                        <Button Content="초기화" Click="BtnReset_Click" Width="100" Height="40" Background="#EDF2F7" Foreground="#4A5568" BorderThickness="0" Margin="0,0,10,0">
                             <Button.Resources>
                                 <Style TargetType="Border">
                                     <Setter Property="CornerRadius" Value="6"/>
                                 </Style>
                             </Button.Resources>
                         </Button>
-                        <Button Content="🤖 식단 자동 조합 실행" Width="180" Height="40" Background="#4A90E2" Foreground="White" BorderThickness="0" FontWeight="Bold">
+                        <Button Content="🤖 식단 자동 조합 실행" Click="BtnExecute_Click" Width="180" Height="40" Background="#4A90E2" Foreground="White" BorderThickness="0" FontWeight="Bold">
                             <Button.Resources>
                                 <Style TargetType="Border">
                                     <Setter Property="CornerRadius" Value="6"/>
