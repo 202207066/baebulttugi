@@ -21,7 +21,7 @@ namespace wpf
     public partial class Ingredients : Page
     {
         private string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private string clientSecretPath = @"C:\google\client_secret.json";
+        private string clientSecretPath = @"C:\google\credentials.json";
 
         public Ingredients()
         {
