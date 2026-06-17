@@ -5,7 +5,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:local="clr-namespace:wpf"
       mc:Ignorable="d" 
-      d:DesignHeight="688" d:DesignWidth="1116"
+      d:DesignHeight="850" d:DesignWidth="1116"
       Title="식단 자동 조합 설정">
 
     <Grid Margin="30">
@@ -36,80 +36,124 @@
                 </Button>
             </StackPanel>
 
-            <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="10" Padding="30" BorderBrush="#E2E8F0" BorderThickness="1" VerticalAlignment="Top">
-                <StackPanel>
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Border Background="#FFFFFF" CornerRadius="10" Padding="30" BorderBrush="#E2E8F0" BorderThickness="1" VerticalAlignment="Top">
+                    <StackPanel>
 
-                    <TextBlock Text="📊 영양소별 적정 기준량 설정" FontSize="18" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,25"/>
+                        <TextBlock Text="📊 영양소별 적정 기준량 설정" FontSize="18" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,25"/>
 
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="60"/>
-                        </Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="60"/>
+                            </Grid.ColumnDefinitions>
 
-                        <Grid.Resources>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="FontSize" Value="14"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                <Setter Property="Foreground" Value="#4A5568"/>
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                            </Style>
-                            <Style TargetType="TextBox">
-                                <Setter Property="Height" Value="40"/>
-                                <Setter Property="Background" Value="#F7FAFC"/>
-                                <Setter Property="BorderBrush" Value="#E2E8F0"/>
-                                <Setter Property="BorderThickness" Value="1"/>
-                                <Setter Property="Padding" Value="10,0"/>
-                                <Setter Property="VerticalContentAlignment" Value="Center"/>
-                                <Setter Property="FontSize" Value="14"/>
-                                <Setter Property="Margin" Value="0,6"/>
-                            </Style>
-                        </Grid.Resources>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="탄수화물 적정량"/>
-                        <TextBox x:Name="TxtCarb" Grid.Row="0" Grid.Column="1" Tag="탄수화물 적정량 입력"/>
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
-
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="단백질 적정량"/>
-                        <TextBox x:Name="TxtProtein" Grid.Row="1" Grid.Column="1" Tag="단백질 적정량 입력"/>
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="지방 적정량"/>
-                        <TextBox x:Name="TxtFat" Grid.Row="2" Grid.Column="1" Tag="지방 적정량 입력"/>
-                        <TextBlock Grid.Row="2" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="총 칼로리 권장량" Foreground="#4A90E2"/>
-                        <TextBox x:Name="TxtCalories" Grid.Row="3" Grid.Column="1" Tag="칼로리 적정량 입력" BorderBrush="#90CDF4" Background="#F0F8FF"/>
-                        <TextBlock Grid.Row="3" Grid.Column="2" Text="kcal" Foreground="#A0AEC0" Margin="10,0,0,0"/>
-                    </Grid>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,30,0,0">
-                        <Button Content="초기화" Click="BtnReset_Click" Width="100" Height="40" Background="#EDF2F7" Foreground="#4A5568" BorderThickness="0" Margin="0,0,10,0">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="6"/>
+                            <Grid.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="14"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Foreground" Value="#4A5568"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
                                 </Style>
-                            </Button.Resources>
-                        </Button>
-                        <Button Content="🤖 식단 자동 조합 실행" Click="BtnExecute_Click" Width="180" Height="40" Background="#4A90E2" Foreground="White" BorderThickness="0" FontWeight="Bold">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="6"/>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="Height" Value="40"/>
+                                    <Setter Property="Background" Value="#F7FAFC"/>
+                                    <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="Padding" Value="10,0"/>
+                                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                    <Setter Property="FontSize" Value="14"/>
+                                    <Setter Property="Margin" Value="0,6"/>
                                 </Style>
-                            </Button.Resources>
-                        </Button>
+                            </Grid.Resources>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="탄수화물 적정량"/>
+                            <TextBox x:Name="TxtCarb" Grid.Row="0" Grid.Column="1" Tag="탄수화물 적정량 입력"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="단백질 적정량"/>
+                            <TextBox x:Name="TxtProtein" Grid.Row="1" Grid.Column="1" Tag="단백질 적정량 입력"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="지방 적정량"/>
+                            <TextBox x:Name="TxtFat" Grid.Row="2" Grid.Column="1" Tag="지방 적정량 입력"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="g" Foreground="#A0AEC0" Margin="10,0,0,0"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="총 칼로리 권장량" Foreground="#4A90E2"/>
+                            <TextBox x:Name="TxtCalories" Grid.Row="3" Grid.Column="1" Tag="칼로리 적정량 입력" BorderBrush="#90CDF4" Background="#F0F8FF"/>
+                            <TextBlock Grid.Row="3" Grid.Column="2" Text="kcal" Foreground="#A0AEC0" Margin="10,0,0,0"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,30,0,0">
+                            <Button Content="초기화" Click="BtnReset_Click" Width="100" Height="40" Background="#EDF2F7" Foreground="#4A5568" BorderThickness="0" Margin="0,0,10,0">
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="6"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+                            <Button Content="🤖 식단 자동 조합 실행" Click="BtnExecute_Click" Width="180" Height="40" Background="#4A90E2" Foreground="White" BorderThickness="0" FontWeight="Bold">
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="6"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+                        </StackPanel>
+
+                        <Grid x:Name="ResultSection" Visibility="Collapsed" Margin="0,30,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="✨ AI 맞춤 추천 식단 결과" FontSize="16" FontWeight="Bold" Foreground="#2B6CB0" Margin="0,0,0,15"/>
+
+                            <DataGrid Grid.Row="1" x:Name="GridDietResult" AutoGenerateColumns="False" IsReadOnly="True" 
+                                      HeadersVisibility="Column" Background="White" RowHeight="40" GridLinesVisibility="Horizontal"
+                                      BorderBrush="#E2E8F0" HorizontalGridLinesBrush="#EDF2F7">
+                                <DataGrid.Resources>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#EDF2F7"/>
+                                        <Setter Property="Foreground" Value="#4A5568"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Padding" Value="10,8"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                    </Style>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Padding" Value="10,0"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="DataGridCell">
+                                                    <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                                                        <ContentPresenter VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="구분" Binding="{Binding DietName}" Width="100"/>
+                                    <DataGridTextColumn Header="식단 구성 (메뉴 조합)" Binding="{Binding MenuComposition}" Width="*"/>
+                                    <DataGridTextColumn Header="탄수화물" Binding="{Binding Carb, StringFormat={}{0}g}" Width="80"/>
+                                    <DataGridTextColumn Header="단백질" Binding="{Binding Protein, StringFormat={}{0}g}" Width="80"/>
+                                    <DataGridTextColumn Header="지방" Binding="{Binding Fat, StringFormat={}{0}g}" Width="80"/>
+                                    <DataGridTextColumn Header="칼로리" Binding="{Binding Calories, StringFormat={}{0}kcal}" Width="100"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
                     </StackPanel>
-
-                </StackPanel>
-            </Border>
+                </Border>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Page>
