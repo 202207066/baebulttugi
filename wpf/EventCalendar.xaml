@@ -5,8 +5,18 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
       xmlns:local="clr-namespace:wpf"
       mc:Ignorable="d" 
-      Title="EventCalendar" Height="650" Width="950"
+      Title="EventCalendar" Height="750" Width="1100"
       Background="#F5F6FA">
+
+    <Page.Resources>
+        <Style x:Key="PerfectFitCalendarDayButton" TargetType="CalendarDayButton">
+            <Setter Property="Width" Value="55"/>
+            <Setter Property="Height" Value="55"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
+    </Page.Resources>
 
     <Grid Margin="30">
         <Grid.RowDefinitions>
@@ -16,83 +26,95 @@
 
         <Grid Grid.Row="0" Margin="0,0,0,20">
             <StackPanel>
-                <TextBlock Text="이벤트 및 절기 달력" FontSize="24" FontWeight="Bold" Foreground="#1A202C"/>
-                <TextBlock Text="학교/기업의 주요 이벤트, 학사 일정 및 전통 절기별 맞춤 식단 제안 요소를 관리합니다." FontSize="12" Foreground="#A0AEC0" Margin="0,4,0,0"/>
+                <TextBlock Text="📅 이벤트 및 급식 스케줄러" FontSize="26" FontWeight="Bold" Foreground="#1A202C"/>
+                <TextBlock Text="학교/기업의 주요 이벤트(기념일), 오늘의 식단, 그리고 학사 일정을 한눈에 관리합니다." FontSize="14" Foreground="#A0AEC0" Margin="0,5,0,0"/>
             </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1.4*"/>
                 <ColumnDefinition Width="1*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="10" Padding="20" Margin="0,0,15,0" BorderBrush="#E2E8F0" BorderThickness="1">
+            <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="12" Padding="20" Margin="0,0,20,0" BorderBrush="#E2E8F0" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="📅 스케줄러" FontSize="16" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,15"/>
-                    <Calendar Grid.Row="1" x:Name="MainCalendar" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0"/>
+                    <TextBlock Grid.Row="0" Text="Select Date" FontSize="18" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,15"/>
+
+                    <Calendar Grid.Row="1" x:Name="MainCalendar" 
+                              HorizontalAlignment="Center" VerticalAlignment="Center" 
+                              BorderThickness="0" 
+                              CalendarDayButtonStyle="{StaticResource PerfectFitCalendarDayButton}"/>
                 </Grid>
             </Border>
 
-            <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="10" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+            <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="12" Padding="25" BorderBrush="#E2E8F0" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
 
-                    <TextBlock Grid.Row="0" Text="🔍 일별 세부 정보" FontSize="16" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,10"/>
-                    <Separator Grid.Row="1" Background="#E2E8F0" Margin="0,0,0,15"/>
+                        <TextBlock Text="오늘의 정보" FontSize="14" Foreground="#718096" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="txtSelectedDate" Text="날짜를 선택해주세요" FontSize="22" FontWeight="Bold" Foreground="#3182CE" Margin="0,0,0,20"/>
 
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="선택된 날짜:" FontSize="13" Foreground="#718096" Margin="0,0,0,4"/>
-                        <TextBlock x:Name="txtSelectedDate" Text="날짜를 선택해주세요" FontSize="18" FontWeight="Bold" Foreground="#3182CE" Margin="0,0,0,15"/>
+                        <Border Background="#FFF5F5" BorderBrush="#FEB2B2" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="🎉 오늘의 이벤트 및 절기" FontSize="14" FontWeight="Bold" Foreground="#C53030" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="txtHolidayEvent" Text="등록된 특별한 이벤트가 없습니다." FontSize="15" Foreground="#2D3748" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
 
-                        <TextBlock Text="📌 등록된 이벤트 리스트" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,8"/>
-                        <ListBox x:Name="lstEvents" MinHeight="100" MaxHeight="150" Background="#F7FAFC" BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,15" Padding="5" SelectionChanged="lstEvents_SelectionChanged"/>
+                        <Border Background="#F0FFF4" BorderBrush="#9AE6B4" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="🍱 오늘의 맞춤 식단" FontSize="14" FontWeight="Bold" Foreground="#276749" Margin="0,0,0,8"/>
+                                <TextBlock x:Name="txtTodayMenu" Text="식단 데이터를 불러와주세요." FontSize="15" Foreground="#2D3748" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
 
-                        <TextBlock Text="✏️ 일정 내용 입력" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,8"/>
-                        <TextBox x:Name="txtEventInput" Height="60" TextWrapping="Wrap" AcceptsReturn="True" Padding="8" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"/>
+                        <Separator Background="#E2E8F0" Margin="0,0,0,20"/>
+
+                        <TextBlock Text="📝 학사/개인 일정 관리" FontSize="16" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,10"/>
+
+                        <ListBox x:Name="lstEvents" SelectionChanged="lstEvents_SelectionChanged" MinHeight="120" MaxHeight="180" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,0,15" Padding="5" FontSize="14"/>
+
+                        <TextBox x:Name="txtEventInput" Height="80" TextWrapping="Wrap" AcceptsReturn="True" Padding="10" Background="#FFFFFF" BorderBrush="#CBD5E0" BorderThickness="1" FontSize="14"/>
+
+                        <Grid Margin="0,15,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0" x:Name="btnAddEvent" Click="btnAddEvent_Click" Content="➕ 등록" Height="45" Background="#3182CE" BorderThickness="0" Foreground="White" FontWeight="Bold" Margin="0,0,6,0" Padding="0" FontSize="14">
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="8"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <Button Grid.Column="1" x:Name="btnEditEvent" Click="btnEditEvent_Click" Content="🔄 수정" Height="45" Background="#48BB78" BorderThickness="0" Foreground="White" FontWeight="Bold" Margin="3,0,3,0" Padding="0" FontSize="14">
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="8"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+
+                            <Button Grid.Column="2" x:Name="btnDeleteEvent" Click="btnDeleteEvent_Click" Content="🗑️ 삭제" Height="45" Background="#E53E3E" BorderThickness="0" Foreground="White" FontWeight="Bold" Margin="6,0,0,0" Padding="0" FontSize="14">
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="8"/>
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+                        </Grid>
+
                     </StackPanel>
-
-                    <Grid Grid.Row="3" Margin="0,15,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <Button Grid.Column="0" x:Name="btnAddEvent" Content="➕ 등록" Click="btnAddEvent_Click" Height="40" Background="#3182CE" BorderThickness="0" Foreground="White" FontWeight="Bold" Margin="0,0,4,0" Padding="0" FontSize="13">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="6"/>
-                                </Style>
-                            </Button.Resources>
-                        </Button>
-
-                        <Button Grid.Column="1" x:Name="btnEditEvent" Content="🔄 수정" Click="btnEditEvent_Click" Height="40" Background="#48BB78" BorderThickness="0" Foreground="White" FontWeight="Bold" Margin="2,0,2,0" Padding="0" FontSize="13">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="6"/>
-                                </Style>
-                            </Button.Resources>
-                        </Button>
-
-                        <Button Grid.Column="2" x:Name="btnDeleteEvent" Content="🗑️ 삭제" Click="btnDeleteEvent_Click" Height="40" Background="#E53E3E" BorderThickness="0" Foreground="White" FontWeight="Bold" Margin="4,0,0,0" Padding="0" FontSize="13">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="6"/>
-                                </Style>
-                            </Button.Resources>
-                        </Button>
-                    </Grid>
-                </Grid>
+                </ScrollViewer>
             </Border>
         </Grid>
     </Grid>
