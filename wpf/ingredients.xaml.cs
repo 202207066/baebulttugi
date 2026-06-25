@@ -21,7 +21,7 @@ namespace wpf
     public partial class Ingredients : Page
     {
         private string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private string clientSecretPath = @"C:\google\credentials.json";
+        private string clientSecretPath = "credentials.json";
 
         public Ingredients()
         {
@@ -38,7 +38,7 @@ namespace wpf
         }
 
         /// <summary>
-        /// [핵심 추가] 구글 스프레드시트의 파일 구조를 파싱하여 존재하는 모든 탭(시트) 이름을 콤보박스에 바인딩합니다.
+        /// 구글 스프레드시트의 파일 구조를 파싱하여 존재하는 모든 탭(시트) 이름을 콤보박스에 바인딩합니다.
         /// </summary>
         private void LoadSheetNamesToComboBox()
         {
@@ -66,7 +66,7 @@ namespace wpf
             }
             catch (Exception ex)
             {
-                MessageBox.Show("구글 스프레드시트의 시트(탭) 목록을 불러오지 못했습니다.\n네트워크 상태나 client_secret.json 경로를 확인해주세요.\n\n오류 내용: " + ex.Message, "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("구글 스프레드시트의 시트(탭) 목록을 불러오지 못했습니다.\n네트워크 상태나 credentials.json 경로, 구글 시트 공유 설정을 확인해주세요.\n\n오류 내용: " + ex.Message, "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -233,7 +233,7 @@ namespace wpf
             }
             catch (Exception ex)
             {
-                MessageBox.Show("구글 시트 불러오기 실패 에러:\n" + ex.Message, "에러", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("구글 시트 불러오기 실패 에러:\n" + ex.Message, "E러", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -248,21 +248,22 @@ namespace wpf
             MessageBox.Show("성분 필터링 기능이 준비 중입니다.", "필터", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// [수정 완료] 서비스 계정용 자격 증명서(credentials.json) 로드 전용 메서드
+        /// </summary>
         private SheetsService GetSheetsService()
         {
-            UserCredential credential;
+            GoogleCredential credential;
+
+            // 로컬 프로젝트 폴더 안의 credentials.json 파일을 직접 스트림으로 읽어옵니다.
             using (var stream = new FileStream(clientSecretPath, FileMode.Open, FileAccess.Read))
             {
-                string credPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".credentials/sheets.googleapis.com-MyWorkspace.json");
-
-                credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
-                    GoogleClientSecrets.FromStream(stream).Secrets,
-                    new[] { SheetsService.Scope.Spreadsheets },
-                    "user",
-                    CancellationToken.None,
-                    new FileDataStore(credPath, true)).Result;
+                // 서비스 계정 유형의 JSON 키로부터 인증 토큰을 생성하고 범위를 지정합니다.
+                credential = GoogleCredential.FromStream(stream)
+                                             .CreateScoped(new[] { SheetsService.Scope.Spreadsheets });
             }
 
+            // SheetsService를 새로 발급받은 인증 정보로 초기화하여 반환합니다.
             return new SheetsService(new BaseClientService.Initializer()
             {
                 HttpClientInitializer = credential,

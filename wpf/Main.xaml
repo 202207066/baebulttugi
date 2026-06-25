@@ -129,7 +129,7 @@
         </Border>
 
         <Grid Grid.Column="1">
-            <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden"/>
+            <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden" Navigated="MainFrame_Navigated"/>
         </Grid>
     </Grid>
 </Window>

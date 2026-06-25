@@ -18,6 +18,8 @@ namespace wpf
         public string AllergyPatients { get; set; } = "0 명";
         public string DietStatus { get; set; } = "미구성";
         public List<string> TodayMenu { get; set; } = new List<string>();
+        // 시트에서 별도 컬럼으로 대치(대안) 메뉴를 제공하는 경우 저장합니다.
+        public List<string> TodayAlternativeMenu { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -67,12 +69,13 @@ namespace wpf
 
             try
             {
-                // ⚠️ [시트 구조 정의] 'Dashboard' 시트의 A2부터 D2 범위를 읽어옵니다.
+                // ⚠️ [시트 구조 정의] 'Dashboard' 시트의 A2부터 E2 범위를 읽어옵니다.
                 // A2: 총 피급식자수 (예: 128)
                 // B2: 알러지 환자수 (예: 24)
                 // C2: 식단 구성 상태 (예: 구성 완료 (대치 3건))
                 // D2: 오늘의 메뉴 목록 (예: 밥, 국, 반찬 등을 쉼표(,)나 줄바꿈으로 입력)
-                string range = "Dashboard!A2:D2";
+                // E2: 오늘의 대치(대안) 메뉴 목록 (알레르기 대치용으로 별도 입력)
+                string range = "Dashboard!A2:E2";
 
                 SpreadsheetsResource.ValuesResource.GetRequest request = _service.Spreadsheets.Values.Get(_spreadsheetId, range);
                 ValueRange response = await request.ExecuteAsync();
@@ -103,6 +106,42 @@ namespace wpf
                             data.TodayMenu.Add(menu.Trim());
                         }
                     }
+
+                    // E열(인덱스 4)에 대치 메뉴가 있으면 파싱하여 TodayAlternativeMenu에 추가
+                    if (row.Count > 4 && row[4] != null && !string.IsNullOrWhiteSpace(row[4].ToString()))
+                    {
+                        string rawAlt = row[4].ToString().Trim();
+                        string[] altArray = rawAlt.Split(new[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+                        foreach (var alt in altArray)
+                        {
+                            data.TodayAlternativeMenu.Add(alt.Trim());
+                        }
+                    }
+                    else
+                    {
+                        // 위에서 파싱되지 않았다면 E2 범위를 별도로 요청해 강제 확인합니다.
+                        try
+                        {
+                            var altRequest = _service.Spreadsheets.Values.Get(_spreadsheetId, "Dashboard!E2:E2");
+                            ValueRange altResponse = await altRequest.ExecuteAsync();
+                            var altValues = altResponse.Values;
+                            if (altValues != null && altValues.Count > 0 && altValues[0].Count > 0 && altValues[0][0] != null)
+                            {
+                                var altRaw = altValues[0][0].ToString().Trim();
+                                if (!string.IsNullOrWhiteSpace(altRaw))
+                                {
+                                    string[] altArray2 = altRaw.Split(new[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                                    foreach (var a in altArray2)
+                                        data.TodayAlternativeMenu.Add(a.Trim());
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // 별도 요청 실패 시 무시하고 빈 리스트 유지
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -115,6 +154,7 @@ namespace wpf
                 data.AllergyPatients = "오류 명";
                 data.DietStatus = "데이터 로드 실패";
                 data.TodayMenu = new List<string> { "❌ 데이터를 불러오지 못했습니다." };
+                data.TodayAlternativeMenu = new List<string> { "❌ 데이터를 불러오지 못했습니다." };
             }
 
             return data;
