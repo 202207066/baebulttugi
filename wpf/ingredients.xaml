@@ -27,10 +27,11 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Button x:Name="btnSelectFile" Content="📁 CSV 파일 선택" Click="btnSelectFile_Click"
-                        Width="150" Height="40" Background="#EDF2F7" BorderThickness="0" 
+                <Button x:Name="btnSelectFile" Grid.Column="0" Content="📁 CSV 파일 선택" Click="btnSelectFile_Click"
+                        Height="40" Padding="15,0" Background="#EDF2F7" BorderThickness="0" 
                         Foreground="#4A5568" FontWeight="SemiBold" Margin="0,0,15,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -41,67 +42,60 @@
 
                 <TextBox x:Name="txtFilePath" Grid.Column="1" Text="선택된 파일이 없습니다." IsReadOnly="True" 
                          VerticalContentAlignment="Center" Padding="15,0" FontSize="13" Foreground="#718096"
-                         Background="#F7FAFC" BorderBrush="#E2E8F0" BorderThickness="1">
+                         Background="#F7FAFC" BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,15,0">
                     <TextBox.Resources>
                         <Style TargetType="Border">
                             <Setter Property="CornerRadius" Value="6"/>
                         </Style>
                     </TextBox.Resources>
                 </TextBox>
+
+                <Button x:Name="btnUpload" Grid.Column="2" Content="📤 시트에 업로드" Click="btnUpload_Click"
+                        Height="40" Padding="20,0" Background="#3182CE" BorderThickness="0" 
+                        Foreground="White" FontWeight="Bold">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
             </Grid>
         </Border>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,20">
+        <Grid Grid.Row="2" Margin="0,0,0,20">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="📄 선택된 시트:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,0"/>
+                <ComboBox x:Name="cmbSheets" Width="150" Height="40" VerticalContentAlignment="Center" Margin="0,0,20,0" FontSize="13" Foreground="#2D3748"
+                          SelectionChanged="cmbSheets_SelectionChanged">
+                    <ComboBox.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </ComboBox.Resources>
+                </ComboBox>
 
-            <TextBlock Text="📄 선택된 시트:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,0"/>
-            <ComboBox x:Name="cmbSheets" Width="160" Height="40" VerticalContentAlignment="Center" Margin="0,0,15,0" FontSize="13" Foreground="#2D3748">
-                <ComboBox.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="6"/>
-                    </Style>
-                </ComboBox.Resources>
-            </ComboBox>
+                <TextBlock Text="🔍 필터 검색:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,0"/>
+                <TextBox x:Name="txtFilterKeyword" Width="320" Height="40" VerticalContentAlignment="Center" Padding="10,0" FontSize="13" Foreground="#2D3748"
+                         Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,20,0"
+                         TextChanged="txtFilterKeyword_TextChanged">
+                    <TextBox.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </TextBox.Resources>
+                </TextBox>
 
-            <Button x:Name="btnUpload" Content="📤 시트에 업로드" Click="btnUpload_Click"
-                    Width="140" Height="40" Background="#3182CE" BorderThickness="0" 
-                    Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
-                <Button.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="6"/>
-                    </Style>
-                </Button.Resources>
-            </Button>
-
-            <Button x:Name="btnLoadGoogleSheet" Content="🌐 구글 시트 불러오기" Click="btnLoadGoogleSheet_Click"
-                    Width="160" Height="40" Background="#4299E1" BorderThickness="0" 
-                    Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
-                <Button.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="6"/>
-                    </Style>
-                </Button.Resources>
-            </Button>
-
-            <Button x:Name="btnSearch" Content="🔍 성분 조회" Click="btnSearch_Click"
-                    Width="110" Height="40" Background="#38A169" BorderThickness="0" 
-                    Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
-                <Button.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="6"/>
-                    </Style>
-                </Button.Resources>
-            </Button>
-
-            <Button x:Name="btnFilter" Content="⏳ 필터 적용" Click="btnFilter_Click"
-                    Width="120" Height="40" Background="#DD6B20" BorderThickness="0" 
-                    Foreground="White" FontWeight="Bold">
-                <Button.Resources>
-                    <Style TargetType="Border">
-                        <Setter Property="CornerRadius" Value="6"/>
-                    </Style>
-                </Button.Resources>
-            </Button>
-        </StackPanel>
+                <Button x:Name="btnSaveChanges" Content="💾 변경사항 저장" Click="btnSaveChanges_Click"
+                        Height="40" Padding="18,0" Background="#38A169" BorderThickness="0" 
+                        Foreground="White" FontWeight="Bold">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
 
         <Border Grid.Row="3" Background="#FFFFFF" CornerRadius="10" Padding="25" BorderBrush="#E2E8F0" BorderThickness="1">
             <Grid>
@@ -119,8 +113,8 @@
                 </StackPanel>
 
                 <DataGrid Grid.Row="1" x:Name="dataGridIngredients" AutoGenerateColumns="True"
-                          Background="White" RowHeight="38" IsReadOnly="True" GridLinesVisibility="Horizontal"
-                          HorizontalGridLinesBrush="#EDF2F7" AlternatingRowBackground="#F7FAFC" 
+                          Background="White" RowHeight="38" IsReadOnly="False" CanUserAddRows="True" CanUserDeleteRows="True" 
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" AlternatingRowBackground="#F7FAFC" 
                           FontSize="13" Foreground="#2D3748" BorderBrush="#E2E8F0" BorderThickness="1"
                           HeadersVisibility="Column">
                     <DataGrid.Resources>

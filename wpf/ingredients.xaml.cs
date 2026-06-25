@@ -21,68 +21,62 @@ namespace wpf
     public partial class Ingredients : Page
     {
         private string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private string clientSecretPath = @"C:\google\credentials.json";
+        private string clientSecretPath = "credentials.json";
+
+        private bool _isInitialized = false;
 
         public Ingredients()
         {
             InitializeComponent();
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
-            // 화면이 로드될 때 자동으로 구글 시트의 탭(시트) 목록을 조회하여 콤보박스에 채웁니다.
             Loaded += Ingredients_Loaded;
         }
 
         private void Ingredients_Loaded(object sender, RoutedEventArgs e)
         {
             LoadSheetNamesToComboBox();
+            _isInitialized = true;
+            LoadDataFromGoogleSheet(isSilent: true);
         }
 
-        /// <summary>
-        /// [핵심 추가] 구글 스프레드시트의 파일 구조를 파싱하여 존재하는 모든 탭(시트) 이름을 콤보박스에 바인딩합니다.
-        /// </summary>
         private void LoadSheetNamesToComboBox()
         {
             try
             {
                 var service = GetSheetsService();
-
-                // 스프레드시트의 메타데이터(시트 정보 포함)를 가져옵니다.
                 var spreadsheetRequest = service.Spreadsheets.Get(spreadsheetId);
                 var spreadsheet = spreadsheetRequest.Execute();
 
                 cmbSheets.Items.Clear();
-
                 if (spreadsheet.Sheets != null && spreadsheet.Sheets.Count > 0)
                 {
                     foreach (var sheet in spreadsheet.Sheets)
                     {
-                        // 실제 구글 시트에 존재하는 탭 이름을 콤보박스 아이템으로 추가
                         cmbSheets.Items.Add(sheet.Properties.Title);
                     }
-
-                    // 첫 번째 시트를 기본 선택값으로 지정
                     cmbSheets.SelectedIndex = 0;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("구글 스프레드시트의 시트(탭) 목록을 불러오지 못했습니다.\n네트워크 상태나 client_secret.json 경로를 확인해주세요.\n\n오류 내용: " + ex.Message, "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("구글 스프레드시트의 시트 목록을 불러오지 못했습니다.\n오류 내용: " + ex.Message, "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
-        /// <summary>
-        /// 사용자가 콤보박스에서 선택한 시트 이름을 가져옵니다. 선택이 안 되어있으면 경고를 띄웁니다.
-        /// </summary>
+        private void cmbSheets_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            txtFilterKeyword.Text = string.Empty;
+            LoadDataFromGoogleSheet(isSilent: true);
+        }
+
         private string GetTargetSheetName()
         {
-            if (cmbSheets.SelectedItem == null)
-            {
-                return "Sheet1"; // 예외 방지용 기본값
-            }
+            if (cmbSheets.SelectedItem == null) return "Sheet1";
             return cmbSheets.SelectedItem.ToString();
         }
 
-        // 📁 CSV 파일 선택 및 데이터 그리드 자동 표시
+        // 📁 CSV 파일 선택
         private void btnSelectFile_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
@@ -134,7 +128,7 @@ namespace wpf
             }
         }
 
-        // 📤 구글 시트에 업로드 버튼 기능 (콤보박스에 선택된 탭으로 업로드)
+        // 📤 [원상복구] 순수 CSV 파일을 구글 시트에 그대로 덮어쓰는 기존 로직
         private void btnUpload_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(txtFilePath.Text) || txtFilePath.Text == "선택된 파일이 없습니다.")
@@ -157,7 +151,7 @@ namespace wpf
             try
             {
                 var service = GetSheetsService();
-                string userSheetName = GetTargetSheetName(); // 콤보박스에서 선택된 탭 이름
+                string userSheetName = GetTargetSheetName();
                 var valueRange = new ValueRange { Values = new List<IList<object>>() };
 
                 using (TextFieldParser parser = new TextFieldParser(filePath, Encoding.GetEncoding("euc-kr")))
@@ -179,6 +173,7 @@ namespace wpf
                 updateRequest.Execute();
 
                 MessageBox.Show($"구글 스프레드시트의 [{userSheetName}] 탭에 성공적으로 업로드되었습니다!", "업로드 성공", MessageBoxButton.OK, MessageBoxImage.Information);
+                LoadDataFromGoogleSheet(isSilent: true);
             }
             catch (Exception ex)
             {
@@ -186,25 +181,79 @@ namespace wpf
             }
         }
 
-        // 🌐 구글 시트 데이터 원격 불러오기 기능 (콤보박스에 선택된 탭에서 다운로드)
-        private void btnLoadGoogleSheet_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// 💾 [신규 기능] 현재 데이터 그리드 표에서 직관적으로 수정/삭제/추가한 상태를 구글 시트에 업데이트합니다.
+        /// </summary>
+        private void btnSaveChanges_Click(object sender, RoutedEventArgs e)
         {
             if (cmbSheets.SelectedItem == null)
             {
-                MessageBox.Show("불러올 대상 구글 시트 탭을 선택해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("저장할 대상 구글 시트 탭을 선택해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            LoadDataFromGoogleSheet();
+            if (dataGridIngredients.ItemsSource is DataView dataView)
+            {
+                try
+                {
+                    var service = GetSheetsService();
+                    string userSheetName = GetTargetSheetName();
+                    var valueRange = new ValueRange { Values = new List<IList<object>>() };
+
+                    DataTable dt = dataView.Table;
+
+                    // 1. 헤더(열 이름) 추출 및 삽입
+                    List<object> headers = new List<object>();
+                    foreach (DataColumn column in dt.Columns)
+                    {
+                        headers.Add(column.ColumnName);
+                    }
+                    valueRange.Values.Add(headers);
+
+                    // 2. 화면 상에 수정/추가되어 남아있는 전체 데이터 행 추출
+                    foreach (DataRowView rowView in dataView)
+                    {
+                        List<object> rowData = new List<object>();
+                        foreach (DataColumn column in dt.Columns)
+                        {
+                            rowData.Add(rowView[column.ColumnName] ?? "");
+                        }
+                        valueRange.Values.Add(rowData);
+                    }
+
+                    // 3. 기존 시트 영역 클리어 (삭제된 데이터 잔상 방지)
+                    var clearRequest = service.Spreadsheets.Values.Clear(new ClearValuesRequest(), spreadsheetId, $"{userSheetName}!A1:Z2000");
+                    clearRequest.Execute();
+
+                    // 4. 새 데이터 세트로 최종 저장
+                    string targetRange = $"{userSheetName}!A1";
+                    var updateRequest = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, targetRange);
+                    updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
+                    updateRequest.Execute();
+
+                    MessageBox.Show($"현재 화면의 편집 내용(수정/삭제/추가)이 구글 [{userSheetName}] 시트에 정상 저장되었습니다.", "저장 성공", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    // 그리드 리프레시
+                    LoadDataFromGoogleSheet(isSilent: true);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("구글 시트 저장 중 에러가 발생했습니다:\n" + ex.Message, "저장 에러", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("저장할 대상 데이터가 표에 로드되어 있지 않습니다.", "안내", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
-        private void LoadDataFromGoogleSheet()
+        private void LoadDataFromGoogleSheet(bool isSilent = false)
         {
             try
             {
                 var service = GetSheetsService();
-                string userSheetName = GetTargetSheetName(); // 콤보박스에서 선택된 탭 이름
-                string targetRange = $"{userSheetName}!A1:Z1000";
+                string userSheetName = GetTargetSheetName();
+                string targetRange = $"{userSheetName}!A1:Z2000";
 
                 var request = service.Spreadsheets.Values.Get(spreadsheetId, targetRange);
                 var response = request.Execute();
@@ -223,46 +272,55 @@ namespace wpf
                     }
 
                     dataGridIngredients.ItemsSource = dt.DefaultView;
-                    MessageBox.Show($"구글 클라우드 [{userSheetName}] 탭에서 데이터를 실시간 수신했습니다.", "동기화 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                    if (!isSilent) MessageBox.Show($"구글 클라우드 [{userSheetName}] 탭 데이터 동기화 완료", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
-                    MessageBox.Show($"[{userSheetName}] 시트에 데이터가 비어 있습니다.", "안내", MessageBoxButton.OK, MessageBoxImage.Warning);
                     dataGridIngredients.ItemsSource = null;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("구글 시트 불러오기 실패 에러:\n" + ex.Message, "에러", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("구글 시트 불러오기 실패:\n" + ex.Message, "에러", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void btnSearch_Click(object sender, RoutedEventArgs e)
+        private void txtFilterKeyword_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (dataGridIngredients.ItemsSource == null) LoadDataFromGoogleSheet();
-            else MessageBox.Show("현재 그리드에 동기화된 데이터 조회가 완료되었습니다.", "조회 완료", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+            try
+            {
+                if (dataGridIngredients.ItemsSource is DataView dataView)
+                {
+                    string keyword = txtFilterKeyword.Text.Trim().Replace("'", "''");
 
-        private void btnFilter_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("성분 필터링 기능이 준비 중입니다.", "필터", MessageBoxButton.OK, MessageBoxImage.Information);
+                    if (string.IsNullOrEmpty(keyword))
+                    {
+                        dataView.RowFilter = string.Empty;
+                        return;
+                    }
+
+                    List<string> filterExpressions = new List<string>();
+                    foreach (DataColumn column in dataView.Table.Columns)
+                    {
+                        filterExpressions.Add($"Convert([{column.ColumnName}], 'System.String') LIKE '%{keyword}%'");
+                    }
+
+                    dataView.RowFilter = string.Join(" OR ", filterExpressions);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"필터 적용 중 오류: {ex.Message}");
+            }
         }
 
         private SheetsService GetSheetsService()
         {
-            UserCredential credential;
+            GoogleCredential credential;
             using (var stream = new FileStream(clientSecretPath, FileMode.Open, FileAccess.Read))
             {
-                string credPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".credentials/sheets.googleapis.com-MyWorkspace.json");
-
-                credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
-                    GoogleClientSecrets.FromStream(stream).Secrets,
-                    new[] { SheetsService.Scope.Spreadsheets },
-                    "user",
-                    CancellationToken.None,
-                    new FileDataStore(credPath, true)).Result;
+                credential = GoogleCredential.FromStream(stream).CreateScoped(new[] { SheetsService.Scope.Spreadsheets });
             }
-
             return new SheetsService(new BaseClientService.Initializer()
             {
                 HttpClientInitializer = credential,
