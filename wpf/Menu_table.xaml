@@ -103,7 +103,8 @@
                             <Button Content="🤖 식단 자동 조합 실행" Click="BtnExecute_Click" Width="180" Height="40" Background="#4A90E2" Foreground="White" BorderThickness="0" FontWeight="Bold">
                                 <Button.Resources>
                                     <Style TargetType="Border">
-                                        <Setter Property="CornerRadius" Value="6"/>
+                                        <Setter Property="CornerRadius" Value="6"/>                                        <Setter Property="BorderThickness" Value="0"/>
+
                                     </Style>
                                 </Button.Resources>
                             </Button>
