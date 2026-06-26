@@ -270,8 +270,10 @@ namespace wpf
 
             ListBox allergyList = new ListBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
             ScrollViewer.SetHorizontalScrollBarVisibility(allergyList, ScrollBarVisibility.Disabled);
-            allergyList.Items.Add(CreateAllergyCard("견과류 알러지", "대상자: 김철수 외 4명", "기본 메뉴: 땅콩 소스 닭강정", "대치 메뉴: 달콤 마늘 닭강정"));
-            allergyList.Items.Add(CreateAllergyCard("갑각류 알러지", "대상자: 이영희 외 2명", "기본 메뉴: 새우 완탕 국", "대치 메뉴: 맑은 계란 완탕 국"));
+            string defaultMenuText = (dbData.TodayMenu != null && dbData.TodayMenu.Count > 0) ? string.Join(", ", dbData.TodayMenu) : "조회된 식단 데이터가 없습니다.";
+            string altMenuText = (dbData.TodayAlternativeMenu != null && dbData.TodayAlternativeMenu.Count > 0) ? string.Join(", ", dbData.TodayAlternativeMenu) : "조회된 대치 식단 데이터가 없습니다.";
+            allergyList.Items.Add(CreateAllergyCard("견과류 알러지", "대상자: 김철수 외 4명", $"기본 메뉴: {defaultMenuText}", $"대치 메뉴: {altMenuText}"));
+            allergyList.Items.Add(CreateAllergyCard("갑각류 알러지", "대상자: 이영희 외 2명", $"기본 메뉴: {defaultMenuText}", $"대치 메뉴: {altMenuText}"));
             Grid.SetRow(allergyList, 1);
             rightGrid.Children.Add(allergyList);
             rightCard.Child = rightGrid;
@@ -335,6 +337,11 @@ namespace wpf
             border.Child = mainStack;
             item.Content = border;
             return item;
+        }
+
+        private void MainFrame_Navigated(object sender, System.Windows.Navigation.NavigationEventArgs e)
+        {
+
         }
     }
 }
