@@ -19,11 +19,11 @@ namespace wpf
         // 📊 식단 결과 데이터 모델
         public class DietResultModel
         {
-            public string DietName { get; set; }
-            public string Rice { get; set; }              // 밥류
-            public string Soup { get; set; }              // 국류
-            public string Meat { get; set; }              // 메인반찬(육류)
-            public string Vegetable { get; set; }         // 서브반찬(나물류)
+            public string DietName { get; set; } = string.Empty;
+            public string Rice { get; set; } = string.Empty;              // 밥류
+            public string Soup { get; set; } = string.Empty;              // 국류
+            public string Meat { get; set; } = string.Empty;              // 메인반찬(육류)
+            public string Vegetable { get; set; } = string.Empty;         // 서브반찬(나물류)
 
             public double Carb { get; set; }
             public double Protein { get; set; }
@@ -36,10 +36,10 @@ namespace wpf
 
         public class IngredientModel
         {
-            public string Name { get; set; }
+            public string Name { get; set; } = string.Empty;
             public double Calories { get; set; }
-            public string Materials { get; set; }
-            public string Allergy { get; set; }
+            public string Materials { get; set; } = string.Empty;
+            public string Allergy { get; set; } = string.Empty;
         }
 
         public Menu_table()
@@ -59,13 +59,11 @@ namespace wpf
 
         private void BtnReset_Click(object sender, RoutedEventArgs e)
         {
-            // 입력 필드 초기화
             TxtCarb.Text = string.Empty;
             TxtProtein.Text = string.Empty;
             TxtFat.Text = string.Empty;
             TxtCalories.Text = string.Empty;
 
-            // 결과 영역 숨기기 및 DataGrid 초기화
             ResultSection.Visibility = Visibility.Collapsed;
             GridDietResult.ItemsSource = null;
         }
@@ -84,7 +82,8 @@ namespace wpf
                 GoogleCredential credential;
                 using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
                 {
-                    credential = GoogleCredential.FromStream(stream).CreateScoped(SheetsService.Scope.Spreadsheets);
+                    credential = GoogleCredential.FromStream(stream);
+                    credential = credential.CreateScoped(SheetsService.Scope.Spreadsheets);
                 }
 
                 var service = new SheetsService(new BaseClientService.Initializer()
@@ -92,8 +91,7 @@ namespace wpf
                     HttpClientInitializer = credential,
                     ApplicationName = "MealCareAI-System"
                 });
-
-                // 1. MenuDatabase 시트에서 로드
+                // 1. [가져오기] MenuDatabase 시트에서 식재료 로드
                 string readRange = "MenuDatabase!A2:D";
                 SpreadsheetsResource.ValuesResource.GetRequest request = service.Spreadsheets.Values.Get(SpreadsheetId, readRange);
                 ValueRange response = request.Execute();
@@ -114,14 +112,14 @@ namespace wpf
                             {
                                 Name = row[0]?.ToString() ?? "이름없음",
                                 Calories = calValue,
-                                Materials = row.Count >= 3 ? row[2]?.ToString() : "",
-                                Allergy = row.Count >= 4 ? row[3]?.ToString() : ""
+                                Materials = row.Count >= 3 ? row[2]?.ToString() ?? "" : "",
+                                Allergy = row.Count >= 4 ? row[3]?.ToString() ?? "" : ""
                             });
                         }
                     }
                 }
 
-                // 2. 밥, 국, 육류, 나물 분류 처리
+                // 2. 식재료 매칭 및 랜덤 자동 조합 처리
                 var riceItems = ingredients.Where(i => i.Name.Contains("밥") || i.Name.Contains("쌀")).ToList();
                 var soupItems = ingredients.Where(i => i.Name.Contains("국") || i.Name.Contains("탕") || i.Name.Contains("찌개")).ToList();
                 var meatItems = ingredients.Where(i => i.Name.Contains("고기") || i.Name.Contains("불고기") || i.Name.Contains("닭") || i.Name.Contains("가슴살") || i.Name.Contains("제육")).ToList();
@@ -153,18 +151,15 @@ namespace wpf
                     });
                 }
 
-                // 3. UI 결과 데이터 바인딩
+                // 3. 프로그램 화면 UI 결과 데이터 바인딩
                 ResultSection.Visibility = Visibility.Visible;
                 GridDietResult.ItemsSource = recommendations;
 
-                // 4. gid 번호로 실제 시트 이름 추출
-                var spreadsheetRequest = service.Spreadsheets.Get(SpreadsheetId);
-                var spreadsheetInfo = spreadsheetRequest.Execute();
-                var targetSheet = spreadsheetInfo.Sheets.FirstOrDefault(s => s.Properties.SheetId == 714098992);
-                string realSheetName = targetSheet != null ? targetSheet.Properties.Title : "메뉴";
+                // 🌟 [핵심 변경] 저장할 타겟 시트 이름을 "식단" 시트로 직접 고정 지정합니다.
+                string targetSheetName = "식단";
 
-                // 5. 헤더 자동 생성 검사
-                string headerRange = $"'{realSheetName}'!A1:F1";
+                // 4. [저장하기] '식단' 시트 맨 첫 줄에 제목 헤더가 비어있다면 자동 생성
+                string headerRange = $"'{targetSheetName}'!A1:F1";
                 var headerCheck = service.Spreadsheets.Values.Get(SpreadsheetId, headerRange).Execute();
                 if (headerCheck.Values == null || headerCheck.Values.Count == 0)
                 {
@@ -175,33 +170,30 @@ namespace wpf
                     updateRequest.Execute();
                 }
 
-                // 6. 구글 시트에 항목 순서대로 저장 실행
-                string writeRange = $"'{realSheetName}'!A:F";
+                // 5. [저장하기] '식단' 시트 하단에 AI 자동조합 1순위 추천 결과 행 저장 실행
+                string writeRange = $"'{targetSheetName}'!A:F";
                 var valueRange = new ValueRange();
-                var targetDiet = recommendations[0]; // 베스트 1순위 추천 조합 선택
+                var targetDiet = recommendations[0]; // 가장 적합한 1순위 추천 조합 선택
 
                 var rowValues = new List<object> {
-                            targetDiet.DietName,
-                            targetDiet.Rice,
-                            targetDiet.Soup,
-                            targetDiet.Meat,
-                            targetDiet.Vegetable,
-                            targetDiet.Calories.ToString() + " kcal"
-                    };
+                    targetDiet.DietName,
+                    targetDiet.Rice,
+                    targetDiet.Soup,
+                    targetDiet.Meat,
+                    targetDiet.Vegetable,
+                    targetDiet.Calories.ToString() + " kcal"
+                };
 
                 valueRange.Values = new List<IList<object>> { rowValues };
 
                 var appendRequest = service.Spreadsheets.Values.Append(valueRange, SpreadsheetId, writeRange);
                 appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
                 appendRequest.Execute();
-
-                MessageBox.Show("구글 시트 맞춤 분리 저장 성공!\n\nAI 조합 식단이 각 항목별(밥/국/육류/나물) 열에 맞춰 기록되었습니다.", "성공", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"구글 시트 연동 실패:\n{ex.Message}\n\n상세 정보: {ex.InnerException?.Message}", "오류 안내", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("식단 추천 및 저장 중 오류가 발생했습니다:\n" + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
 }
-
