@@ -28,6 +28,12 @@ namespace wpf
         public Ingredients()
         {
             InitializeComponent();
+
+            // 💡 SSL/TLS 연결 보안 프로토콜 강제 활성화 (일시적 튕김 차단 에러 방지용)
+            System.Net.ServicePointManager.SecurityProtocol =
+                System.Net.SecurityProtocolType.Tls12 |
+                System.Net.SecurityProtocolType.Tls13;
+
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             Loaded += Ingredients_Loaded;
         }
@@ -76,7 +82,69 @@ namespace wpf
             return cmbSheets.SelectedItem.ToString();
         }
 
-        // 📁 CSV 파일 선택
+        /// <summary>
+        /// ➕ [새로 추가] 구글 스프레드시트에 실시간 새 시트(탭)를 개설하는 함수
+        /// </summary>
+        private void btnCreateSheet_Click(object sender, RoutedEventArgs e)
+        {
+            string newSheetName = txtNewSheetName.Text.Trim();
+
+            if (string.IsNullOrEmpty(newSheetName))
+            {
+                MessageBox.Show("추가할 새 시트(탭) 이름을 입력해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 프로그램 내부 드롭다운 목록에 이름 중복 여부 체크
+            if (cmbSheets.Items.Contains(newSheetName))
+            {
+                MessageBox.Show("이미 존재하는 시트 이름입니다. 다른 이름을 입력해주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                var service = GetSheetsService();
+
+                // 구글 스프레드시트 구조 요청(BatchUpdate) 패킷 조립
+                var batchUpdateRequest = new BatchUpdateSpreadsheetRequest
+                {
+                    Requests = new List<Request>
+                    {
+                        new Request
+                        {
+                            AddSheet = new AddSheetRequest
+                            {
+                                Properties = new SheetProperties
+                                {
+                                    Title = newSheetName
+                                }
+                            }
+                        }
+                    }
+                };
+
+                // 구글 클라우드에 명령 전송 및 실행
+                var batchRequest = service.Spreadsheets.BatchUpdate(batchUpdateRequest, spreadsheetId);
+                batchRequest.Execute();
+
+                MessageBox.Show($"구글 스프레드시트에 [{newSheetName}] 시트가 정상 추가되었습니다!", "시트 추가 성공", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                txtNewSheetName.Text = string.Empty; // 입력창 클리어
+
+                // 🔄 콤보박스 목록 재갱신 및 신규 생성 시트로 초점 이동 제어
+                _isInitialized = false;
+                LoadSheetNamesToComboBox();
+                _isInitialized = true;
+
+                cmbSheets.SelectedItem = newSheetName; // 드롭다운을 방금 만든 탭으로 강제 변경
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("구글 시트 생성 작업 중 예외 에러:\n" + ex.Message, "작업 실패", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void btnSelectFile_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
@@ -128,7 +196,6 @@ namespace wpf
             }
         }
 
-        // 📤 [원상복구] 순수 CSV 파일을 구글 시트에 그대로 덮어쓰는 기존 로직
         private void btnUpload_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(txtFilePath.Text) || txtFilePath.Text == "선택된 파일이 없습니다.")
@@ -181,9 +248,66 @@ namespace wpf
             }
         }
 
-        /// <summary>
-        /// 💾 [신규 기능] 현재 데이터 그리드 표에서 직관적으로 수정/삭제/추가한 상태를 구글 시트에 업데이트합니다.
-        /// </summary>
+        private void btnAddRow_Click(object sender, RoutedEventArgs e)
+        {
+            if (dataGridIngredients.ItemsSource is DataView dataView)
+            {
+                DataRow newRow = dataView.Table.NewRow();
+                dataView.Table.Rows.Add(newRow);
+
+                dataGridIngredients.Focus();
+                dataGridIngredients.ScrollIntoView(newRow);
+            }
+            else if (dataGridIngredients.ItemsSource is DataTable dt)
+            {
+                DataRow newRow = dt.NewRow();
+                dt.Rows.Add(newRow);
+
+                dataGridIngredients.Focus();
+                dataGridIngredients.ScrollIntoView(newRow);
+            }
+            else
+            {
+                MessageBox.Show("현재 추가할 표의 구조(헤더)가 존재하지 않습니다.\n구글 시트를 먼저 조회하거나 CSV 파일을 선택해 주세요.", "안내", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void btnDeleteRow_Click(object sender, RoutedEventArgs e)
+        {
+            if (dataGridIngredients.SelectedItem == null)
+            {
+                MessageBox.Show("표에서 삭제할 행(줄)을 마우스로 먼저 선택해 주세요.", "삭제 안내", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                if (dataGridIngredients.SelectedItem is DataRowView rowView)
+                {
+                    rowView.Row.Delete();
+                }
+                else
+                {
+                    int selectedIndex = dataGridIngredients.SelectedIndex;
+                    if (selectedIndex >= 0)
+                    {
+                        if (dataGridIngredients.ItemsSource is DataView dv)
+                        {
+                            dv.Delete(selectedIndex);
+                        }
+                        else if (dataGridIngredients.ItemsSource is DataTable table)
+                        {
+                            table.Rows.RemoveAt(selectedIndex);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"행 삭제 작업 중 오류가 발생했습니다:\n{ex.Message}", "에러", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void btnSaveChanges_Click(object sender, RoutedEventArgs e)
         {
             if (cmbSheets.SelectedItem == null)
@@ -202,7 +326,6 @@ namespace wpf
 
                     DataTable dt = dataView.Table;
 
-                    // 1. 헤더(열 이름) 추출 및 삽입
                     List<object> headers = new List<object>();
                     foreach (DataColumn column in dt.Columns)
                     {
@@ -210,7 +333,6 @@ namespace wpf
                     }
                     valueRange.Values.Add(headers);
 
-                    // 2. 화면 상에 수정/추가되어 남아있는 전체 데이터 행 추출
                     foreach (DataRowView rowView in dataView)
                     {
                         List<object> rowData = new List<object>();
@@ -221,29 +343,21 @@ namespace wpf
                         valueRange.Values.Add(rowData);
                     }
 
-                    // 3. 기존 시트 영역 클리어 (삭제된 데이터 잔상 방지)
                     var clearRequest = service.Spreadsheets.Values.Clear(new ClearValuesRequest(), spreadsheetId, $"{userSheetName}!A1:Z2000");
                     clearRequest.Execute();
 
-                    // 4. 새 데이터 세트로 최종 저장
                     string targetRange = $"{userSheetName}!A1";
                     var updateRequest = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, targetRange);
                     updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
                     updateRequest.Execute();
 
                     MessageBox.Show($"현재 화면의 편집 내용(수정/삭제/추가)이 구글 [{userSheetName}] 시트에 정상 저장되었습니다.", "저장 성공", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                    // 그리드 리프레시
                     LoadDataFromGoogleSheet(isSilent: true);
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show("구글 시트 저장 중 에러가 발생했습니다:\n" + ex.Message, "저장 에러", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-            }
-            else
-            {
-                MessageBox.Show("저장할 대상 데이터가 표에 로드되어 있지 않습니다.", "안내", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -272,7 +386,6 @@ namespace wpf
                     }
 
                     dataGridIngredients.ItemsSource = dt.DefaultView;
-                    if (!isSilent) MessageBox.Show($"구글 클라우드 [{userSheetName}] 탭 데이터 동기화 완료", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
