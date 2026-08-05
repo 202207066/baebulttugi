@@ -1,0 +1,25 @@
+<Window x:Class="wpf.AgeSelectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="나이대 선택" Height="320" Width="400" WindowStartupLocation="CenterScreen">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="식단을 적용할 나이대를 선택하세요" FontSize="16" FontWeight="SemiBold" Margin="6" />
+
+        <StackPanel Grid.Row="1" Orientation="Vertical" VerticalAlignment="Top" HorizontalAlignment="Center" Width="320">
+            <Button Content="3-5세" Tag="3-5" Height="36" Click="AgeButton_Click" Margin="0,6" />
+            <Button Content="6-11세" Tag="6-11" Height="36" Click="AgeButton_Click" Margin="0,6" />
+            <Button Content="12-18세" Tag="12-18" Height="36" Click="AgeButton_Click" Margin="0,6" />
+            <Button Content="성인" Tag="adult" Height="36" Click="AgeButton_Click" Margin="0,6" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="80" Margin="4" Click="CancelButton_Click">취소</Button>
+        </StackPanel>
+    </Grid>
+</Window>
