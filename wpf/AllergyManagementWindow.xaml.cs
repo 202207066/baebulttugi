@@ -1,33 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-// 구글 API 선언
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Services;
-using Google.Apis.Sheets.v4;
-using Google.Apis.Sheets.v4.Data;
-
 namespace wpf
 {
     public partial class AllergyManagementPage : Page
     {
-        // 1. 본인의 구글 시트 ID 및 시트 범위 설정
-        private string _spreadsheetId => _service.SpreadsheetId;
-        // ID, 성명, 구분, 알러지내역, 비고
-        private static string _sheetRange => $"'{AppConfig.PatientSheetName}'!A:E";
-
         private readonly GoogleSheetsService _service;
-        private SheetsService? _sheetsService;
 
         // 💡 메모리 DB 대신, 프로그램 내부에서 구글 시트 데이터를 담고 있을 실시간 리스트입니다.
         private List<PatientModel> _patientList = new List<PatientModel>();
+
+        /// <summary>화면에서 날짜별로 등록한 제공 메뉴.</summary>
         private List<MenuModel> _menuList = new List<MenuModel>();
+
+        /// <summary>메뉴명 → "재료, 알러지" 문자열. MenuDatabase 시트에서 읽어 옵니다.</summary>
+        private readonly Dictionary<string, string> _menuCatalog =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public AllergyManagementPage()
         {
@@ -35,7 +28,6 @@ namespace wpf
 
             // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
             _service = AppServices.Require();
-            _sheetsService = _service.Sheets;
 
             Loaded += AllergyManagementPage_Loaded;
 
@@ -54,10 +46,10 @@ namespace wpf
 
         private async void AllergyManagementPage_Loaded(object sender, RoutedEventArgs e)
         {
-            SeedInitialSampleData();
-            RefreshDailyMenuGrid();
-
             if (DpMonitorDate != null) DpMonitorDate.SelectedDate = DateTime.Today;
+
+            await LoadMenuCatalogAsync();
+            RefreshDailyMenuGrid();
 
             // 💡 프로그램이 켜지자마자 구글 시트 DB 서버에서 데이터를 원격으로 긁어옵니다!
             await LoadPatientsFromGoogleSheetAsync();
@@ -70,41 +62,9 @@ namespace wpf
         {
             try
             {
-                _patientList.Clear();
-
-                var values = await _service.GetValuesAsync(_sheetRange);
-                if (values.Count > 0)
-                {
-                    // 첫 행의 A열이 숫자가 아니면 헤더로 보고 건너뜁니다.
-                    // (첫 행이 비어 있는 시트에서 values[0][0]이 터지던 문제도 함께 방어)
-                    int startIndex = 0;
-                    string firstCell = values[0].Count > 0 ? values[0][0]?.ToString() ?? "" : "";
-                    if (!int.TryParse(firstCell, out _))
-                    {
-                        startIndex = 1;
-                    }
-
-                    for (int i = startIndex; i < values.Count; i++)
-                    {
-                        var row = values[i];
-                        if (row.Count == 0 || string.IsNullOrWhiteSpace(row[0]?.ToString())) continue;
-
-                        int id = int.TryParse(row[0]?.ToString(), out int parsedId) ? parsedId : i;
-                        string name = row.Count > 1 ? row[1]?.ToString() ?? "" : "";
-                        string category = row.Count > 2 ? row[2]?.ToString() ?? "" : "일반";
-                        string allergies = row.Count > 3 ? row[3]?.ToString() ?? "" : "";
-                        string note = row.Count > 4 ? row[4]?.ToString() ?? "" : "";
-
-                        _patientList.Add(new PatientModel
-                        {
-                            Id = id,
-                            Name = name,
-                            Category = category,
-                            Allergies = allergies,
-                            Note = note
-                        });
-                    }
-                }
+                // 시트 → PatientModel 변환은 GoogleSheetsService에 한 벌만 둡니다.
+                // (대시보드도 같은 코드를 씁니다.)
+                _patientList = await _service.GetPatientsAsync();
 
                 UpdatePatientGrid(_patientList);
             }
@@ -375,19 +335,42 @@ namespace wpf
         // ==========================================
         // 🟢 알러지 스캔 매칭 기능
         // ==========================================
+        /// <summary>
+        /// 그날 제공 메뉴와 등록된 알러지를 교차 검사합니다.
+        ///
+        /// 예전에는 patientAllergySet.Contains(재료명)으로 완전 일치만 잡아
+        /// "땅콩" 알러지가 "땅콩분태" 같은 표기를 놓쳤습니다. 부분 일치로 바꿉니다.
+        /// </summary>
         private void BtnScanAllergy_Click(object sender, RoutedEventArgs e)
         {
             DateTime selectedDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
             var dailyMenus = _menuList.Where(m => m.ServingDate.Date == selectedDate.Date).ToList();
 
+            if (dailyMenus.Count == 0)
+            {
+                MessageBox.Show(
+                    "해당 날짜에 등록된 제공 메뉴가 없습니다.\n" +
+                    "[메뉴 직접 입력]으로 메뉴를 추가한 뒤 다시 스캔해 주세요.",
+                    "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             var conflictMatches = new List<object>();
+
             foreach (var patient in _patientList)
             {
-                var patientAllergySet = patient.Allergies.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries).Select(a => a.Trim()).ToHashSet();
+                var allergens = GoogleSheetsService.SplitAllergens(patient.Allergies).ToList();
+                if (allergens.Count == 0) continue;
+
                 foreach (var menu in dailyMenus)
                 {
-                    var matchedRisks = menu.Ingredients.Where(name => patientAllergySet.Contains(name)).ToList();
-                    if (matchedRisks.Any())
+                    string haystack = string.Join(", ", menu.Ingredients);
+
+                    var matchedRisks = allergens
+                        .Where(a => haystack.Contains(a, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (matchedRisks.Count > 0)
                     {
                         conflictMatches.Add(new
                         {
@@ -398,16 +381,39 @@ namespace wpf
                     }
                 }
             }
+
             DgAllergicMatches.ItemsSource = conflictMatches;
             MessageBox.Show($"스캔 완료: 총 {conflictMatches.Count}건의 알러지 교차 위험 요인이 검출되었습니다.");
         }
 
-        private void SeedInitialSampleData()
+        /// <summary>
+        /// 메뉴 DB를 읽어 캐시합니다.
+        ///
+        /// 예전에는 "땅콩소스 닭강정", "소고기 미역국" 두 건이 코드에 박혀 있어
+        /// 알러지 스캔이 사실상 그 두 개에 대해서만 동작했습니다.
+        /// </summary>
+        private async Task LoadMenuCatalogAsync()
         {
-            if (!_menuList.Any())
+            try
             {
-                _menuList.Add(new MenuModel { MenuName = "땅콩소스 닭강정", ServingDate = DateTime.Today, Ingredients = new List<string> { "닭고기", "땅콩" } });
-                _menuList.Add(new MenuModel { MenuName = "소고기 미역국", ServingDate = DateTime.Today, Ingredients = new List<string> { "소고기" } });
+                var values = await _service.GetValuesAsync($"'{AppConfig.MenuSheetName}'!A2:D");
+
+                _menuCatalog.Clear();
+                foreach (var row in values)
+                {
+                    string name = row.Count > 0 ? (row[0]?.ToString() ?? "").Trim() : "";
+                    if (name.Length == 0) continue;
+
+                    string materials = row.Count > 2 ? (row[2]?.ToString() ?? "").Trim() : "";
+                    string allergy = row.Count > 3 ? (row[3]?.ToString() ?? "").Trim() : "";
+
+                    _menuCatalog[name] = string.Join(", ",
+                        new[] { materials, allergy }.Where(s => s.Length > 0));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[메뉴 DB 로드 실패] {ex.Message}");
             }
         }
 
@@ -423,9 +429,48 @@ namespace wpf
             }).ToList();
         }
 
+        /// <summary>
+        /// 그날 제공할 메뉴를 추가합니다.
+        /// 메뉴 DB에 있는 이름을 고르면 재료·알러지 정보가 자동으로 붙습니다.
+        /// </summary>
         private void BtnManualMenuInput_Click(object sender, RoutedEventArgs e)
         {
-            _menuList.Add(new MenuModel { MenuName = "수동 추가 메밀국수", ServingDate = DpMonitorDate?.SelectedDate ?? DateTime.Today, Ingredients = new List<string> { "메밀", "밀가루" } });
+            DateTime targetDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
+
+            string? menuName = PromptDialog.Show(
+                Window.GetWindow(this),
+                "메뉴 직접 입력",
+                $"{targetDate:yyyy년 MM월 dd일}에 제공할 메뉴명을 입력하세요.\n" +
+                "메뉴 DB에 등록된 이름을 고르면 재료·알러지 정보가 자동으로 채워집니다.",
+                _menuCatalog.Keys.OrderBy(k => k, StringComparer.Ordinal));
+
+            if (menuName == null) return;
+
+            // 메뉴 DB에서 재료·알러지 정보를 찾습니다.
+            string info = _menuCatalog.TryGetValue(menuName, out var found) ? found : "";
+
+            var ingredients = info
+                .Split(new[] { ',', '/', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0 && s != "없음")
+                .Distinct()
+                .ToList();
+
+            if (ingredients.Count == 0)
+            {
+                MessageBox.Show(
+                    $"'{menuName}'의 재료·알러지 정보가 메뉴 DB에 없습니다.\n" +
+                    "메뉴는 추가되지만 알러지 스캔에서는 걸러지지 않습니다.",
+                    "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+
+            _menuList.Add(new MenuModel
+            {
+                MenuName = menuName,
+                ServingDate = targetDate,
+                Ingredients = ingredients
+            });
+
             RefreshDailyMenuGrid();
         }
 

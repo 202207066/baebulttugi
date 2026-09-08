@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
@@ -292,8 +293,60 @@ namespace wpf
         // ── 피급식자(알러지) 명단 ───────────────────────────────────────
 
         /// <summary>
-        /// 알러지 명단 시트에서 등록된 모든 알러지 성분을 모읍니다.
-        /// 식단 자동 조합에서 제외 대상을 정할 때 사용합니다.
+        /// 알러지 명단 시트를 읽어 피급식자 목록을 돌려줍니다.
+        ///   A ID | B 성명 | C 구분 | D 특이 알러지 성분 | E 비고
+        /// 첫 행의 A열이 숫자가 아니면 헤더로 보고 건너뜁니다.
+        /// </summary>
+        public async Task<List<PatientModel>> GetPatientsAsync()
+        {
+            var list = new List<PatientModel>();
+
+            string range = $"'{AppConfig.PatientSheetName}'!A:E";
+            IList<IList<object>> values = await GetValuesAsync(range);
+            if (values.Count == 0) return list;
+
+            int startIndex = 0;
+            string firstCell = values[0].Count > 0 ? values[0][0]?.ToString() ?? "" : "";
+            if (!int.TryParse(firstCell, out _)) startIndex = 1;
+
+            for (int i = startIndex; i < values.Count; i++)
+            {
+                var row = values[i];
+                if (row.Count == 0 || string.IsNullOrWhiteSpace(row[0]?.ToString())) continue;
+
+                list.Add(new PatientModel
+                {
+                    Id = int.TryParse(row[0]?.ToString(), out int parsedId) ? parsedId : i,
+                    Name = Cell(row, 1),
+                    Category = row.Count > 2 ? Cell(row, 2) : "일반",
+                    Allergies = Cell(row, 3),
+                    Note = Cell(row, 4)
+                });
+            }
+
+            return list;
+        }
+
+        private static string Cell(IList<object> row, int index) =>
+            row.Count > index ? (row[index]?.ToString() ?? "").Trim() : "";
+
+        /// <summary>알러지 성분 문자열을 개별 토큰으로 나눕니다.</summary>
+        public static IEnumerable<string> SplitAllergens(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) yield break;
+
+            foreach (var part in raw.Split(new[] { ',', '/', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string token = part.Trim();
+                if (token.Length == 0) continue;
+                // "없음"과 헤더 문구는 알러지원이 아닙니다.
+                if (token == "없음" || token == "특이 알러지 성분") continue;
+                yield return token;
+            }
+        }
+
+        /// <summary>
+        /// 등록된 모든 알러지 성분. 식단 자동 조합에서 제외 대상을 정할 때 씁니다.
         /// </summary>
         public async Task<HashSet<string>> GetRegisteredAllergensAsync()
         {
@@ -301,22 +354,9 @@ namespace wpf
 
             try
             {
-                string range = $"'{AppConfig.PatientSheetName}'!A:E";
-                IList<IList<object>> values = await GetValuesAsync(range);
-
-                foreach (var row in values)
+                foreach (var patient in await GetPatientsAsync())
                 {
-                    if (row.Count <= 3) continue;
-
-                    string cell = row[3]?.ToString() ?? "";
-                    foreach (var part in cell.Split(new[] { ',', '/', ';' }, StringSplitOptions.RemoveEmptyEntries))
-                    {
-                        string token = part.Trim();
-                        // 헤더 행과 "없음" 같은 값은 알러지원이 아닙니다.
-                        if (token.Length == 0) continue;
-                        if (token == "없음" || token == "특이 알러지 성분") continue;
-                        allergens.Add(token);
-                    }
+                    foreach (var token in SplitAllergens(patient.Allergies)) allergens.Add(token);
                 }
             }
             catch (Exception ex)
@@ -325,6 +365,41 @@ namespace wpf
             }
 
             return allergens;
+        }
+
+        /// <summary>
+        /// 알러지 성분별로 대상자 이름을 묶습니다. 대시보드 카드에 사용합니다.
+        /// 대상자가 많은 성분부터 정렬합니다.
+        /// </summary>
+        public async Task<List<(string Allergen, List<string> Names)>> GetAllergyGroupsAsync()
+        {
+            var groups = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                foreach (var patient in await GetPatientsAsync())
+                {
+                    foreach (var token in SplitAllergens(patient.Allergies))
+                    {
+                        if (!groups.TryGetValue(token, out var names))
+                        {
+                            names = new List<string>();
+                            groups[token] = names;
+                        }
+                        if (!string.IsNullOrWhiteSpace(patient.Name)) names.Add(patient.Name);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[알러지 그룹 집계 실패] {ex.Message}");
+            }
+
+            return groups
+                .OrderByDescending(kv => kv.Value.Count)
+                .ThenBy(kv => kv.Key, StringComparer.Ordinal)
+                .Select(kv => (kv.Key, kv.Value))
+                .ToList();
         }
     }
 }

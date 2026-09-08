@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -152,6 +152,31 @@ namespace wpf
         {
             DashboardData dbData = await _sheetsService.GetDashboardDataAsync();
 
+            // 인원 수와 알러지 현황은 Dashboard 시트의 요약값 대신
+            // 알러지 명단 시트를 직접 집계해 실제 데이터와 어긋나지 않게 합니다.
+            List<PatientModel> patients;
+            List<(string Allergen, List<string> Names)> allergyGroups;
+            try
+            {
+                patients = await _sheetsService.GetPatientsAsync();
+                allergyGroups = await _sheetsService.GetAllergyGroupsAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[대시보드 명단 집계 실패] {ex.Message}");
+                patients = new List<PatientModel>();
+                allergyGroups = new List<(string, List<string>)>();
+            }
+
+            if (patients.Count > 0)
+            {
+                int allergyPatientCount = patients.Count(
+                    p => GoogleSheetsService.SplitAllergens(p.Allergies).Any());
+
+                dbData.TotalPatients = $"{patients.Count} 명";
+                dbData.AllergyPatients = $"{allergyPatientCount} 명";
+            }
+
             Page dashboardPage = new Page { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F5F6FA")) };
             ScrollViewer scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             Grid mainGrid = new Grid { Margin = new Thickness(30) };
@@ -220,10 +245,34 @@ namespace wpf
 
             ListBox allergyList = new ListBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
             ScrollViewer.SetHorizontalScrollBarVisibility(allergyList, ScrollBarVisibility.Disabled);
-            string defaultMenuText = (dbData.TodayMenu != null && dbData.TodayMenu.Count > 0) ? string.Join(", ", dbData.TodayMenu) : "조회된 식단 데이터가 없습니다.";
-            string altMenuText = (dbData.TodayAlternativeMenu != null && dbData.TodayAlternativeMenu.Count > 0) ? string.Join(", ", dbData.TodayAlternativeMenu) : "조회된 대치 식단 데이터가 없습니다.";
-            allergyList.Items.Add(CreateAllergyCard("견과류 알러지", "대상자: 김철수 외 4명", $"기본 메뉴: {defaultMenuText}", $"대치 메뉴: {altMenuText}"));
-            allergyList.Items.Add(CreateAllergyCard("갑각류 알러지", "대상자: 이영희 외 2명", $"기본 메뉴: {defaultMenuText}", $"대치 메뉴: {altMenuText}"));
+
+            string defaultMenuText = (dbData.TodayMenu != null && dbData.TodayMenu.Count > 0)
+                ? string.Join(", ", dbData.TodayMenu) : "조회된 식단 데이터가 없습니다.";
+            string altMenuText = (dbData.TodayAlternativeMenu != null && dbData.TodayAlternativeMenu.Count > 0)
+                ? string.Join(", ", dbData.TodayAlternativeMenu) : "조회된 대치 식단 데이터가 없습니다.";
+
+            // 예전에는 "김철수 외 4명", "이영희 외 2명"이 코드에 박혀 있어
+            // 실제 등록 인원과 아무 관계가 없었습니다. 명단에서 집계합니다.
+            if (allergyGroups.Count > 0)
+            {
+                foreach (var (allergen, names) in allergyGroups)
+                {
+                    allergyList.Items.Add(CreateAllergyCard(
+                        $"{allergen} 알러지",
+                        "대상자: " + FormatNames(names),
+                        $"기본 메뉴: {defaultMenuText}",
+                        $"대치 메뉴: {altMenuText}"));
+                }
+            }
+            else
+            {
+                allergyList.Items.Add(CreateAllergyCard(
+                    "등록된 알러지 없음",
+                    "‘피급식자 알러지 관리’ 화면에서 대상자를 등록해 주세요.",
+                    $"기본 메뉴: {defaultMenuText}",
+                    "대치 메뉴: 해당 없음"));
+            }
+
             Grid.SetRow(allergyList, 1);
             rightGrid.Children.Add(allergyList);
             rightCard.Child = rightGrid;
@@ -237,6 +286,15 @@ namespace wpf
             dashboardPage.Content = scrollViewer;
 
             MainFrame.Navigate(dashboardPage);
+        }
+
+        /// <summary>"김철수, 이영희 외 3명" 형태로 줄여 표시합니다.</summary>
+        private static string FormatNames(List<string> names)
+        {
+            if (names == null || names.Count == 0) return "없음";
+            if (names.Count <= 2) return string.Join(", ", names);
+
+            return $"{names[0]}, {names[1]} 외 {names.Count - 2}명";
         }
 
         private Border CreateWidgetCard(string title, string value, string colorHex, Thickness margin, int column, bool isCompact = false)
