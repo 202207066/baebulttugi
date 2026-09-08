@@ -77,7 +77,12 @@ namespace wpf
         private string GetTargetSheetName() => cmbSheets.SelectedItem?.ToString() ?? "Sheet1";
 
         /// <summary>시트 이름에 공백·특수문자가 있어도 안전하도록 따옴표를 씌웁니다.</summary>
-        private static string Quote(string sheetName) => $"'{sheetName.Replace("'", "''")}'";
+        private static string Quote(string sheetName)
+        {
+            // 시트 이름 안의 작은따옴표는 두 번 써서 이스케이프합니다.
+            string escaped = sheetName.Replace("'", "''");
+            return "'" + escaped + "'";
+        }
 
         /// <summary>
         /// 구글 스프레드시트에 새 시트(탭)를 만듭니다.
