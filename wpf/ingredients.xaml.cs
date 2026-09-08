@@ -20,8 +20,7 @@ namespace wpf
 {
     public partial class Ingredients : Page
     {
-        private string spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private string clientSecretPath = "credentials.json";
+        private static string spreadsheetId => AppConfig.SpreadsheetId;
 
         private bool _isInitialized = false;
 
@@ -430,7 +429,7 @@ namespace wpf
         private SheetsService GetSheetsService()
         {
             GoogleCredential credential;
-            using (var stream = new FileStream(clientSecretPath, FileMode.Open, FileAccess.Read))
+            using (var stream = new FileStream(AppConfig.CredentialsPath, FileMode.Open, FileAccess.Read))
             {
                 credential = GoogleCredential.FromStream(stream).CreateScoped(new[] { SheetsService.Scope.Spreadsheets });
             }

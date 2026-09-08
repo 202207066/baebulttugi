@@ -14,7 +14,7 @@ namespace wpf
 {
     public partial class Menu_table : Page
     {
-        private const string SpreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
+        private static string SpreadsheetId => AppConfig.SpreadsheetId;
         private List<IngredientModel> cachedDbIngredients = new List<IngredientModel>();
 
         public class DietResultModel
@@ -129,7 +129,7 @@ namespace wpf
         {
             try
             {
-                string credentialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "credentials.json");
+                string credentialPath = AppConfig.CredentialsPath;
                 if (!File.Exists(credentialPath)) return;
 
                 GoogleCredential credential;
@@ -326,7 +326,7 @@ namespace wpf
         {
             try
             {
-                string credentialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "credentials.json");
+                string credentialPath = AppConfig.CredentialsPath;
                 if (!File.Exists(credentialPath)) return;
 
                 GoogleCredential credential;

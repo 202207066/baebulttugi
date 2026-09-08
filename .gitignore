@@ -428,6 +428,24 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# 구글 인증키 보안 유출 방지
-wpf/credentials.json
+# ─────────────────────────────────────────────────────────────
+# 비밀정보 (절대 커밋 금지)
+# ─────────────────────────────────────────────────────────────
+# 구글 OAuth 클라이언트 비밀 / 서비스 계정 키
+credentials.json
+Google_key.json
+*service-account*.json
+*-credentials.json
+
+# OAuth 토큰 저장소 (FileDataStore)
+token.json/
+token.json
+
+# 스프레드시트 ID·API 키가 들어가는 실제 설정 파일
+# (appsettings.sample.json 은 커밋 대상입니다)
+appsettings.json
+!appsettings.sample.json
+
+# 사용자별로 생성되는 개인 시트 ID 캐시
+user_sheet_id.txt
 

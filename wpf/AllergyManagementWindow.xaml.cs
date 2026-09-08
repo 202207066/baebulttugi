@@ -18,8 +18,9 @@ namespace wpf
     public partial class AllergyManagementPage : Page
     {
         // 1. 본인의 구글 시트 ID 및 시트 범위 설정
-        private readonly string _spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private readonly string _sheetRange = "'알러지 인원'!A:E"; // ID, 성명, 구분, 알러지내역, 비고
+        private static string _spreadsheetId => AppConfig.SpreadsheetId;
+        // ID, 성명, 구분, 알러지내역, 비고
+        private static string _sheetRange => $"'{AppConfig.PatientSheetName}'!A:E";
 
         private SheetsService _sheetsService;
 
@@ -66,13 +67,7 @@ namespace wpf
         {
             try
             {
-                string keyFileName = "credentials.json";
-                string keyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, keyFileName);
-
-                if (!File.Exists(keyPath))
-                {
-                    keyPath = Path.Combine(Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory)?.Parent?.Parent?.FullName ?? "", keyFileName);
-                }
+                string keyPath = AppConfig.CredentialsPath;
 
                 if (File.Exists(keyPath))
                 {

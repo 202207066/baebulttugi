@@ -24,9 +24,9 @@ namespace wpf
             {
                 string[] scopes = { DriveService.Scope.Drive, SheetsService.Scope.Spreadsheets };
 
-                using (var stream = new FileStream("credentials.json", FileMode.Open, FileAccess.Read))
+                using (var stream = new FileStream(AppConfig.CredentialsPath, FileMode.Open, FileAccess.Read))
                 {
-                    string credPath = "token.json";
+                    string credPath = AppConfig.TokenStorePath;
 
                     UserCredential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
                         GoogleClientSecrets.FromStream(stream).Secrets,

@@ -20,7 +20,8 @@ namespace wpf
 
     public class GoogleSheetsService
     {
-        private readonly string _templateSpreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
+        // 설정 파일(appsettings.json)에서 읽습니다. 저장소에 ID를 박아 넣지 않습니다.
+        private string TemplateSpreadsheetId => AppConfig.TemplateSpreadsheetId;
         private string? _userSpreadsheetId;
 
         private SheetsService _sheetsService;
@@ -54,7 +55,13 @@ namespace wpf
                 Name = "나만의 스마트 식단 및 알러지 DB"
             };
 
-            var request = _driveService.Files.Copy(fileMetadata, _templateSpreadsheetId);
+            if (string.IsNullOrWhiteSpace(TemplateSpreadsheetId))
+            {
+                throw new InvalidOperationException(
+                    "appsettings.json에 TemplateSpreadsheetId(또는 SpreadsheetId)가 설정되어 있지 않습니다.");
+            }
+
+            var request = _driveService.Files.Copy(fileMetadata, TemplateSpreadsheetId);
             var copiedFile = await request.ExecuteAsync();
 
             _userSpreadsheetId = copiedFile.Id;
@@ -74,7 +81,7 @@ namespace wpf
 
             try
             {
-                string range = "Dashboard!A2:E2";
+                string range = $"'{AppConfig.DashboardSheetName}'!A2:E2";
                 SpreadsheetsResource.ValuesResource.GetRequest request = _sheetsService.Spreadsheets.Values.Get(_userSpreadsheetId, range);
 
                 ValueRange response = await request.ExecuteAsync();

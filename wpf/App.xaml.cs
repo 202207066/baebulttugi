@@ -17,6 +17,17 @@ namespace wpf
             // (로그인 창을 닫아도 애플리케이션이 곧바로 Shutdown되지 않도록 설정)
             this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+            // 설정 파일이 준비되지 않았으면 먼저 안내합니다.
+            if (!AppConfig.HasSpreadsheetId)
+            {
+                MessageBox.Show(
+                    (AppConfig.LoadError ?? "appsettings.json에 SpreadsheetId가 비어 있습니다.") +
+                    "\n\n설정 파일 위치: " + AppConfig.ConfigFilePath,
+                    "설정 필요", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Shutdown();
+                return;
+            }
+
             // 먼저 로그인 창을 모달로 띄웁니다.
             var login = new LoginWindow();
             bool? result = login.ShowDialog();

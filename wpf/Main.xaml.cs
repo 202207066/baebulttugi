@@ -11,7 +11,7 @@ namespace wpf
     public partial class Main : Window
     {
         private GoogleSheetsService? _sheetsService;
-        private readonly string _sheetIdFilePath = "user_sheet_id.txt";
+        private static string _sheetIdFilePath => AppConfig.UserSheetIdFilePath;
 
         public Main()
         {

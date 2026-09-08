@@ -18,13 +18,13 @@ namespace wpf
     {
         // 💡 구글 시트 서비스 객체
         private SheetsService? sheetsService;
-        private readonly string SpreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
-        private readonly string SheetName = "Event";
+        private static string SpreadsheetId => AppConfig.SpreadsheetId;
+        private static string SheetName => AppConfig.EventSheetName;
 
         private List<GoogleSheetRow> currentDayEvents = new List<GoogleSheetRow>();
 
-        // 💡 [추가] 공공데이터 API 설정
-        private readonly string openApiKey = "0318fcfb71f403b25b913705c0c2fafbbbdf5e8a006f7458c24ee4db5724075e"; // 전달해준 인증키
+        // 💡 공공데이터포털 특일 정보 API 설정 (키는 appsettings.json에서 읽습니다)
+        private static string OpenApiKey => AppConfig.HolidayApiKey;
         private static readonly HttpClient httpClient = new HttpClient();
 
         // API 호출 낭비를 막기 위한 캐시 (키: "20260626", 값: "이벤트명")
@@ -47,7 +47,7 @@ namespace wpf
             try
             {
                 string[] scopes = { SheetsService.Scope.Spreadsheets };
-                string keyFilePath = "credentials.json";
+                string keyFilePath = AppConfig.CredentialsPath;
 
                 GoogleCredential credential;
                 using (var stream = new FileStream(keyFilePath, FileMode.Open, FileAccess.Read))
@@ -79,13 +79,37 @@ namespace wpf
             // 이미 이번 달 데이터를 불러왔다면 API 재요청 안 함 (최적화)
             if (currentLoadedYear == year && currentLoadedMonth == month) return;
 
-            // API 요청 주소 조립
-            string url = $"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={openApiKey}&solYear={year}&solMonth={month:D2}&_type=json&numOfRows=50";
+            // 키가 설정되지 않았으면 공휴일 조회를 건너뜁니다(구글 시트 일정은 그대로 동작).
+            if (!AppConfig.HasHolidayApiKey)
+            {
+                holidayCache.Clear();
+                currentLoadedYear = year;
+                currentLoadedMonth = month;
+                return;
+            }
+
+            // API 요청 주소 조립 (평문 http → https, 키는 URL 인코딩)
+            string url =
+                "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo" +
+                $"?serviceKey={Uri.EscapeDataString(OpenApiKey)}" +
+                $"&solYear={year}&solMonth={month:D2}&_type=json&numOfRows=50";
 
             try
             {
                 HttpResponseMessage response = await httpClient.GetAsync(url);
                 string json = await response.Content.ReadAsStringAsync();
+
+                // 키가 잘못되면 공공데이터포털은 200 응답에 XML 오류문서를 실어 보냅니다.
+                // 그대로 JObject.Parse하면 예외가 나므로 미리 걸러냅니다.
+                if (!response.IsSuccessStatusCode || !json.TrimStart().StartsWith("{"))
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[특일정보 API] 예상과 다른 응답입니다. status={(int)response.StatusCode}, body={json.Substring(0, Math.Min(200, json.Length))}");
+                    holidayCache.Clear();
+                    currentLoadedYear = year;
+                    currentLoadedMonth = month;
+                    return;
+                }
 
                 JObject jsonObj = JObject.Parse(json);
                 var itemsToken = jsonObj["response"]?["body"]?["items"]?["item"];
@@ -117,7 +141,8 @@ namespace wpf
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"API 연동 에러 (무시됨): {ex.Message}");
+                // 공휴일 조회 실패는 치명적이지 않으므로 화면을 막지 않고 로그만 남깁니다.
+                System.Diagnostics.Debug.WriteLine($"[특일정보 API] 연동 실패(무시됨): {ex.Message}");
             }
         }
 

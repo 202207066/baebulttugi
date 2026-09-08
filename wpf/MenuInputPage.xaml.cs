@@ -174,13 +174,13 @@ namespace wpf
     /// </summary>
     public class LocalGoogleSheetsService
     {
-        // ⚠️ [필수 확인] 본인의 구글 스프레드시트 주소에 있는 고유 ID를 적어주세요.
-        private readonly string _spreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
+        // 스프레드시트 ID는 appsettings.json에서 읽습니다.
+        private static string _spreadsheetId => AppConfig.SpreadsheetId;
         private readonly SheetsService _service;
 
         public LocalGoogleSheetsService()
         {
-            string credentialPath = "credentials.json";
+            string credentialPath = AppConfig.CredentialsPath;
 
             if (!File.Exists(credentialPath))
             {
