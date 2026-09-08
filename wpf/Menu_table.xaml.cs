@@ -14,7 +14,11 @@ namespace wpf
 {
     public partial class Menu_table : Page
     {
-        private static string SpreadsheetId => AppConfig.SpreadsheetId;
+        private readonly GoogleSheetsService _sheetsService;
+
+        /// <summary>시작 시 선택한 나이대("3-5", "6-11", "12-18", "adult").</summary>
+        private readonly string _initialAgeGroup;
+
         private List<IngredientModel> cachedDbIngredients = new List<IngredientModel>();
 
         public class DietResultModel
@@ -57,10 +61,45 @@ namespace wpf
             public bool IsMild => !IsStrongTaste;
         }
 
-        public Menu_table()
+        public Menu_table(string ageGroup = "")
         {
             InitializeComponent();
+
+            _sheetsService = AppServices.Require();
+            _initialAgeGroup = ageGroup ?? string.Empty;
+
             LoadMenuDatabase();
+            ApplyInitialAgeGroup();
+        }
+
+        /// <summary>
+        /// 시작 화면에서 고른 나이대를 이 화면의 콤보박스에도 미리 선택해 둡니다.
+        /// (예전에는 시작 시 고른 값이 어디에서도 쓰이지 않고 버려졌습니다.)
+        /// </summary>
+        private void ApplyInitialAgeGroup()
+        {
+            if (string.IsNullOrWhiteSpace(_initialAgeGroup) || CboAgeGroup == null) return;
+
+            // AgeSelectionWindow의 Tag 값 ↔ 이 화면 콤보박스 항목 텍스트 대응
+            string wanted = _initialAgeGroup switch
+            {
+                "3-5" => "3~5세",
+                "6-11" => "6~11세",
+                "12-18" => "12~18세",
+                "adult" => "19세 이상",
+                _ => string.Empty
+            };
+
+            if (wanted.Length == 0) return;
+
+            foreach (var obj in CboAgeGroup.Items)
+            {
+                if (obj is ComboBoxItem item && (item.Content?.ToString() ?? "").Contains(wanted))
+                {
+                    CboAgeGroup.SelectedItem = item;
+                    return;
+                }
+            }
         }
 
         #region [ 탭 전환 로직 ]
@@ -129,23 +168,10 @@ namespace wpf
         {
             try
             {
-                string credentialPath = AppConfig.CredentialsPath;
-                if (!File.Exists(credentialPath)) return;
-
-                GoogleCredential credential;
-                using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
-                {
-                    credential = GoogleCredential.FromStream(stream).CreateScoped(SheetsService.Scope.Spreadsheets);
-                }
-
-                var service = new SheetsService(new BaseClientService.Initializer()
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = "MealCareAI-System"
-                });
-
-                string readRange = "MenuDatabase!A2:D";
-                var response = service.Spreadsheets.Values.Get(SpreadsheetId, readRange).Execute();
+                // 로그인 때 만든 공용 서비스를 사용합니다(페이지마다 인증하지 않습니다).
+                string readRange = $"'{AppConfig.MenuSheetName}'!A2:D";
+                var response = _sheetsService.Sheets.Spreadsheets.Values
+                    .Get(_sheetsService.SpreadsheetId, readRange).Execute();
                 IList<IList<object>> values = response.Values;
 
                 cachedDbIngredients.Clear();
@@ -326,23 +352,7 @@ namespace wpf
         {
             try
             {
-                string credentialPath = AppConfig.CredentialsPath;
-                if (!File.Exists(credentialPath)) return;
-
-                GoogleCredential credential;
-                using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
-                {
-                    credential = GoogleCredential.FromStream(stream).CreateScoped(SheetsService.Scope.Spreadsheets);
-                }
-
-                var service = new SheetsService(new BaseClientService.Initializer()
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = "MealCareAI-System"
-                });
-
-                string targetSheetName = "식단";
-                string writeRange = $"'{targetSheetName}'!A:F";
+                string writeRange = $"'{AppConfig.DietSheetName}'!A:F";
 
                 var valueRange = new ValueRange
                 {
@@ -358,11 +368,19 @@ namespace wpf
                     }
                 };
 
-                var appendRequest = service.Spreadsheets.Values.Append(valueRange, SpreadsheetId, writeRange);
+                var appendRequest = _sheetsService.Sheets.Spreadsheets.Values
+                    .Append(valueRange, _sheetsService.SpreadsheetId, writeRange);
                 appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
                 appendRequest.Execute();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 예전에는 catch {} 로 완전히 삼켜서, 저장에 실패해도 사용자는
+                // 저장된 줄 알았습니다. 실패를 분명히 알립니다.
+                MessageBox.Show(
+                    $"추천 식단을 '{AppConfig.DietSheetName}' 시트에 저장하지 못했습니다.\n\n{ex.Message}",
+                    "저장 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
         #endregion
     }

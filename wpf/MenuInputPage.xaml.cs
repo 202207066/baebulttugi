@@ -1,154 +1,168 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Services;
-using Google.Apis.Sheets.v4;
-using Google.Apis.Sheets.v4.Data;
 
 namespace wpf
 {
     /// <summary>
-    /// MenuInputPage.xaml에 대한 상호 작용 논리
+    /// 메뉴(레시피) 관리 화면.
+    ///
+    /// 예전에는 이 파일 안에 LocalGoogleSheetsService라는 별도 연동 클래스를 두고
+    /// credentials.json을 직접 열어 서비스 계정으로 인증했습니다. 앱의 다른 부분은
+    /// OAuth로 로그인하는데 같은 파일을 다른 포맷으로 읽는 셈이라 한쪽은 반드시
+    /// 실패했습니다. 이제 로그인 때 만든 공용 서비스(AppServices)를 사용합니다.
     /// </summary>
     public partial class MenuInputPage : Page
     {
-        // 🟢 내부 구글 시트 전용 서비스 객체
-        private LocalGoogleSheetsService _sheetsService;
+        private readonly GoogleSheetsService _sheetsService;
 
-        // 등록된 메뉴들을 임시 저장 및 바인딩할 메모리 리스트
-        private List<MenuDataModel> _menuList;
+        /// <summary>MenuDatabase 시트의 데이터 영역(헤더 제외). A=메뉴명 B=칼로리 C=재료 D=알러지</summary>
+        private static string MenuRange => $"'{AppConfig.MenuSheetName}'!A2:D";
+
+        private List<MenuDataModel> _menuList = new List<MenuDataModel>();
 
         public MenuInputPage()
         {
             InitializeComponent();
 
-            try
-            {
-                // 여기서 구글 시트 서비스를 바로 초기화합니다.
-                _sheetsService = new LocalGoogleSheetsService();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"구글 시트 연동 엔진 초기화 실패:\n{ex.Message}\n\n*주의: 프로젝트 폴더 내에 credentials.json 파일이 있는지 확인하세요.*", "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            _sheetsService = AppServices.Require();
 
-            // 화면이 완전히 로드되면 구글 시트에서 데이터를 비동기로 긁어옵니다.
             this.Loaded += MenuInputPage_Loaded;
         }
 
-        /// <summary>
-        /// 페이지가 화면에 켜질 때 구글 시트 데이터를 가져옵니다.
-        /// </summary>
         private async void MenuInputPage_Loaded(object sender, RoutedEventArgs e)
         {
             await RefreshGridFromGoogleSheetAsync();
         }
 
         /// <summary>
-        /// 구글 스프레드시트의 'MenuDatabase' 시트에서 데이터를 가져와 표(DataGrid)를 갱신합니다.
+        /// MenuDatabase 시트에서 레시피를 읽어 표를 갱신합니다.
         /// </summary>
         private async Task RefreshGridFromGoogleSheetAsync()
         {
-            if (_sheetsService == null) return;
-
-            // 로딩 중 마우스 커서 변경
             Mouse.OverrideCursor = Cursors.Wait;
 
             try
             {
-                // 구글 시트 데이터 원격 호출
-                _menuList = await _sheetsService.GetMenuListAsync();
+                var values = await _sheetsService.GetValuesAsync(MenuRange);
 
-                // 만약 구글 시트에 데이터가 아예 없다면 로컬 기본 예시 데이터를 배치합니다.
-                if (_menuList == null || _menuList.Count == 0)
+                var list = new List<MenuDataModel>();
+                foreach (var row in values)
                 {
-                    _menuList = new List<MenuDataModel>
+                    string name = row.Count > 0 ? row[0]?.ToString() ?? "" : "";
+                    if (string.IsNullOrWhiteSpace(name)) continue; // 빈 행 건너뛰기
+
+                    list.Add(new MenuDataModel
                     {
-                        new MenuDataModel { MenuName = "발아현미밥", Calories = "320 kcal", Ingredients = "쌀, 현미", Allergies = "없음" },
-                        new MenuDataModel { MenuName = "땅콩 소스 닭강정", Calories = "450 kcal", Ingredients = "닭고기, 땅콩, 대두, 밀", Allergies = "땅콩, 대두, 밀" },
-                        new MenuDataModel { MenuName = "새우 완탕 국", Calories = "180 kcal", Ingredients = "새우, 밀, 계란", Allergies = "새우, 계란, 밀" }
-                    };
+                        MenuName = name.Trim(),
+                        Calories = row.Count > 1 ? row[1]?.ToString() ?? "" : "",
+                        Ingredients = row.Count > 2 ? row[2]?.ToString() ?? "" : "",
+                        Allergies = row.Count > 3 ? row[3]?.ToString() ?? "" : ""
+                    });
                 }
 
-                // DataGrid 새로고침 바인딩
+                _menuList = list;
                 DgMenuList.ItemsSource = null;
                 DgMenuList.ItemsSource = _menuList;
+
+                // 예전에는 시트가 비어 있으면 예시 레시피 3개를 화면에 채워 넣어서
+                // 실제 데이터인지 더미인지 구분할 수 없었습니다. 이제는 비었다고 알립니다.
+                if (_menuList.Count == 0)
+                {
+                    MessageBox.Show(
+                        $"'{AppConfig.MenuSheetName}' 시트에 등록된 레시피가 없습니다.\n" +
+                        "아래 입력란에서 첫 레시피를 등록해 보세요.",
+                        "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"구글 시트 데이터를 불러오는 중 오류 발생:\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"구글 시트 데이터를 불러오는 중 오류 발생:\n{ex.Message}",
+                                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                // 마우스 커서 정상화
                 Mouse.OverrideCursor = null;
             }
         }
 
         /// <summary>
-        /// [레시피 저장하기] 버튼 클릭 시 작동하는 로직
+        /// [레시피 저장하기] 버튼
         /// </summary>
         private async void BtnSaveMenu_Click(object sender, RoutedEventArgs e)
         {
-            // 간단한 입력 유효성 검사 (메뉴명 필수)
             if (string.IsNullOrWhiteSpace(TxtMenuName.Text))
             {
                 MessageBox.Show("메뉴명을 입력해 주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                TxtMenuName.Focus();
                 return;
             }
 
-            // 새로운 메뉴 데이터 객체 생성 및 텍스트 포맷팅
+            string menuName = TxtMenuName.Text.Trim();
+
+            // 같은 이름이 이미 있으면 중복 등록을 막습니다.
+            foreach (var existing in _menuList)
+            {
+                if (string.Equals(existing.MenuName, menuName, StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show($"'{menuName}' 은(는) 이미 등록된 메뉴입니다.",
+                                    "중복", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
             var newMenu = new MenuDataModel
             {
-                MenuName = TxtMenuName.Text.Trim(),
-                Calories = string.IsNullOrWhiteSpace(TxtCalories.Text) ? "- kcal" :
-                           (TxtCalories.Text.Contains("kcal") ? TxtCalories.Text.Trim() : TxtCalories.Text.Trim() + " kcal"),
+                MenuName = menuName,
+                Calories = FormatCalories(TxtCalories.Text),
                 Ingredients = string.IsNullOrWhiteSpace(TxtIngredients.Text) ? "미지정" : TxtIngredients.Text.Trim(),
                 Allergies = string.IsNullOrWhiteSpace(TxtAllergies.Text) ? "없음" : TxtAllergies.Text.Trim()
             };
 
-            if (_sheetsService != null)
+            Mouse.OverrideCursor = Cursors.Wait;
+            try
             {
-                Mouse.OverrideCursor = Cursors.Wait;
-
-                // 🟢 구글 시트에 비동기로 신규 데이터 1줄 추가 요청
-                bool isSuccess = await _sheetsService.AppendMenuAsync(newMenu);
+                await _sheetsService.AppendRowAsync(MenuRange, new List<object>
+                {
+                    newMenu.MenuName, newMenu.Calories, newMenu.Ingredients, newMenu.Allergies
+                });
 
                 Mouse.OverrideCursor = null;
 
-                if (isSuccess)
-                {
-                    MessageBox.Show($"[{newMenu.MenuName}] 레시피가 구글 시트에 영구 저장되었습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"[{newMenu.MenuName}] 레시피가 구글 시트에 저장되었습니다.",
+                                "완료", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                    // 저장 성공 후 구글 시트의 최신 데이터를 다시 긁어와서 UI 갱신
-                    await RefreshGridFromGoogleSheetAsync();
-
-                    // 입력창 초기화
-                    ClearInputForms();
-                }
-                else
-                {
-                    MessageBox.Show("구글 스프레드시트에 저장하지 못했습니다.\n네트워크 상태나 시트 권한 설정을 확인하세요.", "저장 오류", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-            else
-            {
-                MessageBox.Show("구글 연동 서비스가 켜지지 않아 로컬에만 추가합니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
-                _menuList.Add(newMenu);
-                DgMenuList.ItemsSource = null;
-                DgMenuList.ItemsSource = _menuList;
                 ClearInputForms();
+                await RefreshGridFromGoogleSheetAsync();
+            }
+            catch (Exception ex)
+            {
+                Mouse.OverrideCursor = null;
+
+                // 예전에는 실패를 bool로 삼켜서 "저장 실패" 한 줄만 보였습니다.
+                // 원인(권한/네트워크/시트 이름)을 그대로 보여 줍니다.
+                MessageBox.Show(
+                    "구글 스프레드시트에 저장하지 못했습니다.\n\n" + ex.Message,
+                    "저장 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
             }
         }
 
-        /// <summary>
-        /// 입력 폼 리셋 함수
-        /// </summary>
+        /// <summary>"350" → "350 kcal", 이미 단위가 있으면 그대로.</summary>
+        private static string FormatCalories(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "- kcal";
+
+            string text = raw.Trim();
+            return text.Contains("kcal", StringComparison.OrdinalIgnoreCase) ? text : text + " kcal";
+        }
+
         private void ClearInputForms()
         {
             TxtMenuName.Clear();
@@ -159,111 +173,13 @@ namespace wpf
     }
 
     /// <summary>
-    /// 메뉴 레시피 데이터를 담기 위한 구조 설계 클래스
+    /// 메뉴 레시피 데이터 모델
     /// </summary>
     public class MenuDataModel
     {
-        public string MenuName { get; set; }
-        public string Calories { get; set; }
-        public string Ingredients { get; set; }
-        public string Allergies { get; set; }
-    }
-
-    /// <summary>
-    /// 🟢 딴 파일 안 거치게 내부에 내장시킨 구글 시트 연동 모듈 클래스
-    /// </summary>
-    public class LocalGoogleSheetsService
-    {
-        // 스프레드시트 ID는 appsettings.json에서 읽습니다.
-        private static string _spreadsheetId => AppConfig.SpreadsheetId;
-        private readonly SheetsService _service;
-
-        public LocalGoogleSheetsService()
-        {
-            string credentialPath = AppConfig.CredentialsPath;
-
-            if (!File.Exists(credentialPath))
-            {
-                throw new FileNotFoundException($"인증 키 파일({credentialPath})이 없습니다.");
-            }
-
-            GoogleCredential credential;
-            using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
-            {
-                credential = GoogleCredential.FromStream(stream)
-                    .CreateScoped(SheetsService.Scope.Spreadsheets); // 읽기/쓰기 통합 권한 부여
-            }
-
-            _service = new SheetsService(new BaseClientService.Initializer()
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "WPF Diet Management System",
-            });
-        }
-
-        /// <summary>
-        /// 구글 시트의 'MenuDatabase' 혹은 'Sheet1' 탭에서 레시피 전체 데이터를 읽어옵니다.
-        /// </summary>
-        public async Task<List<MenuDataModel>> GetMenuListAsync()
-        {
-            var list = new List<MenuDataModel>();
-            try
-            {
-                // ⚠️ 구글 시트 좌측 하단 탭 이름이 'MenuDatabase' 또는 'Sheet1' 등 실제 이름과 똑같아야 합니다.
-                string range = "MenuDatabase!A2:D";
-                var request = _service.Spreadsheets.Values.Get(_spreadsheetId, range);
-                var response = await request.ExecuteAsync();
-                var values = response.Values;
-
-                if (values != null && values.Count > 0)
-                {
-                    foreach (var row in values)
-                    {
-                        list.Add(new MenuDataModel
-                        {
-                            MenuName = row.Count > 0 ? row[0]?.ToString() ?? "" : "",
-                            Calories = row.Count > 1 ? row[1]?.ToString() ?? "" : "",
-                            Ingredients = row.Count > 2 ? row[2]?.ToString() ?? "" : "",
-                            Allergies = row.Count > 3 ? row[3]?.ToString() ?? "" : ""
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[구글 시트 읽기 실패] {ex.Message}");
-                // 만약 MenuDatabase 탭을 못 찾으면 시도할 예외 처리용 코드나 메시지 영역
-            }
-            return list;
-        }
-
-        /// <summary>
-        /// 구글 시트 맨 아래 빈 줄에 새 레시피 추가하기
-        /// </summary>
-        public async Task<bool> AppendMenuAsync(MenuDataModel menu)
-        {
-            try
-            {
-                string range = "MenuDatabase!A2:D";
-                var valueRange = new ValueRange
-                {
-                    Values = new List<IList<object>>
-                    {
-                        new List<object> { menu.MenuName, menu.Calories, menu.Ingredients, menu.Allergies }
-                    }
-                };
-
-                var appendRequest = _service.Spreadsheets.Values.Append(valueRange, _spreadsheetId, range);
-                appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
-
-                await appendRequest.ExecuteAsync();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[구글 시트 쓰기 실패] {ex.Message}");
-                return false;
-            }
-        }
+        public string MenuName { get; set; } = string.Empty;
+        public string Calories { get; set; } = string.Empty;
+        public string Ingredients { get; set; } = string.Empty;
+        public string Allergies { get; set; } = string.Empty;
     }
 }

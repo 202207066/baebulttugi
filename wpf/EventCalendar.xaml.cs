@@ -16,9 +16,11 @@ namespace wpf
 {
     public partial class EventCalendar : Page
     {
-        // 💡 구글 시트 서비스 객체
+        // 💡 구글 시트 서비스 객체 (로그인 때 만든 공용 서비스를 공유)
+        private readonly GoogleSheetsService _service;
         private SheetsService? sheetsService;
-        private static string SpreadsheetId => AppConfig.SpreadsheetId;
+
+        private string SpreadsheetId => _service.SpreadsheetId;
         private static string SheetName => AppConfig.EventSheetName;
 
         private List<GoogleSheetRow> currentDayEvents = new List<GoogleSheetRow>();
@@ -35,36 +37,13 @@ namespace wpf
         public EventCalendar()
         {
             InitializeComponent();
-            InitializeGoogleSheets();
+
+            // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
+            _service = AppServices.Require();
+            sheetsService = _service.Sheets;
 
             MainCalendar.SelectedDatesChanged += MainCalendar_SelectedDatesChanged;
             MainCalendar.SelectedDate = DateTime.Today; // 오늘 날짜 기본 선택
-        }
-
-        // 🔑 구글 API 인증 및 서비스 초기화 (기존 동일)
-        private void InitializeGoogleSheets()
-        {
-            try
-            {
-                string[] scopes = { SheetsService.Scope.Spreadsheets };
-                string keyFilePath = AppConfig.CredentialsPath;
-
-                GoogleCredential credential;
-                using (var stream = new FileStream(keyFilePath, FileMode.Open, FileAccess.Read))
-                {
-                    credential = GoogleCredential.FromStream(stream).CreateScoped(scopes);
-                }
-
-                sheetsService = new SheetsService(new BaseClientService.Initializer()
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = "WPF Event Calendar"
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"구글 시트 연결 실패: {ex.Message}", "오류");
-            }
         }
 
         // 📅 달력에서 날짜를 클릭했을 때 (async 비동기로 변경)

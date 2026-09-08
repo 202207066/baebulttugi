@@ -20,13 +20,19 @@ namespace wpf
 {
     public partial class Ingredients : Page
     {
-        private static string spreadsheetId => AppConfig.SpreadsheetId;
+        private readonly GoogleSheetsService _sheetsService;
+
+        private string spreadsheetId => _sheetsService.SpreadsheetId;
 
         private bool _isInitialized = false;
 
         public Ingredients()
         {
             InitializeComponent();
+
+            // 로그인 때 만든 공용 서비스를 사용합니다.
+            // (예전에는 클릭할 때마다 credentials.json을 다시 열어 SheetsService를 새로 만들었습니다.)
+            _sheetsService = AppServices.Require();
 
             // 💡 SSL/TLS 연결 보안 프로토콜 강제 활성화 (일시적 튕김 차단 에러 방지용)
             System.Net.ServicePointManager.SecurityProtocol =
@@ -426,18 +432,10 @@ namespace wpf
             }
         }
 
-        private SheetsService GetSheetsService()
-        {
-            GoogleCredential credential;
-            using (var stream = new FileStream(AppConfig.CredentialsPath, FileMode.Open, FileAccess.Read))
-            {
-                credential = GoogleCredential.FromStream(stream).CreateScoped(new[] { SheetsService.Scope.Spreadsheets });
-            }
-            return new SheetsService(new BaseClientService.Initializer()
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "GoogleSheetCSVApp",
-            });
-        }
+        /// <summary>
+        /// 앱 전체가 공유하는 SheetsService를 돌려줍니다.
+        /// 호출부는 그대로 두고 내부만 교체했습니다.
+        /// </summary>
+        private SheetsService GetSheetsService() => _sheetsService.Sheets;
     }
 }

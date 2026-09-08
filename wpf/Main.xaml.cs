@@ -10,54 +10,38 @@ namespace wpf
 {
     public partial class Main : Window
     {
-        private GoogleSheetsService? _sheetsService;
-        private static string _sheetIdFilePath => AppConfig.UserSheetIdFilePath;
+        private readonly GoogleSheetsService _sheetsService;
+        private readonly string _ageGroup;
 
-        public Main()
+        /// <summary>
+        /// 로그인과 개인 DB 준비는 App.xaml.cs에서 이미 끝난 상태로 들어옵니다.
+        /// 여기서 다시 로그인 창을 띄우지 않습니다(예전에는 인증 창이 두 번 떴습니다).
+        /// </summary>
+        public Main(GoogleSheetsService sheetsService, string ageGroup = "")
         {
             InitializeComponent();
+
+            _sheetsService = sheetsService ?? throw new ArgumentNullException(nameof(sheetsService));
+            _ageGroup = ageGroup ?? string.Empty;
+
             this.Loaded += Main_Loaded;
         }
 
-        // 🚀 프로그램 시작 시 실행되는 이벤트 (로그인 및 DB 복사)
         private async void Main_Loaded(object sender, RoutedEventArgs e)
         {
-            LoginWindow loginWindow = new LoginWindow();
-
-            if (loginWindow.ShowDialog() == true && loginWindow.UserCredential != null)
+            try
             {
-                _sheetsService = new GoogleSheetsService(loginWindow.UserCredential);
-
-                if (File.Exists(_sheetIdFilePath))
-                {
-                    string savedId = File.ReadAllText(_sheetIdFilePath);
-                    _sheetsService.SetUserSpreadsheetId(savedId);
-                }
-                else
-                {
-                    try
-                    {
-                        string newId = await _sheetsService.SetupUserDatabaseAsync();
-                        File.WriteAllText(_sheetIdFilePath, newId);
-                        MessageBox.Show("개인 구글 계정에 전용 엑셀 DB 배포가 완료되었습니다!", "초기화 성공", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"DB 배포 중 오류가 발생했습니다: {ex.Message}", "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-
                 ResetAllButtonsActive();
                 SetButtonActive(BtnDashboard, true);
 
                 await LoadDefaultDashboardAsync();
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("프로그램을 사용하려면 구글 로그인이 필요합니다.", "안내", MessageBoxButton.OK, MessageBoxImage.Warning);
-                Application.Current.Shutdown();
+                MessageBox.Show("대시보드를 불러오는 중 오류가 발생했습니다:\n" + ex.Message,
+                                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        } // 💡 꼬였던 괄호 문제 완벽 해결!
+        }
 
         // 🏠 1. 종합 대시보드 홈 버튼 클릭 이벤트
         private async void BtnDashboard_Click(object sender, RoutedEventArgs e)
@@ -70,64 +54,58 @@ namespace wpf
         // ⚙️ 2. 식단 자동 조합 버튼 클릭 이벤트
         private void BtnMenuTable_Click(object sender, RoutedEventArgs e)
         {
-            ResetAllButtonsActive();
-            SetButtonActive(BtnMenuTable, true);
-            MainFrame.Navigate(new Uri("Menu_table.xaml", UriKind.Relative));
+            NavigateTo(BtnMenuTable, () => new Menu_table(_ageGroup), "식단 자동 조합");
         }
 
         // 🍳 3. 메뉴(레시피) 관리 버튼 클릭 이벤트
         private void BtnMenuManage_Click(object sender, RoutedEventArgs e)
         {
-            ResetAllButtonsActive();
-            SetButtonActive(BtnMenuManage, true);
-            // 만약 MenuInputPage가 없다면 임시로 주석 처리하시거나 해당 클래스를 생성하세요
-            // MainFrame.Navigate(new MenuInputPage());
+            NavigateTo(BtnMenuManage, () => new MenuInputPage(), "메뉴(레시피) 관리");
         }
 
         // 🌿 4. 식재료 원천 DB 버튼 클릭 이벤트
         private void BtnIngredientsDb_Click(object sender, RoutedEventArgs e)
         {
-            ResetAllButtonsActive();
-            SetButtonActive(BtnIngredientsDb, true);
-            MainFrame.Navigate(new Uri("Ingredients.xaml", UriKind.Relative));
+            NavigateTo(BtnIngredientsDb, () => new Ingredients(), "식재료 원천 DB");
         }
 
         // 👥 5. 피급식자 알러지 관리 버튼 클릭 이벤트
         private void BtnManagement_Click(object sender, RoutedEventArgs e)
         {
-            ResetAllButtonsActive();
-            SetButtonActive(BtnManagement, true);
-            // 만약 AllergyManagementPage가 없다면 임시로 주석 처리하시거나 해당 클래스를 생성하세요
-            // MainFrame.Navigate(new AllergyManagementPage());
+            NavigateTo(BtnManagement, () => new AllergyManagementPage(), "피급식자 알러지 관리");
         }
 
         // 💵 6. 원가 / 소요량 계산 버튼 클릭 이벤트
         private void BtnCalculate_Click(object sender, RoutedEventArgs e)
         {
-            ResetAllButtonsActive();
-            SetButtonActive(BtnCalculate, true);
-            try
-            {
-                MainFrame.Navigate(new Uri("CalculatePage.xaml", UriKind.Relative));
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("CalculatePage.xaml 페이지를 로드하는 중 오류가 발생했습니다.\n" + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            NavigateTo(BtnCalculate, () => new CalculatePage(), "원가 / 소요량 계산");
         }
 
         // 📅 7. 이벤트 및 절기 달력 버튼 클릭 이벤트
         private void BtnCalendar_Click(object sender, RoutedEventArgs e)
         {
+            NavigateTo(BtnCalendar, () => new EventCalendar(), "이벤트 및 절기 달력");
+        }
+
+        /// <summary>
+        /// 사이드바 버튼 상태를 정리하고 페이지를 띄웁니다.
+        ///
+        /// Uri 대신 인스턴스를 만들어 Navigate합니다. 이렇게 해야 나이대 같은 값을
+        /// 페이지에 넘길 수 있고, 페이지 생성자에서 난 예외도 여기서 잡힙니다.
+        /// </summary>
+        private void NavigateTo(Button sourceButton, Func<Page> pageFactory, string pageTitle)
+        {
             ResetAllButtonsActive();
-            SetButtonActive(BtnCalendar, true);
+            SetButtonActive(sourceButton, true);
+
             try
             {
-                MainFrame.Navigate(new Uri("EventCalendar.xaml", UriKind.Relative));
+                MainFrame.Navigate(pageFactory());
             }
             catch (Exception ex)
             {
-                MessageBox.Show("EventCalendar.xaml 페이지를 전환하는 중 오류가 발생했습니다.\n" + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"[{pageTitle}] 화면을 여는 중 오류가 발생했습니다.\n\n{ex.Message}",
+                                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -172,9 +150,6 @@ namespace wpf
 
         private async Task LoadDefaultDashboardAsync()
         {
-            // 💡 로그인 안된 상태에서 로드 방지
-            if (_sheetsService == null) return;
-
             DashboardData dbData = await _sheetsService.GetDashboardDataAsync();
 
             Page dashboardPage = new Page { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F5F6FA")) };

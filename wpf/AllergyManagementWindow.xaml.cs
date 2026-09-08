@@ -18,11 +18,12 @@ namespace wpf
     public partial class AllergyManagementPage : Page
     {
         // 1. 본인의 구글 시트 ID 및 시트 범위 설정
-        private static string _spreadsheetId => AppConfig.SpreadsheetId;
+        private string _spreadsheetId => _service.SpreadsheetId;
         // ID, 성명, 구분, 알러지내역, 비고
         private static string _sheetRange => $"'{AppConfig.PatientSheetName}'!A:E";
 
-        private SheetsService _sheetsService;
+        private readonly GoogleSheetsService _service;
+        private SheetsService? _sheetsService;
 
         // 💡 메모리 DB 대신, 프로그램 내부에서 구글 시트 데이터를 담고 있을 실시간 리스트입니다.
         private List<PatientModel> _patientList = new List<PatientModel>();
@@ -32,7 +33,9 @@ namespace wpf
         {
             InitializeComponent();
 
-            InitGoogleSheetsService();
+            // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
+            _service = AppServices.Require();
+            _sheetsService = _service.Sheets;
 
             Loaded += AllergyManagementPage_Loaded;
 
@@ -58,36 +61,6 @@ namespace wpf
 
             // 💡 프로그램이 켜지자마자 구글 시트 DB 서버에서 데이터를 원격으로 긁어옵니다!
             await LoadPatientsFromGoogleSheetAsync();
-        }
-
-        // ==========================================
-        // 🟢 구글 시트 서비스 초기화 (비밀키 파일 연동)
-        // ==========================================
-        private void InitGoogleSheetsService()
-        {
-            try
-            {
-                string keyPath = AppConfig.CredentialsPath;
-
-                if (File.Exists(keyPath))
-                {
-                    using (var stream = new FileStream(keyPath, FileMode.Open, FileAccess.Read))
-                    {
-                        GoogleCredential credential = GoogleCredential.FromStream(stream)
-                            .CreateScoped(SheetsService.Scope.Spreadsheets);
-
-                        _sheetsService = new SheetsService(new BaseClientService.Initializer()
-                        {
-                            HttpClientInitializer = credential,
-                            ApplicationName = "MealCareAllergyApp"
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"구글 시트 초기화 실패: {ex.Message}");
-            }
         }
 
         // ========================================================
