@@ -15,22 +15,21 @@ namespace wpf
     public partial class Menu_table : Page
     {
         private const string SpreadsheetId = "1Z-h4zeyDL3IbjbJj4KsSH7tU1AioWabI2iI0Momo2P8";
+        private List<IngredientModel> cachedDbIngredients = new List<IngredientModel>();
 
-        // 📊 식단 결과 데이터 모델
         public class DietResultModel
         {
             public string DietName { get; set; } = string.Empty;
-            public string Rice { get; set; } = string.Empty;              // 밥류
-            public string Soup { get; set; } = string.Empty;              // 국류
-            public string Meat { get; set; } = string.Empty;              // 메인반찬(육류)
-            public string Vegetable { get; set; } = string.Empty;         // 서브반찬(나물류)
+            public string Rice { get; set; } = string.Empty;
+            public string Soup { get; set; } = string.Empty;
+            public string Meat { get; set; } = string.Empty;
+            public string Vegetable { get; set; } = string.Empty;
 
             public double Carb { get; set; }
             public double Protein { get; set; }
             public double Fat { get; set; }
             public double Calories { get; set; }
 
-            // XAML DataGrid 바인딩용 합친 문자열
             public string MenuComposition => $"{Rice}, {Soup}, {Meat}, {Vegetable}";
         }
 
@@ -40,13 +39,179 @@ namespace wpf
             public double Calories { get; set; }
             public string Materials { get; set; } = string.Empty;
             public string Allergy { get; set; } = string.Empty;
+
+            // 1. 매운 맛 속성
+            public bool IsSpicy => Name.Contains("제육") || Name.Contains("김치") || Name.Contains("청양") ||
+                                   Name.Contains("매운") || Name.Contains("떡볶이") || Name.Contains("카레") ||
+                                   Name.Contains("짬뽕") || (Name.Contains("무침") && Name.Contains("고추"));
+
+            // 2. 짠맛 / 강한 양념 속성
+            public bool IsSalty => Name.Contains("장조림") || Name.Contains("젓갈") || Name.Contains("조림") ||
+                                   Name.Contains("찌개") || Name.Contains("자반") || Name.Contains("굴비") ||
+                                   Name.Contains("스팸") || Name.Contains("소세지") || Name.Contains("피클");
+
+            // 3. 자극적이거나 중식/튀김류 (기름진 맛)
+            public bool IsStrongTaste => IsSpicy || IsSalty || Name.Contains("튀김") || Name.Contains("탕수육") || Name.Contains("돈가스");
+
+            // 4. 담백한/순한 맛 여부
+            public bool IsMild => !IsStrongTaste;
         }
 
         public Menu_table()
         {
             InitializeComponent();
+            LoadMenuDatabase();
         }
 
+        #region [ 탭 전환 로직 ]
+        private void BtnTabAuto_Click(object sender, RoutedEventArgs e)
+        {
+            PanelAutoSetup.Visibility = Visibility.Visible;
+            PanelDirectInput.Visibility = Visibility.Collapsed;
+
+            BtnTabAuto.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#EBF8FF"));
+            BtnTabAuto.Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#2B6CB0"));
+
+            BtnTabDirect.Background = System.Windows.Media.Brushes.Transparent;
+            BtnTabDirect.Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4A5568"));
+        }
+
+        private void BtnTabDirect_Click(object sender, RoutedEventArgs e)
+        {
+            PanelAutoSetup.Visibility = Visibility.Collapsed;
+            PanelDirectInput.Visibility = Visibility.Visible;
+
+            BtnTabDirect.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#EBF8FF"));
+            BtnTabDirect.Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#2B6CB0"));
+
+            BtnTabAuto.Background = System.Windows.Media.Brushes.Transparent;
+            BtnTabAuto.Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4A5568"));
+        }
+        #endregion
+
+        #region [ 연령대 및 영양소 힌트 설정 ]
+        private void CboAgeGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (CboAgeGroup?.SelectedItem is ComboBoxItem selectedItem)
+            {
+                string ageGroup = selectedItem.Content.ToString() ?? "";
+
+                if (ageGroup.Contains("3~5세"))
+                {
+                    UpdateNutrientHints("50g ~ 65g", "12g ~ 18g", "8g ~ 12g", "350kcal ~ 450kcal");
+                }
+                else if (ageGroup.Contains("6~11세"))
+                {
+                    UpdateNutrientHints("80g ~ 100g", "20g ~ 28g", "12g ~ 18g", "550kcal ~ 680kcal");
+                }
+                else if (ageGroup.Contains("12~18세"))
+                {
+                    UpdateNutrientHints("110g ~ 135g", "30g ~ 42g", "18g ~ 26g", "750kcal ~ 950kcal");
+                }
+                else if (ageGroup.Contains("19세 이상"))
+                {
+                    UpdateNutrientHints("90g ~ 115g", "25g ~ 35g", "15g ~ 22g", "650kcal ~ 800kcal");
+                }
+            }
+        }
+
+        private void UpdateNutrientHints(string carb, string protein, string fat, string calories)
+        {
+            if (TxtCarbHint != null) TxtCarbHint.Text = $"(추천: {carb})";
+            if (TxtProteinHint != null) TxtProteinHint.Text = $"(추천: {protein})";
+            if (TxtFatHint != null) TxtFatHint.Text = $"(추천: {fat})";
+            if (TxtCaloriesHint != null) TxtCaloriesHint.Text = $"(추천: {calories})";
+        }
+        #endregion
+
+        #region [ DB 메뉴 로드 및 직접 입력 ComboBox 바인딩 ]
+        private void LoadMenuDatabase()
+        {
+            try
+            {
+                string credentialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "credentials.json");
+                if (!File.Exists(credentialPath)) return;
+
+                GoogleCredential credential;
+                using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
+                {
+                    credential = GoogleCredential.FromStream(stream).CreateScoped(SheetsService.Scope.Spreadsheets);
+                }
+
+                var service = new SheetsService(new BaseClientService.Initializer()
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = "MealCareAI-System"
+                });
+
+                string readRange = "MenuDatabase!A2:D";
+                var response = service.Spreadsheets.Values.Get(SpreadsheetId, readRange).Execute();
+                IList<IList<object>> values = response.Values;
+
+                cachedDbIngredients.Clear();
+                if (values != null && values.Count > 0)
+                {
+                    foreach (var row in values)
+                    {
+                        if (row.Count >= 2)
+                        {
+                            string rawCal = row[1]?.ToString() ?? "0";
+                            string cleanCal = Regex.Replace(rawCal, @"[^0-9.]", "");
+                            double.TryParse(cleanCal, out double calValue);
+
+                            cachedDbIngredients.Add(new IngredientModel
+                            {
+                                Name = row[0]?.ToString() ?? "이름없음",
+                                Calories = calValue,
+                                Materials = row.Count >= 3 ? row[2]?.ToString() ?? "" : "",
+                                Allergy = row.Count >= 4 ? row[3]?.ToString() ?? "" : ""
+                            });
+                        }
+                    }
+                }
+
+                PopulateDirectInputComboBoxes();
+            }
+            catch
+            {
+                // 로드 실패 시 디폴트 세팅 진행
+            }
+        }
+
+        private void PopulateDirectInputComboBoxes()
+        {
+            var riceList = cachedDbIngredients.Where(i => i.Name.Contains("밥") || i.Name.Contains("쌀")).Select(i => i.Name).ToList();
+            var soupList = cachedDbIngredients.Where(i => i.Name.Contains("국") || i.Name.Contains("탕") || i.Name.Contains("찌개")).Select(i => i.Name).ToList();
+            var meatList = cachedDbIngredients.Where(i => i.Name.Contains("고기") || i.Name.Contains("불고기") || i.Name.Contains("닭") || i.Name.Contains("가슴살") || i.Name.Contains("제육")).Select(i => i.Name).ToList();
+            var vegList = cachedDbIngredients.Where(i => i.Name.Contains("나물") || i.Name.Contains("무침") || i.Name.Contains("샐러드") || i.Name.Contains("김치")).Select(i => i.Name).ToList();
+
+            riceList.Insert(0, "-- 자동 추천 선택 --");
+            soupList.Insert(0, "-- 자동 추천 선택 --");
+            meatList.Insert(0, "-- 자동 추천 선택 --");
+            vegList.Insert(0, "-- 자동 추천 선택 --");
+
+            CboFixedRice.ItemsSource = riceList; CboFixedRice.SelectedIndex = 0;
+            CboFixedSoup.ItemsSource = soupList; CboFixedSoup.SelectedIndex = 0;
+            CboFixedMeat.ItemsSource = meatList; CboFixedMeat.SelectedIndex = 0;
+            CboFixedVeg.ItemsSource = vegList; CboFixedVeg.SelectedIndex = 0;
+        }
+
+        private void BtnClearDirect_Click(object sender, RoutedEventArgs e)
+        {
+            CboFixedRice.SelectedIndex = 0;
+            CboFixedSoup.SelectedIndex = 0;
+            CboFixedMeat.SelectedIndex = 0;
+            CboFixedVeg.SelectedIndex = 0;
+        }
+
+        private void BtnApplyDirect_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("고정 메뉴 설정이 저장되었습니다.\n식단 자동 조합 탭에서 실행을 진행해주세요.", "설정 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            BtnTabAuto_Click(null, null);
+        }
+        #endregion
+
+        #region [ 버튼 이벤트 및 맛 밸런스 조합 실행 ]
         private void BtnExecute_Click(object sender, RoutedEventArgs e)
         {
             if (!double.TryParse(TxtCarb.Text, out double carb) || carb < 0) { MessageBox.Show("탄수화물 적정량을 입력해주세요.", "입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning); TxtCarb.Focus(); return; }
@@ -64,6 +229,9 @@ namespace wpf
             TxtFat.Text = string.Empty;
             TxtCalories.Text = string.Empty;
 
+            if (CboAgeGroup != null) CboAgeGroup.SelectedIndex = 0;
+            BtnClearDirect_Click(null, null);
+
             ResultSection.Visibility = Visibility.Collapsed;
             GridDietResult.ItemsSource = null;
         }
@@ -72,68 +240,59 @@ namespace wpf
         {
             try
             {
-                string credentialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "credentials.json");
-                if (!File.Exists(credentialPath))
-                {
-                    MessageBox.Show("credentials.json 파일이 실행 디렉토리에 없습니다.", "인증 실패", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+                if (cachedDbIngredients.Count == 0) LoadMenuDatabase();
 
-                GoogleCredential credential;
-                using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
-                {
-                    credential = GoogleCredential.FromStream(stream);
-                    credential = credential.CreateScoped(SheetsService.Scope.Spreadsheets);
-                }
-
-                var service = new SheetsService(new BaseClientService.Initializer()
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = "MealCareAI-System"
-                });
-                // 1. [가져오기] MenuDatabase 시트에서 식재료 로드
-                string readRange = "MenuDatabase!A2:D";
-                SpreadsheetsResource.ValuesResource.GetRequest request = service.Spreadsheets.Values.Get(SpreadsheetId, readRange);
-                ValueRange response = request.Execute();
-                IList<IList<object>> values = response.Values;
-
-                List<IngredientModel> ingredients = new List<IngredientModel>();
-                if (values != null && values.Count > 0)
-                {
-                    foreach (var row in values)
-                    {
-                        if (row.Count >= 2)
-                        {
-                            string rawCal = row[1]?.ToString() ?? "0";
-                            string cleanCal = Regex.Replace(rawCal, @"[^0-9.]", "");
-                            double.TryParse(cleanCal, out double calValue);
-
-                            ingredients.Add(new IngredientModel
-                            {
-                                Name = row[0]?.ToString() ?? "이름없음",
-                                Calories = calValue,
-                                Materials = row.Count >= 3 ? row[2]?.ToString() ?? "" : "",
-                                Allergy = row.Count >= 4 ? row[3]?.ToString() ?? "" : ""
-                            });
-                        }
-                    }
-                }
-
-                // 2. 식재료 매칭 및 랜덤 자동 조합 처리
-                var riceItems = ingredients.Where(i => i.Name.Contains("밥") || i.Name.Contains("쌀")).ToList();
-                var soupItems = ingredients.Where(i => i.Name.Contains("국") || i.Name.Contains("탕") || i.Name.Contains("찌개")).ToList();
-                var meatItems = ingredients.Where(i => i.Name.Contains("고기") || i.Name.Contains("불고기") || i.Name.Contains("닭") || i.Name.Contains("가슴살") || i.Name.Contains("제육")).ToList();
-                var vegetableItems = ingredients.Where(i => i.Name.Contains("나물") || i.Name.Contains("무침") || i.Name.Contains("샐러드") || i.Name.Contains("김치")).ToList();
+                var riceItems = cachedDbIngredients.Where(i => i.Name.Contains("밥") || i.Name.Contains("쌀")).ToList();
+                var soupItems = cachedDbIngredients.Where(i => i.Name.Contains("국") || i.Name.Contains("탕") || i.Name.Contains("찌개")).ToList();
+                var meatItems = cachedDbIngredients.Where(i => i.Name.Contains("고기") || i.Name.Contains("불고기") || i.Name.Contains("닭") || i.Name.Contains("가슴살") || i.Name.Contains("제육")).ToList();
+                var vegetableItems = cachedDbIngredients.Where(i => i.Name.Contains("나물") || i.Name.Contains("무침") || i.Name.Contains("샐러드") || i.Name.Contains("김치")).ToList();
 
                 List<DietResultModel> recommendations = new List<DietResultModel>();
+
+                // 직접 고정한 메뉴 추출
+                string selectedRiceName = CboFixedRice.SelectedIndex > 0 ? CboFixedRice.SelectedItem.ToString() : "";
+                string selectedSoupName = CboFixedSoup.SelectedIndex > 0 ? CboFixedSoup.SelectedItem.ToString() : "";
+                string selectedMeatName = CboFixedMeat.SelectedIndex > 0 ? CboFixedMeat.SelectedItem.ToString() : "";
+                string selectedVegName = CboFixedVeg.SelectedIndex > 0 ? CboFixedVeg.SelectedItem.ToString() : "";
+
                 for (int i = 1; i <= 3; i++)
                 {
                     var rand = new Random(Guid.NewGuid().GetHashCode());
 
-                    var rice = riceItems.Count > 0 ? riceItems[rand.Next(riceItems.Count)] : new IngredientModel { Name = "잡곡밥", Calories = 150 };
-                    var soup = soupItems.Count > 0 ? soupItems[rand.Next(soupItems.Count)] : new IngredientModel { Name = "두부된장국", Calories = 80 };
-                    var meat = meatItems.Count > 0 ? meatItems[rand.Next(meatItems.Count)] : new IngredientModel { Name = "소불고기", Calories = 180 };
-                    var veg = vegetableItems.Count > 0 ? vegetableItems[rand.Next(vegetableItems.Count)] : new IngredientModel { Name = "시금치나물", Calories = 35 };
+                    // 1. 고정 선택 메뉴 설정
+                    IngredientModel rice = cachedDbIngredients.FirstOrDefault(x => x.Name == selectedRiceName) ??
+                        (riceItems.Count > 0 ? riceItems[rand.Next(riceItems.Count)] : new IngredientModel { Name = "잡곡밥", Calories = 150 });
+
+                    IngredientModel soup = cachedDbIngredients.FirstOrDefault(x => x.Name == selectedSoupName);
+                    IngredientModel meat = cachedDbIngredients.FirstOrDefault(x => x.Name == selectedMeatName);
+                    IngredientModel veg = cachedDbIngredients.FirstOrDefault(x => x.Name == selectedVegName);
+
+                    // 자극적이거나 매운/짠 음식의 개수를 추적
+                    int strongTasteCount = (rice.IsStrongTaste ? 1 : 0);
+
+                    // 2. 메인(육류)선택 - 고정이 없을 시 우선 선정
+                    if (meat == null)
+                    {
+                        meat = meatItems.Count > 0 ? meatItems[rand.Next(meatItems.Count)] : new IngredientModel { Name = "소불고기", Calories = 180 };
+                    }
+                    if (meat.IsStrongTaste) strongTasteCount++;
+
+                    // 3. 국 선택 - 메인/밥이 이미 자극적이면 순한 국(계란국, 맑은 콩나물국 등) 선택
+                    if (soup == null)
+                    {
+                        var candidateSoups = (strongTasteCount >= 1) ? soupItems.Where(x => x.IsMild).ToList() : soupItems;
+                        if (candidateSoups.Count == 0) candidateSoups = soupItems;
+                        soup = candidateSoups.Count > 0 ? candidateSoups[rand.Next(candidateSoups.Count)] : new IngredientModel { Name = "두부된장국", Calories = 80 };
+                    }
+                    if (soup.IsStrongTaste) strongTasteCount++;
+
+                    // 4. 서브(채소/나물) 선택 - 이미 자극적인 음식 요소가 1개 이상 존재하면 무조건 순한 나물/샐러드류 선택
+                    if (veg == null)
+                    {
+                        var candidateVegs = (strongTasteCount >= 1) ? vegetableItems.Where(x => x.IsMild).ToList() : vegetableItems;
+                        if (candidateVegs.Count == 0) candidateVegs = vegetableItems;
+                        veg = candidateVegs.Count > 0 ? candidateVegs[rand.Next(candidateVegs.Count)] : new IngredientModel { Name = "시금치나물", Calories = 35 };
+                    }
 
                     double combinedCalories = rice.Calories + soup.Calories + meat.Calories + veg.Calories;
 
@@ -151,49 +310,60 @@ namespace wpf
                     });
                 }
 
-                // 3. 프로그램 화면 UI 결과 데이터 바인딩
                 ResultSection.Visibility = Visibility.Visible;
                 GridDietResult.ItemsSource = recommendations;
 
-                // 🌟 [핵심 변경] 저장할 타겟 시트 이름을 "식단" 시트로 직접 고정 지정합니다.
-                string targetSheetName = "식단";
-
-                // 4. [저장하기] '식단' 시트 맨 첫 줄에 제목 헤더가 비어있다면 자동 생성
-                string headerRange = $"'{targetSheetName}'!A1:F1";
-                var headerCheck = service.Spreadsheets.Values.Get(SpreadsheetId, headerRange).Execute();
-                if (headerCheck.Values == null || headerCheck.Values.Count == 0)
-                {
-                    var headerRow = new List<object> { "구분", "밥류", "국류", "메인반찬(육류)", "서브반찬(나물류)", "총 칼로리" };
-                    var headerValueRange = new ValueRange { Values = new List<IList<object>> { headerRow } };
-                    var updateRequest = service.Spreadsheets.Values.Update(headerValueRange, SpreadsheetId, headerRange);
-                    updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
-                    updateRequest.Execute();
-                }
-
-                // 5. [저장하기] '식단' 시트 하단에 AI 자동조합 1순위 추천 결과 행 저장 실행
-                string writeRange = $"'{targetSheetName}'!A:F";
-                var valueRange = new ValueRange();
-                var targetDiet = recommendations[0]; // 가장 적합한 1순위 추천 조합 선택
-
-                var rowValues = new List<object> {
-                    targetDiet.DietName,
-                    targetDiet.Rice,
-                    targetDiet.Soup,
-                    targetDiet.Meat,
-                    targetDiet.Vegetable,
-                    targetDiet.Calories.ToString() + " kcal"
-                };
-
-                valueRange.Values = new List<IList<object>> { rowValues };
-
-                var appendRequest = service.Spreadsheets.Values.Append(valueRange, SpreadsheetId, writeRange);
-                appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
-                appendRequest.Execute();
+                // 구글 시트 저장 로직
+                SaveDietToSheets(recommendations[0]);
             }
             catch (Exception ex)
             {
                 MessageBox.Show("식단 추천 및 저장 중 오류가 발생했습니다:\n" + ex.Message, "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        private void SaveDietToSheets(DietResultModel targetDiet)
+        {
+            try
+            {
+                string credentialPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "credentials.json");
+                if (!File.Exists(credentialPath)) return;
+
+                GoogleCredential credential;
+                using (var stream = new FileStream(credentialPath, FileMode.Open, FileAccess.Read))
+                {
+                    credential = GoogleCredential.FromStream(stream).CreateScoped(SheetsService.Scope.Spreadsheets);
+                }
+
+                var service = new SheetsService(new BaseClientService.Initializer()
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = "MealCareAI-System"
+                });
+
+                string targetSheetName = "식단";
+                string writeRange = $"'{targetSheetName}'!A:F";
+
+                var valueRange = new ValueRange
+                {
+                    Values = new List<IList<object>> {
+                        new List<object> {
+                            targetDiet.DietName,
+                            targetDiet.Rice,
+                            targetDiet.Soup,
+                            targetDiet.Meat,
+                            targetDiet.Vegetable,
+                            targetDiet.Calories.ToString() + " kcal"
+                        }
+                    }
+                };
+
+                var appendRequest = service.Spreadsheets.Values.Append(valueRange, SpreadsheetId, writeRange);
+                appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
+                appendRequest.Execute();
+            }
+            catch { }
+        }
+        #endregion
     }
 }
