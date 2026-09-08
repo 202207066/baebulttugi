@@ -348,13 +348,26 @@ namespace wpf
                         valueRange.Values.Add(rowData);
                     }
 
-                    var clearRequest = service.Spreadsheets.Values.Clear(new ClearValuesRequest(), spreadsheetId, $"{userSheetName}!A1:Z2000");
-                    clearRequest.Execute();
-
-                    string targetRange = $"{userSheetName}!A1";
+                    // 예전에는 시트를 먼저 통째로 Clear한 뒤 업로드했습니다.
+                    // 그 사이에 실패하면 시트가 빈 채로 남아 데이터가 사라집니다.
+                    // 순서를 뒤집어, 먼저 덮어쓰고 남는 꼬리 행만 지웁니다.
+                    string targetRange = $"'{userSheetName}'!A1";
                     var updateRequest = service.Spreadsheets.Values.Update(valueRange, spreadsheetId, targetRange);
                     updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
                     updateRequest.Execute();
+
+                    int lastWrittenRow = valueRange.Values.Count;
+                    try
+                    {
+                        var clearRequest = service.Spreadsheets.Values.Clear(
+                            new ClearValuesRequest(), spreadsheetId,
+                            $"'{userSheetName}'!A{lastWrittenRow + 1}:Z2000");
+                        clearRequest.Execute();
+                    }
+                    catch (Exception tailEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[꼬리 행 정리 실패] {tailEx.Message}");
+                    }
 
                     MessageBox.Show($"현재 화면의 편집 내용(수정/삭제/추가)이 구글 [{userSheetName}] 시트에 정상 저장되었습니다.", "저장 성공", MessageBoxButton.OK, MessageBoxImage.Information);
                     LoadDataFromGoogleSheet(isSilent: true);

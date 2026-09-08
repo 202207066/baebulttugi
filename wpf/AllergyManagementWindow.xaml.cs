@@ -68,27 +68,18 @@ namespace wpf
         // ========================================================
         private async Task LoadPatientsFromGoogleSheetAsync()
         {
-            if (_sheetsService == null)
-            {
-                MessageBox.Show("구글 인증 서비스가 연결되지 않아 서버 데이터를 불러올 수 없습니다.", "구글 미연동", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
             try
             {
                 _patientList.Clear();
 
-                var response = await Task.Run(() => {
-                    return _sheetsService.Spreadsheets.Values.Get(_spreadsheetId, _sheetRange).Execute();
-                });
-
-                var values = response.Values;
-                if (values != null && values.Count > 0)
+                var values = await _service.GetValuesAsync(_sheetRange);
+                if (values.Count > 0)
                 {
-                    // 첫 번째 행이 헤더(ID, 성명...)라면 i = 1 부터 시작, 데이터부터 시작하면 i = 0 부터 시작
-                    // 안전하게 첫 행이 숫자가 아니면 헤더로 취급하여 건너뜁니다.
+                    // 첫 행의 A열이 숫자가 아니면 헤더로 보고 건너뜁니다.
+                    // (첫 행이 비어 있는 시트에서 values[0][0]이 터지던 문제도 함께 방어)
                     int startIndex = 0;
-                    if (!int.TryParse(values[0][0]?.ToString(), out _))
+                    string firstCell = values[0].Count > 0 ? values[0][0]?.ToString() ?? "" : "";
+                    if (!int.TryParse(firstCell, out _))
                     {
                         startIndex = 1;
                     }
@@ -126,41 +117,55 @@ namespace wpf
         // ========================================================
         // 🟢 [핵심 추가] 구글 시트 서버의 전체 데이터를 갱신(덮어쓰기)하는 로직
         // ========================================================
+        /// <summary>
+        /// 메모리 목록을 시트에 반영합니다.
+        ///
+        /// 예전에는 ① 시트 전체를 Clear 하고 ② 다시 업로드하는 순서였습니다.
+        /// ①과 ② 사이에 네트워크가 끊기거나 ②가 실패하면 시트가 텅 빈 채로 남아
+        /// 전체 명단이 사라집니다. 순서를 뒤집어, 먼저 덮어쓰고 남는 꼬리 행만
+        /// 지웁니다. 이렇게 하면 데이터가 비는 순간이 없습니다.
+        /// </summary>
         private async Task<bool> SaveAllPatientsToGoogleSheetAsync()
         {
-            if (_sheetsService == null) return false;
-
             try
             {
-                await Task.Run(() =>
+                var values = new List<IList<object>>
                 {
-                    // 1. 기존 시트 데이터를 완전히 깨끗하게 비웁니다.
-                    var clearRequest = _sheetsService.Spreadsheets.Values.Clear(new ClearValuesRequest(), _spreadsheetId, _sheetRange);
-                    clearRequest.Execute();
+                    new List<object> { "ID", "성명", "구분", "특이 알러지 성분", "비고(메모)" }
+                };
 
-                    // 2. 헤더 구성 및 현재 메모리 리스트에 있는 모든 환자 정보 준비
-                    var values = new List<IList<object>> {
-                        new List<object> { "ID", "성명", "구분", "특이 알러지 성분", "비고(메모)" } // 타이틀 헤더 행
-                    };
+                foreach (var p in _patientList)
+                {
+                    values.Add(new List<object> { p.Id, p.Name, p.Category, p.Allergies, p.Note });
+                }
 
-                    foreach (var p in _patientList)
-                    {
-                        values.Add(new List<object> { p.Id, p.Name, p.Category, p.Allergies, p.Note });
-                    }
+                // 1. 헤더 + 전체 명단을 A1부터 덮어씁니다.
+                await _service.UpdateValuesAsync($"'{AppConfig.PatientSheetName}'!A1", values);
 
-                    var valueRange = new ValueRange { Values = values };
-
-                    // 3. 통째로 구글 시트에 밀어 넣습니다.
-                    var updateRequest = _sheetsService.Spreadsheets.Values.Update(valueRange, _spreadsheetId, _sheetRange);
-                    updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
-                    updateRequest.Execute();
-                });
+                // 2. 이번에 쓴 마지막 행 아래에 예전 데이터가 남아 있으면 지웁니다.
+                //    (삭제로 인원이 줄어든 경우) 여기서 실패해도 명단 자체는 온전합니다.
+                int lastWrittenRow = values.Count;
+                try
+                {
+                    await _service.ClearValuesAsync(
+                        $"'{AppConfig.PatientSheetName}'!A{lastWrittenRow + 1}:E");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[꼬리 행 정리 실패] {ex.Message}");
+                }
 
                 return true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"구글 시트 서버 동기화 실패:\n{ex.Message}", "연동 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"구글 시트 동기화에 실패했습니다.\n\n{ex.Message}\n\n" +
+                    "화면의 목록을 서버 상태로 되돌립니다.",
+                    "연동 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                // 메모리와 서버가 어긋난 채로 남지 않도록 서버 상태를 다시 읽어 옵니다.
+                await LoadPatientsFromGoogleSheetAsync();
                 return false;
             }
         }
@@ -268,11 +273,8 @@ namespace wpf
                 ClearInputFields();
                 MessageBox.Show($"구글 서버에 '{inputName}' 피급식자 등록이 완료되었습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            else
-            {
-                // 실패 시 롤백
-                _patientList.Remove(newPatient);
-            }
+            // 실패한 경우 SaveAllPatientsToGoogleSheetAsync가 서버 상태를 다시 읽어
+            // 화면까지 되돌려 놓으므로, 여기서 따로 롤백하지 않습니다.
         }
 
         // ==========================================

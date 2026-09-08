@@ -283,9 +283,17 @@ namespace wpf
                     int selectedIndex = lstEvents.SelectedIndex;
                     int targetRowIndex = currentDayEvents[selectedIndex].RowIndex;
 
-                    string range = $"{SheetName}!A{targetRowIndex}:B{targetRowIndex}";
-                    var clearRequest = sheetsService.Spreadsheets.Values.Clear(new ClearValuesRequest(), SpreadsheetId, range);
-                    await clearRequest.ExecuteAsync();
+                    // 예전에는 Values.Clear로 셀 내용만 비웠습니다. 행 자체는 남아
+                    // 시트에 빈 줄이 쌓이고, 이후 행 번호가 어긋나 엉뚱한 일정이
+                    // 수정·삭제되는 원인이 됐습니다. 행을 실제로 삭제합니다.
+                    bool deleted = await _service.DeleteRowAsync(SheetName, targetRowIndex);
+
+                    if (!deleted)
+                    {
+                        MessageBox.Show($"'{SheetName}' 시트를 찾지 못해 삭제하지 못했습니다.",
+                                        "삭제 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
 
                     await UpdateUI();
                 }
