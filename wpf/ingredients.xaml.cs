@@ -283,10 +283,11 @@ namespace wpf
 
         private void btnAddRow_Click(object sender, RoutedEventArgs e)
         {
-            if (dataGridIngredients.ItemsSource is DataView dataView)
+            if (dataGridIngredients.ItemsSource is DataView dataView && dataView.Table != null)
             {
-                DataRow newRow = dataView.Table.NewRow();
-                dataView.Table.Rows.Add(newRow);
+                DataTable table = dataView.Table;
+                DataRow newRow = table.NewRow();
+                table.Rows.Add(newRow);
 
                 dataGridIngredients.Focus();
                 dataGridIngredients.ScrollIntoView(newRow);
@@ -339,7 +340,13 @@ namespace wpf
             Mouse.OverrideCursor = Cursors.Wait;
             try
             {
-                DataTable dt = dataView.Table;
+                DataTable? dt = dataView.Table;
+                if (dt == null)
+                {
+                    MessageBox.Show("표 구조를 읽을 수 없습니다.", "안내",
+                                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
 
                 var values = new List<IList<object>>();
 
@@ -484,6 +491,8 @@ namespace wpf
                 }
 
                 string escaped = EscapeForLike(keyword);
+
+                if (dataView.Table == null) return;
 
                 var expressions = dataView.Table.Columns
                     .Cast<DataColumn>()

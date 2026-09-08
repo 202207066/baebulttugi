@@ -47,7 +47,8 @@ namespace wpf
         }
 
         // 📅 달력에서 날짜를 클릭했을 때 (async 비동기로 변경)
-        private async void MainCalendar_SelectedDatesChanged(object sender, SelectionChangedEventArgs e)
+        // EventHandler<SelectionChangedEventArgs>의 sender는 nullable이라 맞춰 줍니다.
+        private async void MainCalendar_SelectedDatesChanged(object? sender, SelectionChangedEventArgs e)
         {
             await UpdateUI();
         }
@@ -146,7 +147,7 @@ namespace wpf
             await FetchHolidaysForMonthAsync(selectedDate.Year, selectedDate.Month);
 
             string dateKey = selectedDate.ToString("yyyyMMdd"); // "20260626" 포맷
-            if (holidayCache.TryGetValue(dateKey, out string holidayName))
+            if (holidayCache.TryGetValue(dateKey, out string? holidayName))
             {
                 txtHolidayEvent.Text = $"🎉 {holidayName}";
             }
