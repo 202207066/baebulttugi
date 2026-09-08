@@ -1,22 +1,48 @@
+using System.IO;
+using System.Threading;
 using System.Windows;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Drive.v3;
+using Google.Apis.Sheets.v4;
+using Google.Apis.Util.Store;
 
 namespace wpf
 {
-    /// <summary>
-    /// Interaction logic for LoginWindow.xaml
-    /// </summary>
     public partial class LoginWindow : Window
     {
+        // null 허용 처리(?) 완료
+        public UserCredential? UserCredential { get; private set; }
+
         public LoginWindow()
         {
             InitializeComponent();
         }
 
-        private void OkButton_Click(object sender, RoutedEventArgs e)
+        private async void OkButton_Click(object sender, RoutedEventArgs e)
         {
-            // UI 껍데기만 필요하므로 바로 닫아 결과를 true로 반환합니다.
-            this.DialogResult = true;
-            this.Close();
+            try
+            {
+                string[] scopes = { DriveService.Scope.Drive, SheetsService.Scope.Spreadsheets };
+
+                using (var stream = new FileStream("credentials.json", FileMode.Open, FileAccess.Read))
+                {
+                    string credPath = "token.json";
+
+                    UserCredential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+                        GoogleClientSecrets.FromStream(stream).Secrets,
+                        scopes,
+                        "user",
+                        CancellationToken.None,
+                        new FileDataStore(credPath, true));
+                }
+
+                this.DialogResult = true;
+                this.Close();
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show($"로그인 실패: {ex.Message}");
+            }
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
