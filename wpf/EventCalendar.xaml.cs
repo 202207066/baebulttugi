@@ -21,7 +21,8 @@ namespace wpf
         private SheetsService? sheetsService;
 
         private string SpreadsheetId => _service.SpreadsheetId;
-        private static string SheetName => AppConfig.EventSheetName;
+        /// <summary>실제 일정 탭 이름(없으면 처음 접근할 때 자동 생성).</summary>
+        private string SheetName = AppConfig.EventSheetName;
 
         private List<GoogleSheetRow> currentDayEvents = new List<GoogleSheetRow>();
 
@@ -134,14 +135,18 @@ namespace wpf
 
             if (!MainCalendar.SelectedDate.HasValue)
             {
+                txtBannerYear.Text = "";
                 txtSelectedDate.Text = "날짜를 선택해주세요";
+                BadgeHoliday.Visibility = Visibility.Collapsed;
                 lstEvents.ItemsSource = null;
+                RefreshEventListState();
                 txtHolidayEvent.Text = "등록된 특별한 이벤트가 없습니다.";
                 return;
             }
 
             DateTime selectedDate = MainCalendar.SelectedDate.Value;
-            txtSelectedDate.Text = selectedDate.ToString("yyyy년 MM월 dd일 (ddd)");
+            txtBannerYear.Text = selectedDate.ToString("yyyy년");
+            txtSelectedDate.Text = selectedDate.ToString("M월 d일 (ddd)");
 
             // 1️⃣ 공공데이터 API 이벤트 처리
             await FetchHolidaysForMonthAsync(selectedDate.Year, selectedDate.Month);
@@ -149,11 +154,14 @@ namespace wpf
             string dateKey = selectedDate.ToString("yyyyMMdd"); // "20260626" 포맷
             if (holidayCache.TryGetValue(dateKey, out string? holidayName))
             {
-                txtHolidayEvent.Text = $"🎉 {holidayName}";
+                txtHolidayEvent.Text = holidayName;
+                txtBadgeHoliday.Text = holidayName;
+                BadgeHoliday.Visibility = Visibility.Visible;
             }
             else
             {
-                txtHolidayEvent.Text = "등록된 특별한 이벤트가 없습니다.";
+                txtHolidayEvent.Text = "이 날은 지정된 공휴일·절기가 없습니다.";
+                BadgeHoliday.Visibility = Visibility.Collapsed;
             }
 
             // 2️⃣ 구글 시트 개인 일정 처리
@@ -161,7 +169,10 @@ namespace wpf
 
             try
             {
-                string range = $"{SheetName}!A:B";
+                // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
+                SheetName = await _service.EnsureEventSheetAsync();
+
+                string range = $"'{SheetName}'!A:B";
                 var request = sheetsService.Spreadsheets.Values.Get(SpreadsheetId, range);
                 var response = await request.ExecuteAsync(); // 동기식에서 비동기식으로 변경
                 IList<IList<object>> values = response.Values;
@@ -190,11 +201,22 @@ namespace wpf
 
                 lstEvents.ItemsSource = null;
                 lstEvents.ItemsSource = currentDayEvents.Select(e => e.Content).ToList();
+
+                RefreshEventListState();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"데이터를 불러오지 못했습니다: {ex.Message}", "오류");
             }
+        }
+
+        /// <summary>일정 개수 배지와 "등록된 일정이 없습니다" 안내를 갱신합니다.</summary>
+        private void RefreshEventListState()
+        {
+            int count = currentDayEvents.Count;
+
+            txtEventCount.Text = count.ToString();
+            txtNoEvents.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // 🖱️ 리스트박스 선택 이벤트
@@ -221,7 +243,7 @@ namespace wpf
             try
             {
                 DateTime date = MainCalendar.SelectedDate.Value;
-                string range = $"{SheetName}!A:B";
+                string range = $"'{SheetName}'!A:B";
 
                 var valueRange = new ValueRange();
                 var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), newEvent };
@@ -256,7 +278,7 @@ namespace wpf
                 int selectedIndex = lstEvents.SelectedIndex;
                 int targetRowIndex = currentDayEvents[selectedIndex].RowIndex;
 
-                string range = $"{SheetName}!B{targetRowIndex}";
+                string range = $"'{SheetName}'!B{targetRowIndex}";
                 var valueRange = new ValueRange();
                 valueRange.Values = new List<IList<object>> { new List<object> { updatedEvent } };
 

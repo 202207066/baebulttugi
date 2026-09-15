@@ -288,6 +288,91 @@ namespace wpf
             await _sheetsService.Spreadsheets.BatchUpdate(request, SpreadsheetId).ExecuteAsync();
         }
 
+        // ── 시트(탭) 자동 준비 ──────────────────────────────────────────
+
+        private readonly Dictionary<string, string> _resolvedSheets =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>이번 실행에서 새로 만든 시트 이름들.</summary>
+        public List<string> CreatedSheets { get; } = new List<string>();
+
+        /// <summary>비교용으로 공백을 없애고 소문자로 만듭니다.</summary>
+        private static string Normalize(string s) =>
+            new string(s.Where(c => !char.IsWhiteSpace(c)).ToArray()).ToLowerInvariant();
+
+        /// <summary>
+        /// 필요한 시트(탭)가 있는지 확인하고, 없으면 헤더까지 넣어 새로 만듭니다.
+        /// 실제로 사용할 시트 이름을 돌려줍니다.
+        ///
+        /// 이 처리가 없으면 탭 이름이 조금만 달라도 구글이
+        /// "Unable to parse range: '알러지 인원'!A:E" 같은 BadRequest를 던지고,
+        /// 사용자는 무엇을 고쳐야 하는지 알 수 없습니다.
+        ///
+        /// 1) 이름이 정확히 같은 탭이 있으면 그대로 사용
+        /// 2) 공백·대소문자만 다른 탭이 있으면(예: "알러지인원") 그 탭을 사용
+        /// 3) 둘 다 없으면 새로 만들고 헤더 행을 씁니다
+        /// </summary>
+        public async Task<string> EnsureSheetAsync(string wantedTitle, params string[] headers)
+        {
+            if (string.IsNullOrWhiteSpace(wantedTitle)) return wantedTitle;
+
+            if (_resolvedSheets.TryGetValue(wantedTitle, out string? cached)) return cached;
+
+            List<string> titles = await GetSheetTitlesAsync();
+
+            string? found = titles.FirstOrDefault(t => string.Equals(t, wantedTitle, StringComparison.Ordinal));
+
+            if (found == null)
+            {
+                string wanted = Normalize(wantedTitle);
+                found = titles.FirstOrDefault(t => Normalize(t) == wanted);
+
+                if (found != null)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[시트 이름 보정] 설정값 '{wantedTitle}' → 실제 탭 '{found}'");
+                }
+            }
+
+            if (found == null)
+            {
+                await AddSheetAsync(wantedTitle);
+
+                if (headers.Length > 0)
+                {
+                    await UpdateValuesAsync(
+                        $"'{wantedTitle}'!A1",
+                        new List<IList<object>> { headers.Cast<object>().ToList() });
+                }
+
+                found = wantedTitle;
+                CreatedSheets.Add(wantedTitle);
+            }
+
+            _resolvedSheets[wantedTitle] = found;
+            return found;
+        }
+
+        /// <summary>알러지 명단 시트를 준비하고 실제 이름을 돌려줍니다.</summary>
+        public Task<string> EnsurePatientSheetAsync() =>
+            EnsureSheetAsync(AppConfig.PatientSheetName,
+                             "ID", "성명", "구분", "특이 알러지 성분", "비고(메모)");
+
+        /// <summary>메뉴 DB 시트를 준비하고 실제 이름을 돌려줍니다.</summary>
+        public Task<string> EnsureMenuSheetAsync() =>
+            EnsureSheetAsync(AppConfig.MenuSheetName,
+                             "메뉴명", "칼로리", "재료", "유발 알러지",
+                             "분류", "탄수화물(g)", "단백질(g)", "지방(g)");
+
+        /// <summary>일정 시트를 준비하고 실제 이름을 돌려줍니다.</summary>
+        public Task<string> EnsureEventSheetAsync() =>
+            EnsureSheetAsync(AppConfig.EventSheetName, "날짜", "내용");
+
+        /// <summary>저장된 추천 식단 시트를 준비하고 실제 이름을 돌려줍니다.</summary>
+        public Task<string> EnsureDietSheetAsync() =>
+            EnsureSheetAsync(AppConfig.DietSheetName,
+                             "구분", "밥", "국", "주찬", "부찬", "칼로리");
+
         /// <summary>스프레드시트에 있는 모든 탭 이름.</summary>
         public async Task<List<string>> GetSheetTitlesAsync()
         {
@@ -371,8 +456,10 @@ namespace wpf
         {
             var list = new List<PatientModel>();
 
-            string range = $"'{AppConfig.PatientSheetName}'!A:E";
-            IList<IList<object>> values = await GetValuesAsync(range);
+            // 탭이 없으면 여기서 헤더까지 갖춰 만들어 둡니다.
+            string sheet = await EnsurePatientSheetAsync();
+
+            IList<IList<object>> values = await GetValuesAsync($"'{sheet}'!A:E");
             if (values.Count == 0) return list;
 
             int startIndex = 0;

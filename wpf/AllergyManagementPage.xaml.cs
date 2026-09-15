@@ -100,7 +100,8 @@ namespace wpf
                 }
 
                 // 1. 헤더 + 전체 명단을 A1부터 덮어씁니다.
-                await _service.UpdateValuesAsync($"'{AppConfig.PatientSheetName}'!A1", values);
+                string sheet = await _service.EnsurePatientSheetAsync();
+                await _service.UpdateValuesAsync($"'{sheet}'!A1", values);
 
                 // 2. 이번에 쓴 마지막 행 아래에 예전 데이터가 남아 있으면 지웁니다.
                 //    (삭제로 인원이 줄어든 경우) 여기서 실패해도 명단 자체는 온전합니다.
@@ -108,7 +109,7 @@ namespace wpf
                 try
                 {
                     await _service.ClearValuesAsync(
-                        $"'{AppConfig.PatientSheetName}'!A{lastWrittenRow + 1}:E");
+                        $"'{sheet}'!A{lastWrittenRow + 1}:E");
                 }
                 catch (Exception ex)
                 {
@@ -396,7 +397,8 @@ namespace wpf
         {
             try
             {
-                var values = await _service.GetValuesAsync($"'{AppConfig.MenuSheetName}'!A2:D");
+                string menuSheet = await _service.EnsureMenuSheetAsync();
+                var values = await _service.GetValuesAsync($"'{menuSheet}'!A2:D");
 
                 _menuCatalog.Clear();
                 foreach (var row in values)

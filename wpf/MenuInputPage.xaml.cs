@@ -19,8 +19,12 @@ namespace wpf
     {
         private readonly GoogleSheetsService _sheetsService;
 
-        /// <summary>MenuDatabase 시트의 데이터 영역(헤더 제외). A=메뉴명 B=칼로리 C=재료 D=알러지</summary>
-        private static string MenuRange => $"'{AppConfig.MenuSheetName}'!A2:D";
+        /// <summary>
+        /// MenuDatabase 시트의 데이터 영역(헤더 제외). A=메뉴명 B=칼로리 C=재료 D=알러지
+        /// 실제 탭 이름은 화면이 열릴 때 EnsureMenuSheetAsync()로 확정합니다.
+        /// </summary>
+        private string _menuSheet = AppConfig.MenuSheetName;
+        private string MenuRange => $"'{_menuSheet}'!A2:D";
 
         private List<MenuDataModel> _menuList = new List<MenuDataModel>();
 
@@ -47,6 +51,9 @@ namespace wpf
 
             try
             {
+                // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
+                _menuSheet = await _sheetsService.EnsureMenuSheetAsync();
+
                 var values = await _sheetsService.GetValuesAsync(MenuRange);
 
                 var list = new List<MenuDataModel>();
@@ -73,7 +80,7 @@ namespace wpf
                 if (_menuList.Count == 0)
                 {
                     MessageBox.Show(
-                        $"'{AppConfig.MenuSheetName}' 시트에 등록된 레시피가 없습니다.\n" +
+                        $"'{_menuSheet}' 시트에 등록된 레시피가 없습니다.\n" +
                         "아래 입력란에서 첫 레시피를 등록해 보세요.",
                         "안내", MessageBoxButton.OK, MessageBoxImage.Information);
                 }

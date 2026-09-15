@@ -37,6 +37,9 @@ namespace wpf
 
         private bool _databaseLoaded;
 
+        /// <summary>실제 메뉴 DB 탭 이름(설정값과 다를 수 있어 실행 중에 확정).</summary>
+        private string _menuSheet = AppConfig.MenuSheetName;
+
         // ── 모델 ────────────────────────────────────────────────────────
 
         public class DietResultModel
@@ -229,7 +232,9 @@ namespace wpf
 
             try
             {
-                string readRange = $"'{AppConfig.MenuSheetName}'!A2:H";
+                // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
+                _menuSheet = await _sheetsService.EnsureMenuSheetAsync();
+                string readRange = $"'{_menuSheet}'!A2:H";
                 var values = await _sheetsService.GetValuesAsync(readRange);
 
                 var list = new List<IngredientModel>();
@@ -630,7 +635,8 @@ namespace wpf
             try
             {
                 // 열 구성은 기존 시트와 동일하게 유지합니다(A~F).
-                string writeRange = $"'{AppConfig.DietSheetName}'!A:F";
+                string dietSheet = await _sheetsService.EnsureDietSheetAsync();
+                string writeRange = $"'{dietSheet}'!A:F";
 
                 await _sheetsService.AppendRowAsync(writeRange, new List<object>
                 {
