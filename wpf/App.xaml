@@ -5,12 +5,203 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <materialDesign:BundledTheme BaseTheme="Light" 
-                                             PrimaryColor="Green" 
+                <materialDesign:BundledTheme BaseTheme="Light"
+                                             PrimaryColor="Green"
                                              SecondaryColor="Lime" />
-
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                ─────────────────────────────────────────────────────────────
+                디자인 시스템
+                색·글꼴·컨트롤 모양을 여기 한 곳에 모읍니다.
+                각 페이지에서 #EBF8FF 같은 색을 직접 쓰지 말고 이 키를 참조하세요.
+                ─────────────────────────────────────────────────────────────
+            -->
+
+            <!-- 브랜드 (팀 로고와 같은 계열) -->
+            <Color x:Key="BrandColor">#2E7D32</Color>
+            <Color x:Key="BrandDarkColor">#215C26</Color>
+            <Color x:Key="BrandDeepColor">#17421B</Color>
+            <Color x:Key="LimeColor">#8CC63F</Color>
+
+            <SolidColorBrush x:Key="Brand"      Color="{StaticResource BrandColor}"/>
+            <SolidColorBrush x:Key="BrandDark"  Color="{StaticResource BrandDarkColor}"/>
+            <SolidColorBrush x:Key="BrandDeep"  Color="{StaticResource BrandDeepColor}"/>
+            <SolidColorBrush x:Key="Lime"       Color="{StaticResource LimeColor}"/>
+            <SolidColorBrush x:Key="LimeSoft"   Color="#B7DE7C"/>
+            <SolidColorBrush x:Key="BrandTint"  Color="#E8F3E9"/>
+
+            <!-- 중립 -->
+            <SolidColorBrush x:Key="Ink"        Color="#1A202C"/>
+            <SolidColorBrush x:Key="InkMuted"   Color="#4A5568"/>
+            <SolidColorBrush x:Key="InkSubtle"  Color="#718096"/>
+            <SolidColorBrush x:Key="InkFaint"   Color="#A0AEC0"/>
+            <SolidColorBrush x:Key="Line"       Color="#E2E8F0"/>
+            <SolidColorBrush x:Key="Surface"    Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="Canvas"     Color="#F5F7F6"/>
+            <SolidColorBrush x:Key="CanvasSoft" Color="#F7FAFC"/>
+
+            <!-- 상태 -->
+            <SolidColorBrush x:Key="Danger"     Color="#E53E3E"/>
+            <SolidColorBrush x:Key="DangerTint" Color="#FFF5F5"/>
+            <SolidColorBrush x:Key="Warning"    Color="#DD6B20"/>
+            <SolidColorBrush x:Key="Info"       Color="#3182CE"/>
+
+            <FontFamily x:Key="UiFont">Segoe UI, Malgun Gothic, Noto Sans KR</FontFamily>
+
+            <!-- 카드 그림자 -->
+            <DropShadowEffect x:Key="CardShadow" BlurRadius="18" ShadowDepth="2"
+                              Direction="270" Opacity="0.08" Color="#000000"/>
+
+            <!-- ── 공통 컨트롤 ─────────────────────────────────────────── -->
+
+            <Style x:Key="Card" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource Surface}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="12"/>
+                <Setter Property="Padding" Value="22"/>
+                <Setter Property="Effect" Value="{StaticResource CardShadow}"/>
+            </Style>
+
+            <Style x:Key="PageTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="24"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+            </Style>
+
+            <Style x:Key="SectionTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="17"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="#2D3748"/>
+                <Setter Property="Margin" Value="0,0,0,14"/>
+            </Style>
+
+            <Style x:Key="Caption" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Foreground" Value="{StaticResource InkSubtle}"/>
+            </Style>
+
+            <!-- 기본 버튼 (테두리형) -->
+            <Style TargetType="Button">
+                <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Height" Value="38"/>
+                <Setter Property="Padding" Value="16,0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Background" Value="{StaticResource Surface}"/>
+                <Setter Property="Foreground" Value="{StaticResource InkMuted}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 강조 버튼 -->
+            <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background" Value="{StaticResource Brand}"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Height" Value="42"/>
+                <Setter Property="Padding" Value="22,0"/>
+            </Style>
+
+            <Style x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Foreground" Value="{StaticResource InkSubtle}"/>
+            </Style>
+
+            <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background" Value="{StaticResource DangerTint}"/>
+                <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+                <Setter Property="BorderBrush" Value="#FED7D7"/>
+            </Style>
+
+            <!-- 입력 컨트롤 -->
+            <Style TargetType="TextBox">
+                <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Height" Value="38"/>
+                <Setter Property="Padding" Value="10,0"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="BorderBrush" Value="#CBD5E0"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Background" Value="{StaticResource Surface}"/>
+                <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+            </Style>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Height" Value="38"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Padding" Value="10,0"/>
+            </Style>
+
+            <Style TargetType="DatePicker">
+                <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Height" Value="38"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+
+            <Style TargetType="DataGrid">
+                <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Background" Value="{StaticResource Surface}"/>
+                <Setter Property="RowBackground" Value="{StaticResource Surface}"/>
+                <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
+                <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+                <Setter Property="HorizontalGridLinesBrush" Value="#EDF2F7"/>
+                <Setter Property="RowHeight" Value="40"/>
+                <Setter Property="ColumnHeaderHeight" Value="42"/>
+                <Setter Property="CanUserAddRows" Value="False"/>
+                <Setter Property="HeadersVisibility" Value="Column"/>
+            </Style>
+
+            <Style TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="{StaticResource CanvasSoft}"/>
+                <Setter Property="Foreground" Value="{StaticResource InkMuted}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="12,0"/>
+                <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>

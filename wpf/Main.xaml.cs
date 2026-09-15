@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace wpf
@@ -15,7 +17,7 @@ namespace wpf
 
         /// <summary>
         /// 로그인과 개인 DB 준비는 App.xaml.cs에서 이미 끝난 상태로 들어옵니다.
-        /// 여기서 다시 로그인 창을 띄우지 않습니다(예전에는 인증 창이 두 번 떴습니다).
+        /// 여기서 다시 로그인 창을 띄우지 않습니다.
         /// </summary>
         public Main(GoogleSheetsService sheetsService, string ageGroup = "")
         {
@@ -29,11 +31,106 @@ namespace wpf
 
         private async void Main_Loaded(object sender, RoutedEventArgs e)
         {
+            TxtToday.Text = DateTime.Now.ToString("yyyy년 M월 d일 (ddd)");
+
+            // 로그인한 계정 이름을 상단 바와 사이드바에 항상 띄웁니다.
+            await ShowSignedInUserAsync();
+
             try
             {
-                ResetAllButtonsActive();
-                SetButtonActive(BtnDashboard, true);
+                BtnDashboard.IsChecked = true;
+                SetHeader("종합 대시보드", "오늘의 식단과 알러지 현황을 한눈에 봅니다");
 
+                await LoadDefaultDashboardAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("대시보드를 불러오는 중 오류가 발생했습니다:\n" + ex.Message,
+                                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+            // 이 PC에서 처음 들어온 사용자에게 화면 안내를 한 번 띄웁니다.
+            if (!UserPrefs.HasSeenTour)
+            {
+                HelpOverlay.Visibility = Visibility.Visible;
+                UserPrefs.HasSeenTour = true;
+            }
+        }
+
+        /// <summary>
+        /// 구글에서 로그인한 계정의 이름·이메일을 받아 화면에 표시합니다.
+        /// 조회에 실패해도 화면은 그대로 동작합니다.
+        /// </summary>
+        private async Task ShowSignedInUserAsync()
+        {
+            try
+            {
+                GoogleUserInfo user = await _sheetsService.LoadCurrentUserAsync();
+
+                TxtUserName.Text = user.FriendlyName;
+                TxtUserEmail.Text = user.Email;
+                TxtUserInitial.Text = user.Initial;
+
+                TxtSideUserName.Text = user.FriendlyName;
+                TxtSideUserEmail.Text = user.Email;
+                TxtSideInitial.Text = user.Initial;
+
+                this.Title = $"배불뚝이 · 스마트 식단 및 알러지 케어 — {user.FriendlyName}";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[사용자 표시 실패] {ex.Message}");
+                TxtUserName.Text = "로그인됨";
+                TxtUserEmail.Text = "";
+                TxtSideUserName.Text = "로그인됨";
+                TxtSideUserEmail.Text = "";
+            }
+        }
+
+        /// <summary>상단 바의 화면 제목과 설명을 바꿉니다.</summary>
+        private void SetHeader(string title, string subtitle)
+        {
+            TxtPageTitle.Text = title;
+            TxtPageSubtitle.Text = subtitle;
+        }
+
+        // ── 도움말 오버레이 ────────────────────────────────────────
+
+        private void BtnHelp_Click(object sender, RoutedEventArgs e)
+        {
+            HelpOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseHelp_Click(object sender, RoutedEventArgs e)
+        {
+            HelpOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>어두운 배경을 누르면 닫습니다(카드 안쪽 클릭은 무시).</summary>
+        private void HelpOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (ReferenceEquals(e.OriginalSource, HelpOverlay))
+            {
+                HelpOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>처음 실행 때 봤던 3단계 안내를 다시 엽니다.</summary>
+        private void BtnReplayTutorial_Click(object sender, RoutedEventArgs e)
+        {
+            HelpOverlay.Visibility = Visibility.Collapsed;
+
+            var welcome = new WelcomeWindow { Owner = this };
+            welcome.ShowDialog();
+        }
+
+        // 🏠 1. 종합 대시보드 홈 버튼 클릭 이벤트
+        private async void BtnDashboard_Click(object sender, RoutedEventArgs e)
+        {
+            SetHeader("종합 대시보드", "오늘의 식단과 알러지 현황을 한눈에 봅니다");
+
+            try
+            {
                 await LoadDefaultDashboardAsync();
             }
             catch (Exception ex)
@@ -43,63 +140,65 @@ namespace wpf
             }
         }
 
-        // 🏠 1. 종합 대시보드 홈 버튼 클릭 이벤트
-        private async void BtnDashboard_Click(object sender, RoutedEventArgs e)
-        {
-            ResetAllButtonsActive();
-            SetButtonActive(BtnDashboard, true);
-            await LoadDefaultDashboardAsync();
-        }
-
         // ⚙️ 2. 식단 자동 조합 버튼 클릭 이벤트
         private void BtnMenuTable_Click(object sender, RoutedEventArgs e)
         {
-            NavigateTo(BtnMenuTable, () => new Menu_table(_ageGroup), "식단 자동 조합");
+            NavigateTo(BtnMenuTable, () => new Menu_table(_ageGroup),
+                       "식단 자동 조합", "등록된 알러지를 제외하고 목표 영양소에 맞는 식단 3안을 만듭니다");
         }
 
         // 🍳 3. 메뉴(레시피) 관리 버튼 클릭 이벤트
         private void BtnMenuManage_Click(object sender, RoutedEventArgs e)
         {
-            NavigateTo(BtnMenuManage, () => new MenuInputPage(), "메뉴(레시피) 관리");
+            NavigateTo(BtnMenuManage, () => new MenuInputPage(),
+                       "메뉴(레시피) 관리", "메뉴별 열량·재료·유발 알러지를 등록합니다");
         }
 
         // 🌿 4. 식재료 원천 DB 버튼 클릭 이벤트
         private void BtnIngredientsDb_Click(object sender, RoutedEventArgs e)
         {
-            NavigateTo(BtnIngredientsDb, () => new Ingredients(), "식재료 원천 DB");
+            NavigateTo(BtnIngredientsDb, () => new Ingredients(),
+                       "식재료 원천 DB", "구글 시트의 원천 데이터를 표로 열어 편집합니다");
         }
 
         // 👥 5. 피급식자 알러지 관리 버튼 클릭 이벤트
         private void BtnManagement_Click(object sender, RoutedEventArgs e)
         {
-            NavigateTo(BtnManagement, () => new AllergyManagementPage(), "피급식자 알러지 관리");
+            NavigateTo(BtnManagement, () => new AllergyManagementPage(),
+                       "피급식자 · 알러지 관리", "대상자를 등록하고 그날 메뉴와의 교차 위험을 점검합니다");
         }
 
         // 💵 6. 원가 / 소요량 계산 버튼 클릭 이벤트
         private void BtnCalculate_Click(object sender, RoutedEventArgs e)
         {
-            NavigateTo(BtnCalculate, () => new CalculatePage(), "원가 / 소요량 계산");
+            NavigateTo(BtnCalculate, () => new CalculatePage(),
+                       "원가 · 소요량 계산", "인원수와 목표 급식비 기준으로 식재료 소요량과 원가를 산출합니다");
         }
 
         // 📅 7. 이벤트 및 절기 달력 버튼 클릭 이벤트
         private void BtnCalendar_Click(object sender, RoutedEventArgs e)
         {
-            NavigateTo(BtnCalendar, () => new EventCalendar(), "이벤트 및 절기 달력");
+            NavigateTo(BtnCalendar, () => new EventCalendar(),
+                       "이벤트 · 절기 달력", "공휴일·절기와 급식소 일정을 함께 관리합니다");
         }
 
         /// <summary>
-        /// 사이드바 버튼 상태를 정리하고 페이지를 띄웁니다.
+        /// 상단 제목을 바꾸고 페이지를 띄웁니다.
         ///
-        /// Uri 대신 인스턴스를 만들어 Navigate합니다. 이렇게 해야 나이대 같은 값을
-        /// 페이지에 넘길 수 있고, 페이지 생성자에서 난 예외도 여기서 잡힙니다.
+        /// 사이드바 활성 표시는 RadioButton(GroupName="MainNav")이 알아서 처리하므로
+        /// 예전처럼 버튼 색을 코드로 일일이 되돌릴 필요가 없습니다.
+        /// Uri 대신 인스턴스를 만들어 Navigate하기 때문에 나이대 같은 값을 넘길 수 있고,
+        /// 페이지 생성자에서 난 예외도 여기서 잡힙니다.
         /// </summary>
-        private void NavigateTo(Button sourceButton, Func<Page> pageFactory, string pageTitle)
+        private void NavigateTo(ToggleButton sourceButton, Func<Page> pageFactory,
+                                string pageTitle, string pageSubtitle)
         {
-            ResetAllButtonsActive();
-            SetButtonActive(sourceButton, true);
+            sourceButton.IsChecked = true;
+            SetHeader(pageTitle, pageSubtitle);
 
             try
             {
+                Mouse.OverrideCursor = Cursors.Wait;
                 MainFrame.Navigate(pageFactory());
             }
             catch (Exception ex)
@@ -107,46 +206,15 @@ namespace wpf
                 MessageBox.Show($"[{pageTitle}] 화면을 여는 중 오류가 발생했습니다.\n\n{ex.Message}",
                                 "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                Mouse.OverrideCursor = null;
+            }
         }
 
         // ──────────────────────────────────────────
-        // 헬퍼 함수: 버튼 스타일 제어 및 대시보드 빌더
+        // 대시보드 빌더
         // ──────────────────────────────────────────
-
-        private void ResetAllButtonsActive()
-        {
-            SetButtonActive(BtnDashboard, false);
-            SetButtonActive(BtnMenuTable, false);
-            SetButtonActive(BtnMenuManage, false);
-            SetButtonActive(BtnIngredientsDb, false);
-            SetButtonActive(BtnManagement, false);
-            SetButtonActive(BtnCalculate, false);
-            SetButtonActive(BtnCalendar, false);
-        }
-
-        private void SetButtonActive(Button button, bool isActive)
-        {
-            if (isActive)
-            {
-                button.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EBF8FF"));
-                button.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2B6CB0"));
-                if (button.Content is StackPanel sp)
-                {
-                    foreach (var child in sp.Children)
-                        if (child is TextBlock tb) tb.FontWeight = FontWeights.SemiBold;
-                }
-            }
-            else
-            {
-                button.Background = Brushes.Transparent;
-                button.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4A5568"));
-                if (button.Content is StackPanel sp)
-                {
-                    foreach (var child in sp.Children)
-                        if (child is TextBlock tb) tb.FontWeight = FontWeights.Normal;
-                }
-            }
-        }
 
         private async Task LoadDefaultDashboardAsync()
         {

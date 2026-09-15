@@ -45,7 +45,19 @@ namespace wpf
                     return;
                 }
 
-                // 2. 구글 로그인 (앱 전체에서 단 한 번)
+                // 2. 이 PC에서 처음 실행하는 경우, 로그인 전에 이유부터 설명합니다.
+                //    "왜 구글 로그인을 해야 하는지" 모른 채 동의 화면을 마주하지 않도록
+                //    로그인보다 먼저 띄웁니다.
+                if (UserPrefs.IsFirstRun)
+                {
+                    new WelcomeWindow().ShowDialog();
+
+                    // 창을 X로 닫았더라도 다시 띄우지 않습니다.
+                    // (필요하면 메인 화면의 [도움말]에서 언제든 다시 볼 수 있습니다.)
+                    UserPrefs.HasSeenTutorial = true;
+                }
+
+                // 3. 구글 로그인 (앱 전체에서 단 한 번)
                 var login = new LoginWindow();
                 if (login.ShowDialog() != true || login.UserCredential == null)
                 {
@@ -56,21 +68,16 @@ namespace wpf
                 var sheetsService = new GoogleSheetsService(login.UserCredential);
                 AppServices.Sheets = sheetsService;
 
-                // 3. 사용자 전용 DB 준비 (최초 1회만 템플릿을 복사)
+                // 4. 사용자 전용 DB 준비 (최초 1회만 템플릿을 복사)
                 await PrepareUserDatabaseAsync(sheetsService);
 
-                // 4. 나이대 선택
-                var ageWindow = new AgeSelectionWindow();
-                if (ageWindow.ShowDialog() != true)
-                {
-                    Shutdown();
-                    return;
-                }
-
-                string ageGroup = AgeSelectionWindow.SelectedAgeGroup;
-
                 // 5. 메인 창
-                var main = new Main(sheetsService, ageGroup);
+                //
+                //    예전에는 여기서 나이대 선택 창을 한 번 더 띄웠습니다. 로그인 직후
+                //    대시보드까지 가는 길에 모달이 하나 더 끼어 흐름이 끊겼고, 고른 값도
+                //    결국 «식단 자동 조합» 화면에서만 쓰였습니다.
+                //    이제 나이대는 그 화면 안의 콤보박스에서 바로 고릅니다.
+                var main = new Main(sheetsService, AgeSelectionWindow.SelectedAgeGroup);
                 this.MainWindow = main;
                 this.ShutdownMode = ShutdownMode.OnMainWindowClose;
                 main.Show();

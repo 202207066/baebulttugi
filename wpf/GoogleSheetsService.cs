@@ -19,6 +19,38 @@ namespace wpf
         public List<string> TodayAlternativeMenu { get; set; } = new List<string>();
     }
 
+    /// <summary>로그인한 구글 계정 정보.</summary>
+    public class GoogleUserInfo
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PhotoUrl { get; set; } = string.Empty;
+
+        /// <summary>화면에 표시할 이름. 이름이 없으면 이메일 아이디 부분을 씁니다.</summary>
+        public string FriendlyName
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(DisplayName)) return DisplayName;
+
+                int at = Email.IndexOf('@');
+                if (at > 0) return Email.Substring(0, at);
+
+                return "사용자";
+            }
+        }
+
+        /// <summary>아바타 원 안에 넣을 한 글자.</summary>
+        public string Initial
+        {
+            get
+            {
+                string name = FriendlyName;
+                return name.Length > 0 ? name.Substring(0, 1).ToUpperInvariant() : "?";
+            }
+        }
+    }
+
     /// <summary>
     /// 앱 전체가 공유하는 구글 서비스 보관소.
     ///
@@ -69,6 +101,44 @@ namespace wpf
 
         /// <summary>구글 드라이브 API 원본 핸들.</summary>
         public DriveService Drive => _driveService;
+
+        /// <summary>
+        /// 로그인한 구글 계정 정보. LoadCurrentUserAsync() 호출 전에는 null입니다.
+        /// 화면 우측 상단과 사이드바에 항상 표시됩니다.
+        /// </summary>
+        public GoogleUserInfo? CurrentUser { get; private set; }
+
+        /// <summary>
+        /// 로그인한 사용자의 이름과 이메일을 가져옵니다.
+        ///
+        /// 별도의 profile/email 스코프를 추가하지 않고, 이미 받아 둔 드라이브
+        /// 권한으로 about.get을 호출합니다. 스코프가 늘어나면 사용자에게
+        /// 동의 화면이 다시 뜨므로 일부러 이 방법을 씁니다.
+        /// </summary>
+        public async Task<GoogleUserInfo> LoadCurrentUserAsync()
+        {
+            try
+            {
+                var request = _driveService.About.Get();
+                request.Fields = "user(displayName,emailAddress,photoLink)";
+                var about = await request.ExecuteAsync();
+
+                CurrentUser = new GoogleUserInfo
+                {
+                    DisplayName = about?.User?.DisplayName ?? "",
+                    Email = about?.User?.EmailAddress ?? "",
+                    PhotoUrl = about?.User?.PhotoLink ?? ""
+                };
+            }
+            catch (Exception ex)
+            {
+                // 이름을 못 가져와도 프로그램은 정상 동작해야 합니다.
+                System.Diagnostics.Debug.WriteLine($"[사용자 정보 조회 실패] {ex.Message}");
+                CurrentUser = new GoogleUserInfo();
+            }
+
+            return CurrentUser;
+        }
 
         /// <summary>
         /// 실제로 읽고 쓸 스프레드시트 ID.
