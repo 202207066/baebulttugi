@@ -567,21 +567,36 @@ namespace wpf
         public List<string> LastPoolSources { get; } = new List<string>();
 
         /// <summary>
-        /// 트랙 시트를 찾습니다. 설정값과 정확히 같은 이름이 없으면,
-        /// "트랙A"/"트랙B"로 시작하는 탭을 찾습니다.
+        /// 메뉴풀(트랙) 시트를 찾습니다.
         ///
-        /// 실제 시트의 탭 이름은 «트랙A_3-5세» 처럼 조금씩 다르게 적히는 경우가
-        /// 많아(하이픈 종류, 언더바, 띄어쓰기) 접두사까지 허용합니다.
+        /// 탭 이름은 실제로 «트랙A_3-5세», «트랙A 3–5세», «트랙 A(3~5세)» 처럼
+        /// 제각각 적히고, 눈에 보이지 않는 문자가 섞이기도 합니다. 그래서
+        /// 이름이 정확히 같은지 따지지 않고 다음 순서로 찾습니다.
+        ///
+        ///   1) 설정값과 정확히(공백·대시 차이 무시) 같은 이름
+        ///   2) «트랙»이 들어간 탭 중, 연령 힌트가 맞는 것
+        ///      - 트랙A: "a" 또는 "3-5" 또는 "3~5"
+        ///      - 트랙B: "b" 또는 "6-18" 또는 "6~18"
         /// </summary>
-        public async Task<string?> ResolveTrackSheetAsync(string configuredTitle, string prefix)
+        public async Task<string?> ResolveTrackSheetAsync(string configuredTitle, params string[] hints)
         {
             string? exact = await ResolveSheetTitleAsync(configuredTitle);
             if (exact != null) return exact;
 
             List<string> titles = await GetSheetTitlesAsync();
-            string wantedPrefix = Normalize(prefix);
 
-            return titles.FirstOrDefault(t => Normalize(t).StartsWith(wantedPrefix, StringComparison.Ordinal));
+            foreach (string title in titles)
+            {
+                string n = Normalize(title);
+                if (!n.Contains("트랙", StringComparison.Ordinal)) continue;
+
+                foreach (string hint in hints)
+                {
+                    if (n.Contains(Normalize(hint), StringComparison.Ordinal)) return title;
+                }
+            }
+
+            return null;
         }
 
         public async Task<List<MenuItem>> GetMenuPoolAsync(AgeTrack track)
@@ -589,8 +604,8 @@ namespace wpf
             var pool = new List<MenuItem>();
             LastPoolSources.Clear();
 
-            string? trackA = await ResolveTrackSheetAsync(AppConfig.TrackASheetName, "트랙A");
-            string? trackB = await ResolveTrackSheetAsync(AppConfig.TrackBSheetName, "트랙B");
+            string? trackA = await ResolveTrackSheetAsync(AppConfig.TrackASheetName, "a", "3-5", "3~5");
+            string? trackB = await ResolveTrackSheetAsync(AppConfig.TrackBSheetName, "b", "6-18", "6~18");
 
             if (trackA != null && (track == AgeTrack.A3to5 || track == AgeTrack.All))
             {
@@ -622,6 +637,17 @@ namespace wpf
                 var rows = await ReadMenuDatabaseSheetAsync(menuSheet, "");
                 pool.AddRange(rows);
                 LastPoolSources.Add($"{menuSheet} ({rows.Count}개) — 트랙 시트를 찾지 못해 기본 형식으로 읽음");
+
+                // 왜 못 찾았는지 알 수 있도록 실제 탭 이름을 그대로 보여 줍니다.
+                try
+                {
+                    List<string> titles = await GetSheetTitlesAsync();
+                    LastPoolSources.Add("이 스프레드시트의 탭: " + string.Join(" / ", titles));
+                }
+                catch (Exception ex)
+                {
+                    LastPoolSources.Add("탭 목록을 읽지 못했습니다: " + ex.Message);
+                }
             }
 
             return pool;

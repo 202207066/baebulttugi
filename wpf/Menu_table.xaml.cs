@@ -76,9 +76,16 @@ namespace wpf
 
         private async void Menu_table_Loaded(object sender, RoutedEventArgs e)
         {
+            // 나이대를 먼저 맞춘 뒤 한 번만 읽습니다.
+            // (콤보박스를 건드리면 SelectionChanged가 따라오므로 중복 로드를 막습니다.)
+            _suppressAgeReload = true;
             ApplyInitialAgeGroup();
+            _suppressAgeReload = false;
+
             await ReloadPoolAsync();
         }
+
+        private bool _suppressAgeReload;
 
         /// <summary>시작 화면에서 고른 나이대를 콤보박스에 미리 선택해 둡니다.</summary>
         private void ApplyInitialAgeGroup()
@@ -224,7 +231,7 @@ namespace wpf
                 UpdateNutrientHints("90g ~ 115g", "25g ~ 35g", "15g ~ 22g", "650kcal ~ 800kcal");
 
             // 연령대가 바뀌면 해당 트랙의 메뉴풀로 갈아끼웁니다.
-            if (_poolLoaded && TrackForSelectedAge() != _currentTrack)
+            if (!_suppressAgeReload && _poolLoaded && TrackForSelectedAge() != _currentTrack)
             {
                 await ReloadPoolAsync();
             }
