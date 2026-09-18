@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -20,11 +21,14 @@ namespace wpf
         private readonly GoogleSheetsService _sheetsService;
 
         /// <summary>
-        /// MenuDatabase 시트의 데이터 영역(헤더 제외). A=메뉴명 B=칼로리 C=재료 D=알러지
-        /// 실제 탭 이름은 화면이 열릴 때 EnsureMenuSheetAsync()로 확정합니다.
+        /// 새로 등록한 메뉴가 쌓이는 시트.
+        ///
+        /// 식품영양학과에서 정리한 메뉴풀(트랙A/트랙B)은 읽기 전용으로 두고,
+        /// 앱에서 추가하는 메뉴는 별도 시트에 모읍니다. 원본 데이터에 섞이면
+        /// 출처 관리가 깨지기 때문입니다.
         /// </summary>
-        private string _menuSheet = AppConfig.MenuSheetName;
-        private string MenuRange => $"'{_menuSheet}'!A2:D";
+        private string _userMenuSheet = AppConfig.UserMenuSheetName;
+        private string UserMenuRange => $"'{_userMenuSheet}'!A2:H";
 
         private List<MenuDataModel> _menuList = new List<MenuDataModel>();
 
@@ -51,25 +55,17 @@ namespace wpf
 
             try
             {
-                // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
-                _menuSheet = await _sheetsService.EnsureMenuSheetAsync();
+                var pool = await _sheetsService.GetMenuPoolAsync(GoogleSheetsService.AgeTrack.All);
 
-                var values = await _sheetsService.GetValuesAsync(MenuRange);
-
-                var list = new List<MenuDataModel>();
-                foreach (var row in values)
-                {
-                    string name = row.Count > 0 ? row[0]?.ToString() ?? "" : "";
-                    if (string.IsNullOrWhiteSpace(name)) continue; // 빈 행 건너뛰기
-
-                    list.Add(new MenuDataModel
+                var list = pool
+                    .Select(m => new MenuDataModel
                     {
-                        MenuName = name.Trim(),
-                        Calories = row.Count > 1 ? row[1]?.ToString() ?? "" : "",
-                        Ingredients = row.Count > 2 ? row[2]?.ToString() ?? "" : "",
-                        Allergies = row.Count > 3 ? row[3]?.ToString() ?? "" : ""
-                    });
-                }
+                        MenuName = m.Name,
+                        Calories = m.Calories > 0 ? $"{m.Calories:0} kcal" : "-",
+                        Ingredients = string.IsNullOrWhiteSpace(m.Materials) ? "매칭 전" : m.Materials,
+                        Allergies = string.IsNullOrWhiteSpace(m.Allergy) ? "없음" : m.Allergy
+                    })
+                    .ToList();
 
                 _menuList = list;
                 DgMenuList.ItemsSource = null;
@@ -80,8 +76,7 @@ namespace wpf
                 if (_menuList.Count == 0)
                 {
                     MessageBox.Show(
-                        $"'{_menuSheet}' 시트에 등록된 레시피가 없습니다.\n" +
-                        "아래 입력란에서 첫 레시피를 등록해 보세요.",
+                        "등록된 메뉴가 없습니다.\n아래 입력란에서 첫 메뉴를 등록해 보세요.",
                         "안내", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
@@ -132,14 +127,17 @@ namespace wpf
             Mouse.OverrideCursor = Cursors.Wait;
             try
             {
-                await _sheetsService.AppendRowAsync(MenuRange, new List<object>
+                _userMenuSheet = await _sheetsService.EnsureUserMenuSheetAsync();
+
+                await _sheetsService.AppendRowAsync(UserMenuRange, new List<object>
                 {
-                    newMenu.MenuName, newMenu.Calories, newMenu.Ingredients, newMenu.Allergies
+                    newMenu.MenuName, newMenu.Calories, newMenu.Ingredients, newMenu.Allergies,
+                    "", "", "", ""   // 분류 · 탄수 · 단백 · 지방 (필요하면 시트에서 채웁니다)
                 });
 
                 Mouse.OverrideCursor = null;
 
-                MessageBox.Show($"[{newMenu.MenuName}] 레시피가 구글 시트에 저장되었습니다.",
+                MessageBox.Show($"[{newMenu.MenuName}] 메뉴를 «{_userMenuSheet}» 시트에 저장했습니다.",
                                 "완료", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 ClearInputForms();

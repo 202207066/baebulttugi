@@ -100,6 +100,22 @@ namespace wpf
         /// <summary>원가 계산용 식재료 단가 시트. A=식단명 B=식재료명 C=분류 D=1인소요량 E=단위 F=단가</summary>
         public static string CostSheetName => GetString("Sheets:Cost", "원가");
 
+        // ── 연령 트랙별 메뉴풀 ──────────────────────────────────────────
+        //
+        // 식품영양학과에서 정리한 메뉴풀 시트입니다. 열 구성은
+        //   A 순번 | B 메뉴ID | C 메뉴명 | D 카테고리 | E 대표출처센터
+        //   F 레시피파일유형 | G 전체출처센터 | H 레시피매칭상태 | I 알레르기코드 | J 검수
+        // 이 시트가 있으면 앱은 MenuDatabase 대신 이쪽을 읽습니다.
+
+        /// <summary>만 3~5세 메뉴풀 시트.</summary>
+        public static string TrackASheetName => GetString("Sheets:TrackA", "트랙A_3-5세");
+
+        /// <summary>만 6~18세 메뉴풀 시트.</summary>
+        public static string TrackBSheetName => GetString("Sheets:TrackB", "트랙B_6-18세");
+
+        /// <summary>사용자가 앱에서 직접 추가한 메뉴를 쌓는 시트.</summary>
+        public static string UserMenuSheetName => GetString("Sheets:UserMenu", "사용자추가메뉴");
+
         // ── 공공데이터포털 특일 정보 API ─────────────────────────────────
 
         /// <summary>공공데이터포털 서비스 키. 비어 있으면 공휴일 조회를 건너뜁니다.</summary>

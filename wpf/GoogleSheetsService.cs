@@ -504,6 +504,172 @@ namespace wpf
             EnsureSheetAsync(AppConfig.DietSheetName,
                              "구분", "밥", "국", "주찬", "부찬", "칼로리");
 
+        // ── 메뉴풀 읽기 ─────────────────────────────────────────────────
+
+        /// <summary>어느 연령 트랙의 메뉴를 쓸지.</summary>
+        public enum AgeTrack { A3to5, B6to18, All }
+
+        /// <summary>
+        /// 시트(탭)가 있으면 실제 이름을, 없으면 null을 돌려줍니다.
+        /// EnsureSheetAsync와 달리 새로 만들지 않습니다.
+        /// </summary>
+        public async Task<string?> ResolveSheetTitleAsync(string wantedTitle)
+        {
+            if (string.IsNullOrWhiteSpace(wantedTitle)) return null;
+
+            List<string> titles = await GetSheetTitlesAsync();
+
+            string? found = titles.FirstOrDefault(t => string.Equals(t, wantedTitle, StringComparison.Ordinal));
+            if (found != null) return found;
+
+            string wanted = Normalize(wantedTitle);
+            return titles.FirstOrDefault(t => Normalize(t) == wanted);
+        }
+
+        /// <summary>
+        /// 자동 조합과 알러지 점검이 사용할 메뉴 목록을 모읍니다.
+        ///
+        /// 우선순위
+        ///   1) 식품영양학과 메뉴풀 시트(트랙A / 트랙B)가 있으면 그것을 읽습니다.
+        ///   2) 사용자가 앱에서 추가한 메뉴 시트가 있으면 함께 더합니다.
+        ///   3) 트랙 시트가 하나도 없으면 기본 MenuDatabase 형식으로 읽습니다.
+        ///      (템플릿으로 새로 만든 빈 DB를 쓰는 급식소를 위한 경로)
+        /// </summary>
+        public async Task<List<MenuItem>> GetMenuPoolAsync(AgeTrack track)
+        {
+            var pool = new List<MenuItem>();
+
+            string? trackA = await ResolveSheetTitleAsync(AppConfig.TrackASheetName);
+            string? trackB = await ResolveSheetTitleAsync(AppConfig.TrackBSheetName);
+
+            if (trackA != null && (track == AgeTrack.A3to5 || track == AgeTrack.All))
+                pool.AddRange(await ReadTrackSheetAsync(trackA, "트랙A(3-5세)"));
+
+            if (trackB != null && (track == AgeTrack.B6to18 || track == AgeTrack.All))
+                pool.AddRange(await ReadTrackSheetAsync(trackB, "트랙B(6-18세)"));
+
+            // 사용자가 앱에서 직접 추가한 메뉴
+            string? userSheet = await ResolveSheetTitleAsync(AppConfig.UserMenuSheetName);
+            if (userSheet != null)
+                pool.AddRange(await ReadMenuDatabaseSheetAsync(userSheet, "사용자 추가"));
+
+            // 메뉴풀 시트가 전혀 없는 DB라면 기본 형식으로 읽습니다.
+            if (trackA == null && trackB == null)
+            {
+                string menuSheet = await EnsureMenuSheetAsync();
+                pool.AddRange(await ReadMenuDatabaseSheetAsync(menuSheet, ""));
+            }
+
+            return pool;
+        }
+
+        /// <summary>
+        /// 메뉴풀 시트 한 장을 읽습니다.
+        ///   A 순번 | B 메뉴ID | C 메뉴명 | D 카테고리 | E 대표출처센터
+        ///   F 파일유형 | G 전체출처 | H 매칭상태 | I 알레르기코드 | J 검수
+        ///
+        /// 시트 중간에 «── 밥류 (294개) ──» 같은 구분 행이 끼어 있으므로,
+        /// 메뉴ID가 «A-0001» 형태인 행만 데이터로 인정합니다.
+        /// </summary>
+        private async Task<List<MenuItem>> ReadTrackSheetAsync(string sheetTitle, string trackLabel)
+        {
+            var list = new List<MenuItem>();
+
+            try
+            {
+                var values = await GetValuesAsync($"'{sheetTitle}'!A1:J");
+
+                foreach (var row in values)
+                {
+                    string menuId = Cell(row, 1);
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(menuId, @"^[A-Za-z]+(-[A-Za-z]+)?-\d+$"))
+                        continue;
+
+                    string name = Cell(row, 2);
+                    if (name.Length == 0) continue;
+
+                    list.Add(new MenuItem
+                    {
+                        MenuId = menuId,
+                        Name = name,
+                        Category = Cell(row, 3),
+                        Source = Cell(row, 4),
+                        Allergy = AllergyCodes.Decode(Cell(row, 8)),
+                        Track = trackLabel
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[메뉴풀 '{sheetTitle}' 읽기 실패] {ex.Message}");
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// 기본 MenuDatabase 형식을 읽습니다.
+        ///   A 메뉴명 | B 칼로리 | C 재료 | D 유발알러지 | E 분류 | F 탄수 | G 단백 | H 지방
+        /// </summary>
+        private async Task<List<MenuItem>> ReadMenuDatabaseSheetAsync(string sheetTitle, string trackLabel)
+        {
+            var list = new List<MenuItem>();
+
+            try
+            {
+                var values = await GetValuesAsync($"'{sheetTitle}'!A2:H");
+
+                foreach (var row in values)
+                {
+                    string name = Cell(row, 0);
+                    if (name.Length == 0) continue;
+
+                    list.Add(new MenuItem
+                    {
+                        Name = name,
+                        Calories = ParseNumber(Cell(row, 1)),
+                        Materials = Cell(row, 2),
+                        Allergy = Cell(row, 3),
+                        Category = Cell(row, 4),
+                        Carb = ParseNumber(Cell(row, 5)),
+                        Protein = ParseNumber(Cell(row, 6)),
+                        Fat = ParseNumber(Cell(row, 7)),
+                        Track = trackLabel
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[메뉴 '{sheetTitle}' 읽기 실패] {ex.Message}");
+            }
+
+            return list;
+        }
+
+        /// <summary>"320 kcal", "12.5g" 같은 문자열에서 숫자만 뽑습니다.</summary>
+        private static double ParseNumber(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return 0;
+
+            string cleaned = System.Text.RegularExpressions.Regex.Replace(raw, @"[^0-9.]", "");
+            if (cleaned.Length == 0) return 0;
+
+            int firstDot = cleaned.IndexOf('.');
+            if (firstDot >= 0)
+            {
+                cleaned = cleaned.Substring(0, firstDot + 1) +
+                          cleaned.Substring(firstDot + 1).Replace(".", "");
+            }
+
+            return double.TryParse(cleaned, out double value) ? value : 0;
+        }
+
+        /// <summary>사용자가 앱에서 추가한 메뉴를 저장할 시트를 준비합니다.</summary>
+        public Task<string> EnsureUserMenuSheetAsync() =>
+            EnsureSheetAsync(AppConfig.UserMenuSheetName,
+                             "메뉴명", "칼로리", "재료", "유발 알러지",
+                             "분류", "탄수화물(g)", "단백질(g)", "지방(g)");
+
         /// <summary>스프레드시트에 있는 모든 탭 이름.</summary>
         public async Task<List<string>> GetSheetTitlesAsync()
         {

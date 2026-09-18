@@ -397,20 +397,15 @@ namespace wpf
         {
             try
             {
-                string menuSheet = await _service.EnsureMenuSheetAsync();
-                var values = await _service.GetValuesAsync($"'{menuSheet}'!A2:D");
+                var pool = await _service.GetMenuPoolAsync(GoogleSheetsService.AgeTrack.All);
 
                 _menuCatalog.Clear();
-                foreach (var row in values)
+                foreach (var item in pool)
                 {
-                    string name = row.Count > 0 ? (row[0]?.ToString() ?? "").Trim() : "";
-                    if (name.Length == 0) continue;
+                    if (item.Name.Length == 0) continue;
 
-                    string materials = row.Count > 2 ? (row[2]?.ToString() ?? "").Trim() : "";
-                    string allergy = row.Count > 3 ? (row[3]?.ToString() ?? "").Trim() : "";
-
-                    _menuCatalog[name] = string.Join(", ",
-                        new[] { materials, allergy }.Where(s => s.Length > 0));
+                    _menuCatalog[item.Name] = string.Join(", ",
+                        new[] { item.Materials, item.Allergy }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 }
             }
             catch (Exception ex)
