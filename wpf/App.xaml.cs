@@ -24,17 +24,11 @@ namespace wpf
 
             try
             {
-                // 1. 설정 파일 확인
-                if (!AppConfig.HasSpreadsheetId)
-                {
-                    MessageBox.Show(
-                        (AppConfig.LoadError ?? "appsettings.json에 SpreadsheetId가 비어 있습니다.") +
-                        "\n\n설정 파일 위치: " + AppConfig.ConfigFilePath,
-                        "설정 필요", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    Shutdown();
-                    return;
-                }
-
+                // 1. 인증 파일 확인
+                //
+                //    스프레드시트 ID는 여기서 막지 않습니다. 배포하면 급식소마다 자기
+                //    시트를 쓰게 되므로, 설정이 비어 있으면 종료하는 대신 로그인 후
+                //    앱 안의 «데이터베이스 설정» 화면에서 만들거나 연결하도록 합니다.
                 if (!File.Exists(AppConfig.CredentialsPath))
                 {
                     MessageBox.Show(
@@ -111,17 +105,25 @@ namespace wpf
                     }
                 }
 
+                // 복사할 템플릿이 설정되어 있지 않으면 여기서 아무것도 하지 않습니다.
+                // 사용자가 «데이터베이스 설정» 화면에서 직접 만들거나 연결하면 됩니다.
+                if (!AppConfig.HasSpreadsheetId) return;
+
                 string newId = await service.SetupUserDatabaseAsync();
                 File.WriteAllText(idFile, newId);
 
                 MessageBox.Show(
-                    "개인 구글 계정에 전용 DB 배포가 완료되었습니다.",
-                    "초기화 성공", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "내 구글 드라이브에 전용 데이터베이스를 만들었습니다.\n" +
+                    "«데이터베이스 설정» 화면에서 언제든 바꿀 수 있습니다.",
+                    "초기화 완료", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[개인 DB 준비 실패] {ex.Message}");
+
                 MessageBox.Show(
-                    "개인 DB를 준비하지 못했습니다. 설정 파일의 공용 시트로 계속 진행합니다.\n\n" + ex.Message,
+                    "데이터베이스를 자동으로 준비하지 못했습니다.\n" +
+                    "«데이터베이스 설정» 화면에서 직접 만들거나 연결해 주세요.\n\n" + ex.Message,
                     "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }

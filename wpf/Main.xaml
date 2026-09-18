@@ -175,6 +175,16 @@
                             </StackPanel>
                         </RadioButton>
 
+                        <TextBlock Text="설정" Style="{StaticResource NavGroup}"/>
+
+                        <RadioButton x:Name="BtnDatabase" Style="{StaticResource NavItem}"
+                                     Click="BtnDatabase_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🗄️" FontSize="17" Margin="0,0,14,0"/>
+                                <TextBlock Text="데이터베이스 설정"/>
+                            </StackPanel>
+                        </RadioButton>
+
                     </StackPanel>
                 </ScrollViewer>
 

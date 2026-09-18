@@ -36,6 +36,18 @@ namespace wpf
             // 로그인한 계정 이름을 상단 바와 사이드바에 항상 띄웁니다.
             await ShowSignedInUserAsync();
 
+            // 연결된 데이터베이스가 없으면 대시보드 대신 설정 화면부터 엽니다.
+            if (string.IsNullOrWhiteSpace(_sheetsService.SpreadsheetId))
+            {
+                MessageBox.Show(
+                    "아직 연결된 데이터베이스가 없습니다.\n" +
+                    "«데이터베이스 설정»에서 새로 만들거나, 이미 쓰던 구글 시트에 연결해 주세요.",
+                    "데이터베이스 설정 필요", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                BtnDatabase_Click(this, new RoutedEventArgs());
+                return;
+            }
+
             try
             {
                 BtnDashboard.IsChecked = true;
@@ -180,6 +192,13 @@ namespace wpf
         {
             NavigateTo(BtnCalendar, () => new EventCalendar(),
                        "이벤트 · 절기 달력", "공휴일·절기와 급식소 일정을 함께 관리합니다");
+        }
+
+        // 🗄️ 데이터베이스 설정
+        private void BtnDatabase_Click(object sender, RoutedEventArgs e)
+        {
+            NavigateTo(BtnDatabase, () => new DatabaseSettingsPage(),
+                       "데이터베이스 설정", "이 급식소가 사용할 구글 스프레드시트를 만들거나 연결합니다");
         }
 
         /// <summary>

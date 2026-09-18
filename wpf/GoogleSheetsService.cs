@@ -154,6 +154,137 @@ namespace wpf
         public void SetUserSpreadsheetId(string id)
         {
             _userSpreadsheetId = string.IsNullOrWhiteSpace(id) ? null : id.Trim();
+
+            // 시트가 바뀌면 이전 시트에서 확인한 탭 이름 캐시는 무효입니다.
+            _resolvedSheets.Clear();
+            CreatedSheets.Clear();
+        }
+
+        /// <summary>현재 연결된 스프레드시트를 구글 시트에서 여는 주소.</summary>
+        public string SpreadsheetUrl =>
+            string.IsNullOrWhiteSpace(SpreadsheetId)
+                ? ""
+                : $"https://docs.google.com/spreadsheets/d/{SpreadsheetId}/edit";
+
+        /// <summary>
+        /// 붙여넣은 주소에서 스프레드시트 ID만 뽑아냅니다.
+        /// 전체 URL도, ID만 붙여넣어도 동작합니다.
+        ///
+        ///   https://docs.google.com/spreadsheets/d/1AbC.../edit?gid=0#gid=0  →  1AbC...
+        ///   1AbC...                                                          →  1AbC...
+        /// </summary>
+        public static string ParseSpreadsheetId(string urlOrId)
+        {
+            if (string.IsNullOrWhiteSpace(urlOrId)) return "";
+
+            string text = urlOrId.Trim();
+
+            var match = System.Text.RegularExpressions.Regex.Match(
+                text, @"/spreadsheets/d/([a-zA-Z0-9\-_]+)");
+            if (match.Success) return match.Groups[1].Value;
+
+            // 주소가 아니면 ID 자체로 봅니다(구글 ID에 쓰이는 문자만 허용).
+            if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^[a-zA-Z0-9\-_]{20,}$"))
+                return text;
+
+            return "";
+        }
+
+        /// <summary>스프레드시트 파일 이름을 가져옵니다.</summary>
+        public async Task<string> GetSpreadsheetTitleAsync(string? spreadsheetId = null)
+        {
+            string id = string.IsNullOrWhiteSpace(spreadsheetId) ? SpreadsheetId : spreadsheetId!;
+            if (string.IsNullOrWhiteSpace(id)) return "";
+
+            var request = _sheetsService.Spreadsheets.Get(id);
+            request.Fields = "properties.title";
+            var spreadsheet = await request.ExecuteAsync();
+
+            return spreadsheet?.Properties?.Title ?? "";
+        }
+
+        /// <summary>
+        /// 이 계정으로 해당 스프레드시트를 열 수 있는지 확인합니다.
+        /// 성공하면 파일 이름을, 실패하면 사유를 돌려줍니다.
+        /// </summary>
+        public async Task<(bool Ok, string Title, string Error)> CheckSpreadsheetAsync(string spreadsheetId)
+        {
+            if (string.IsNullOrWhiteSpace(spreadsheetId))
+                return (false, "", "스프레드시트 주소 또는 ID를 입력해 주세요.");
+
+            try
+            {
+                string title = await GetSpreadsheetTitleAsync(spreadsheetId);
+                return (true, title, "");
+            }
+            catch (Google.GoogleApiException ex)
+            {
+                string reason = ex.HttpStatusCode switch
+                {
+                    System.Net.HttpStatusCode.NotFound =>
+                        "그런 스프레드시트를 찾을 수 없습니다. 주소를 다시 확인해 주세요.",
+                    System.Net.HttpStatusCode.Forbidden =>
+                        "이 구글 계정에 그 시트를 볼 권한이 없습니다. 시트 소유자에게 편집자로 초대해 달라고 요청하세요.",
+                    _ => ex.Message
+                };
+                return (false, "", reason);
+            }
+            catch (Exception ex)
+            {
+                return (false, "", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 템플릿을 복사해 새 데이터베이스를 만듭니다. 이름을 직접 정할 수 있습니다.
+        /// </summary>
+        public async Task<string> CreateDatabaseAsync(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(TemplateSpreadsheetId))
+            {
+                throw new InvalidOperationException(
+                    "appsettings.json에 TemplateSpreadsheetId(또는 SpreadsheetId)가 설정되어 있지 않습니다.");
+            }
+
+            var metadata = new Google.Apis.Drive.v3.Data.File
+            {
+                Name = string.IsNullOrWhiteSpace(fileName)
+                    ? "스마트 식단 및 알러지 DB"
+                    : fileName.Trim()
+            };
+
+            var copied = await _driveService.Files.Copy(metadata, TemplateSpreadsheetId).ExecuteAsync();
+
+            SetUserSpreadsheetId(copied.Id);
+            return copied.Id;
+        }
+
+        /// <summary>
+        /// 앱이 사용하는 탭 5개가 모두 있는지 확인하고, 없는 것은 만듭니다.
+        /// 각 탭의 (이름, 새로 만들었는지)를 돌려줍니다.
+        /// </summary>
+        public async Task<List<(string Title, bool Created)>> EnsureAllSheetsAsync()
+        {
+            var before = new HashSet<string>(CreatedSheets, StringComparer.Ordinal);
+            var result = new List<(string, bool)>();
+
+            string menu = await EnsureMenuSheetAsync();
+            result.Add((menu, CreatedSheets.Contains(menu) && !before.Contains(menu)));
+
+            string patient = await EnsurePatientSheetAsync();
+            result.Add((patient, CreatedSheets.Contains(patient) && !before.Contains(patient)));
+
+            string diet = await EnsureDietSheetAsync();
+            result.Add((diet, CreatedSheets.Contains(diet) && !before.Contains(diet)));
+
+            string evt = await EnsureEventSheetAsync();
+            result.Add((evt, CreatedSheets.Contains(evt) && !before.Contains(evt)));
+
+            string cost = await EnsureSheetAsync(AppConfig.CostSheetName,
+                "식단명", "식재료명", "분류", "1인당 소요량", "단위", "단가");
+            result.Add((cost, CreatedSheets.Contains(cost) && !before.Contains(cost)));
+
+            return result;
         }
 
         /// <summary>
