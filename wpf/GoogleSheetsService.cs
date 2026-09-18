@@ -427,9 +427,34 @@ namespace wpf
         /// <summary>이번 실행에서 새로 만든 시트 이름들.</summary>
         public List<string> CreatedSheets { get; } = new List<string>();
 
-        /// <summary>비교용으로 공백을 없애고 소문자로 만듭니다.</summary>
-        private static string Normalize(string s) =>
-            new string(s.Where(c => !char.IsWhiteSpace(c)).ToArray()).ToLowerInvariant();
+        /// <summary>
+        /// 탭 이름 비교용 정규화.
+        ///
+        /// 공백·언더바를 없애고, 눈으로는 구별되지 않는 여러 종류의 하이픈
+        /// (－ ‐ ‑ – — 등)을 보통 하이픈으로 통일한 뒤 소문자로 만듭니다.
+        /// "트랙A_3-5세"와 "트랙A 3–5세"가 같은 것으로 취급되도록 하기 위함입니다.
+        /// </summary>
+        private static string Normalize(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char c in s)
+            {
+                if (char.IsWhiteSpace(c) || c == '_') continue;
+
+                // 유니코드 대시 계열을 전부 '-' 로
+                if (c == '\u2010' || c == '\u2011' || c == '\u2012' || c == '\u2013' ||
+                    c == '\u2014' || c == '\u2015' || c == '\uFF0D' || c == '\u2212')
+                {
+                    sb.Append('-');
+                    continue;
+                }
+
+                sb.Append(char.ToLowerInvariant(c));
+            }
+            return sb.ToString();
+        }
 
         /// <summary>
         /// 필요한 시트(탭)가 있는지 확인하고, 없으면 헤더까지 넣어 새로 만듭니다.
@@ -535,29 +560,68 @@ namespace wpf
         ///   3) 트랙 시트가 하나도 없으면 기본 MenuDatabase 형식으로 읽습니다.
         ///      (템플릿으로 새로 만든 빈 DB를 쓰는 급식소를 위한 경로)
         /// </summary>
+        /// <summary>
+        /// 직전 GetMenuPoolAsync가 실제로 읽은 시트 이름들.
+        /// "메뉴가 부족합니다" 같은 안내에서 원인을 짚어 주는 데 씁니다.
+        /// </summary>
+        public List<string> LastPoolSources { get; } = new List<string>();
+
+        /// <summary>
+        /// 트랙 시트를 찾습니다. 설정값과 정확히 같은 이름이 없으면,
+        /// "트랙A"/"트랙B"로 시작하는 탭을 찾습니다.
+        ///
+        /// 실제 시트의 탭 이름은 «트랙A_3-5세» 처럼 조금씩 다르게 적히는 경우가
+        /// 많아(하이픈 종류, 언더바, 띄어쓰기) 접두사까지 허용합니다.
+        /// </summary>
+        public async Task<string?> ResolveTrackSheetAsync(string configuredTitle, string prefix)
+        {
+            string? exact = await ResolveSheetTitleAsync(configuredTitle);
+            if (exact != null) return exact;
+
+            List<string> titles = await GetSheetTitlesAsync();
+            string wantedPrefix = Normalize(prefix);
+
+            return titles.FirstOrDefault(t => Normalize(t).StartsWith(wantedPrefix, StringComparison.Ordinal));
+        }
+
         public async Task<List<MenuItem>> GetMenuPoolAsync(AgeTrack track)
         {
             var pool = new List<MenuItem>();
+            LastPoolSources.Clear();
 
-            string? trackA = await ResolveSheetTitleAsync(AppConfig.TrackASheetName);
-            string? trackB = await ResolveSheetTitleAsync(AppConfig.TrackBSheetName);
+            string? trackA = await ResolveTrackSheetAsync(AppConfig.TrackASheetName, "트랙A");
+            string? trackB = await ResolveTrackSheetAsync(AppConfig.TrackBSheetName, "트랙B");
 
             if (trackA != null && (track == AgeTrack.A3to5 || track == AgeTrack.All))
-                pool.AddRange(await ReadTrackSheetAsync(trackA, "트랙A(3-5세)"));
+            {
+                var rows = await ReadTrackSheetAsync(trackA, "트랙A(3-5세)");
+                pool.AddRange(rows);
+                LastPoolSources.Add($"{trackA} ({rows.Count}개)");
+            }
 
             if (trackB != null && (track == AgeTrack.B6to18 || track == AgeTrack.All))
-                pool.AddRange(await ReadTrackSheetAsync(trackB, "트랙B(6-18세)"));
+            {
+                var rows = await ReadTrackSheetAsync(trackB, "트랙B(6-18세)");
+                pool.AddRange(rows);
+                LastPoolSources.Add($"{trackB} ({rows.Count}개)");
+            }
 
             // 사용자가 앱에서 직접 추가한 메뉴
             string? userSheet = await ResolveSheetTitleAsync(AppConfig.UserMenuSheetName);
             if (userSheet != null)
-                pool.AddRange(await ReadMenuDatabaseSheetAsync(userSheet, "사용자 추가"));
+            {
+                var rows = await ReadMenuDatabaseSheetAsync(userSheet, "사용자 추가");
+                pool.AddRange(rows);
+                if (rows.Count > 0) LastPoolSources.Add($"{userSheet} ({rows.Count}개)");
+            }
 
             // 메뉴풀 시트가 전혀 없는 DB라면 기본 형식으로 읽습니다.
             if (trackA == null && trackB == null)
             {
                 string menuSheet = await EnsureMenuSheetAsync();
-                pool.AddRange(await ReadMenuDatabaseSheetAsync(menuSheet, ""));
+                var rows = await ReadMenuDatabaseSheetAsync(menuSheet, "");
+                pool.AddRange(rows);
+                LastPoolSources.Add($"{menuSheet} ({rows.Count}개) — 트랙 시트를 찾지 못해 기본 형식으로 읽음");
             }
 
             return pool;

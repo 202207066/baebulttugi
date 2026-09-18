@@ -138,8 +138,7 @@ namespace wpf
                 if (_menuPool.Count == 0)
                 {
                     MessageBox.Show(
-                        "이 연령대에 해당하는 메뉴가 없습니다.\n" +
-                        $"«{AppConfig.TrackASheetName}» 또는 «{AppConfig.TrackBSheetName}» 시트를 확인해 주세요.",
+                        "이 연령대에 해당하는 메뉴가 없습니다.\n\n" + PoolSourceText(),
                         "메뉴풀 비어 있음", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
@@ -419,7 +418,8 @@ namespace wpf
             string text =
                 $"다음 자리에 넣을 메뉴가 없습니다: {string.Join(", ", missing)}\n\n" +
                 $"현재 메뉴풀: {_menuPool.Count}개 " +
-                $"({(_currentTrack == GoogleSheetsService.AgeTrack.A3to5 ? "트랙A 3~5세" : "트랙B 6~18세")})";
+                $"({(_currentTrack == GoogleSheetsService.AgeTrack.A3to5 ? "트랙A 3~5세" : "트랙B 6~18세")})\n" +
+                PoolSourceText();
 
             if (_registeredAllergens.Count > 0)
             {
@@ -430,6 +430,17 @@ namespace wpf
             }
 
             return text;
+        }
+
+        /// <summary>메뉴풀을 어느 시트에서 읽었는지 한 줄로 보여 줍니다.</summary>
+        private string PoolSourceText()
+        {
+            var sources = _sheetsService.LastPoolSources;
+
+            if (sources.Count == 0)
+                return "읽어 온 시트가 없습니다. «데이터베이스 설정»에서 연결된 스프레드시트를 확인해 주세요.";
+
+            return "읽어 온 시트\n· " + string.Join("\n· ", sources);
         }
 
         private MenuItem? FindFixed(ComboBox combo)
