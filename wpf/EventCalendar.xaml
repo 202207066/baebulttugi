@@ -10,58 +10,10 @@
       FontFamily="{StaticResource UiFont}">
 
     <Page.Resources>
-
-        <!-- 날짜 한 칸 -->
-        <Style x:Key="DayButton" TargetType="CalendarDayButton">
-            <Setter Property="Width" Value="52"/>
-            <Setter Property="Height" Value="46"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Margin" Value="2"/>
-            <Setter Property="Foreground" Value="{StaticResource Ink}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CalendarDayButton">
-                        <Grid>
-                            <Border x:Name="Bd" CornerRadius="9" Background="Transparent"/>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <!-- 일정이 있는 날 표시용 점 -->
-                            <Ellipse x:Name="Dot" Width="5" Height="5" Margin="0,0,0,7"
-                                     VerticalAlignment="Bottom" HorizontalAlignment="Center"
-                                     Fill="{StaticResource Lime}" Visibility="Collapsed"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandTint}"/>
-                            </Trigger>
-                            <Trigger Property="IsToday" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#EDF5EE"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="Foreground" Value="{StaticResource Brand}"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brand}"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                            </Trigger>
-                            <Trigger Property="IsInactive" Value="True">
-                                <Setter Property="Foreground" Value="#CBD5E0"/>
-                            </Trigger>
-                            <Trigger Property="IsBlackedOut" Value="True">
-                                <Setter Property="Foreground" Value="#CBD5E0"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="InfoCard" TargetType="Border">
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="18"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-
+      <ResourceDictionary>
+       <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="CleanCalendar.xaml"/></ResourceDictionary.MergedDictionaries>
+       <Style x:Key="InfoCard" TargetType="Border"><Setter Property="CornerRadius" Value="14"/><Setter Property="Padding" Value="20"/><Setter Property="Margin" Value="0,0,0,14"/><Setter Property="BorderThickness" Value="1"/></Style>
+      </ResourceDictionary>
     </Page.Resources>
 
     <Grid Margin="32,26,32,26">
@@ -72,9 +24,9 @@
 
         <!-- 머리말 -->
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="이벤트 · 절기 달력" Style="{StaticResource PageTitle}"/>
+            <TextBlock Text="식단과 일정" Style="{StaticResource PageTitle}"/>
             <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="{StaticResource InkSubtle}"
-                       Text="공휴일과 절기를 자동으로 불러오고, 급식소 일정을 함께 관리합니다."/>
+                       Text="날짜를 선택해 식단을 확인하고, 급식소 일정을 기록하세요."/>
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -93,39 +45,16 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 선택한 날짜 배너 -->
-                    <Border Grid.Row="0" CornerRadius="12" Padding="22,18" Margin="0,0,0,18">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="{StaticResource BrandColor}" Offset="0"/>
-                                <GradientStop Color="{StaticResource BrandDarkColor}" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-
-                        <Grid>
-                            <StackPanel>
-                                <TextBlock x:Name="txtBannerYear" Text=""
-                                           FontSize="12" Foreground="#A8CFAD"/>
-                                <TextBlock x:Name="txtSelectedDate" Text="날짜를 선택해주세요"
-                                           FontSize="26" FontWeight="Bold" Foreground="White"
-                                           Margin="0,4,0,0"/>
-                            </StackPanel>
-
-                            <Border x:Name="BadgeHoliday" HorizontalAlignment="Right"
-                                    VerticalAlignment="Center" Visibility="Collapsed"
-                                    Background="#FFFFFF" CornerRadius="16" Padding="14,7">
-                                <TextBlock x:Name="txtBadgeHoliday" Text=""
-                                           FontSize="12.5" FontWeight="Bold"
-                                           Foreground="{StaticResource Brand}"/>
-                            </Border>
-                        </Grid>
-                    </Border>
-
-                    <Calendar Grid.Row="1" x:Name="MainCalendar"
-                              HorizontalAlignment="Center" VerticalAlignment="Top"
-                              BorderThickness="0" Background="Transparent"
-                              FontSize="14"
-                              CalendarDayButtonStyle="{StaticResource DayButton}"/>
+                    <Grid Grid.Row="0" Margin="2,0,2,24">
+                     <StackPanel>
+                      <TextBlock x:Name="txtBannerYear" Text="선택한 날짜" FontSize="12" Foreground="#7C8E83"/>
+                      <TextBlock x:Name="txtSelectedDate" Text="날짜를 선택해 주세요" FontSize="22" FontWeight="SemiBold" Foreground="#243C2E" Margin="0,6,0,0"/>
+                     </StackPanel>
+                     <Border x:Name="BadgeHoliday" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" Background="#FFF3E4" CornerRadius="12" Padding="12,7">
+                      <TextBlock x:Name="txtBadgeHoliday" Foreground="#A46831" FontSize="12" FontWeight="SemiBold"/>
+                     </Border>
+                    </Grid>
+                    <Calendar Grid.Row="1" x:Name="MainCalendar" Style="{StaticResource CleanCalendar}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
 
                     <!-- 범례 -->
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,14,0,0">
@@ -178,9 +107,10 @@
                                                    Foreground="#2F5233" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <TextBlock x:Name="txtTodayMenu"
-                                               Text="식단 자동 조합에서 만든 식단이 여기에 표시됩니다."
+                                               Text="아직 식단이 작성되지 않았습니다."
                                                FontSize="14.5" Foreground="{StaticResource Ink}"
                                                TextWrapping="Wrap"/>
+                                    <Button x:Name="BtnCreateMeal" Content="식단 만들기" Click="CreateMeal_Click" Margin="0,12,0,0" HorizontalAlignment="Left" Padding="14,8"/>
                                 </StackPanel>
                             </Border>
 

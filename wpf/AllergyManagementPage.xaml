@@ -1,4 +1,4 @@
-﻿<Page x:Class="wpf.AllergyManagementPage"
+<Page x:Class="wpf.AllergyManagementPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -324,7 +324,7 @@
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <Border Grid.Row="2" Background="#F8FAFC" Padding="15,0">
-                                    <Button x:Name="BtnConfirmAlternativeMenu" Content="🔄 대체 식단 규칙 일괄 승인 및 확정" Height="36" Background="#38A169" BorderThickness="0" Foreground="White" FontWeight="Bold" Padding="20,0" HorizontalAlignment="Right">
+                                    <Button x:Name="BtnConfirmAlternativeMenu" Content="알레르기를 반영해 식단 만들기" Height="36" Background="#38A169" BorderThickness="0" Foreground="White" FontWeight="Bold" Padding="20,0" HorizontalAlignment="Right">
                                         <Button.Resources>
                                             <Style TargetType="Border">
                                                 <Setter Property="CornerRadius" Value="4"/>

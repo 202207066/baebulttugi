@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows;
 
@@ -15,7 +15,7 @@ namespace wpf
     /// </summary>
     public partial class App : Application
     {
-        protected override async void OnStartup(StartupEventArgs e)
+        protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
@@ -28,19 +28,17 @@ namespace wpf
                 if (!AppConfig.HasSpreadsheetId)
                 {
                     MessageBox.Show(
-                        (AppConfig.LoadError ?? "appsettings.json에 SpreadsheetId가 비어 있습니다.") +
-                        "\n\n설정 파일 위치: " + AppConfig.ConfigFilePath,
-                        "설정 필요", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppConfig.LoadError ?? "앱의 구글 시트 연결 설정이 빠져 있습니다. 배포 담당자에게 문의해 주세요.",
+                        "앱 설정 확인", MessageBoxButton.OK, MessageBoxImage.Warning);
                     Shutdown();
                     return;
                 }
 
-                if (!File.Exists(AppConfig.CredentialsPath))
+                if (!AppConfig.HasCredentials)
                 {
                     MessageBox.Show(
-                        "구글 OAuth 클라이언트 파일을 찾을 수 없습니다.\n\n" +
-                        "기대 위치: " + AppConfig.CredentialsPath,
-                        "인증 파일 필요", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "앱에 구글 로그인 설정이 포함되어 있지 않습니다. 배포 담당자에게 문의해 주세요.",
+                        "앱 설정 확인", MessageBoxButton.OK, MessageBoxImage.Warning);
                     Shutdown();
                     return;
                 }
@@ -58,18 +56,21 @@ namespace wpf
                 }
 
                 // 3. 구글 로그인 (앱 전체에서 단 한 번)
-                var login = new LoginWindow();
-                if (login.ShowDialog() != true || login.UserCredential == null)
+                GoogleSheetsService? sheetsService = null;
+                var login = new LoginWindow
+                {
+                    PrepareDataAsync = async (credential, progress) =>
+                    {
+                        sheetsService = new GoogleSheetsService(credential);
+                        await sheetsService.PreparePersonalDatabaseAsync(progress);
+                        AppServices.Sheets = sheetsService;
+                    }
+                };
+                if (login.ShowDialog() != true || sheetsService == null)
                 {
                     Shutdown();
                     return;
                 }
-
-                var sheetsService = new GoogleSheetsService(login.UserCredential);
-                AppServices.Sheets = sheetsService;
-
-                // 4. 사용자 전용 DB 준비 (최초 1회만 템플릿을 복사)
-                await PrepareUserDatabaseAsync(sheetsService);
 
                 // 5. 메인 창
                 //
@@ -91,39 +92,5 @@ namespace wpf
             }
         }
 
-        /// <summary>
-        /// 사용자 드라이브에 개인 DB 사본이 있는지 확인하고, 없으면 템플릿을 복사합니다.
-        /// 복사에 실패해도 공용 시트로 계속 진행할 수 있게 두고, 사유만 알려 줍니다.
-        /// </summary>
-        private static async System.Threading.Tasks.Task PrepareUserDatabaseAsync(GoogleSheetsService service)
-        {
-            string idFile = AppConfig.UserSheetIdFilePath;
-
-            try
-            {
-                if (File.Exists(idFile))
-                {
-                    string savedId = File.ReadAllText(idFile).Trim();
-                    if (!string.IsNullOrWhiteSpace(savedId))
-                    {
-                        service.SetUserSpreadsheetId(savedId);
-                        return;
-                    }
-                }
-
-                string newId = await service.SetupUserDatabaseAsync();
-                File.WriteAllText(idFile, newId);
-
-                MessageBox.Show(
-                    "개인 구글 계정에 전용 DB 배포가 완료되었습니다.",
-                    "초기화 성공", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    "개인 DB를 준비하지 못했습니다. 설정 파일의 공용 시트로 계속 진행합니다.\n\n" + ex.Message,
-                    "초기화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
     }
 }

@@ -1,4 +1,4 @@
-﻿<Window x:Class="wpf.Main"
+<Window x:Class="wpf.Main"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -137,7 +137,7 @@
                                      Click="BtnMenuTable_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🍽️" FontSize="17" Margin="0,0,14,0"/>
-                                <TextBlock Text="식단 자동 조합"/>
+                                <TextBlock Text="식단 만들기"/>
                             </StackPanel>
                         </RadioButton>
 
@@ -171,10 +171,13 @@
                                      Click="BtnIngredientsDb_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🌿" FontSize="17" Margin="0,0,14,0"/>
-                                <TextBlock Text="식재료 원천 DB"/>
+                                <TextBlock Text="메뉴·영양정보 자료"/>
                             </StackPanel>
                         </RadioButton>
 
+                        <TextBlock Text="구글 시트 열기" Style="{StaticResource NavGroup}"/>
+                        <Button Content="공공 메뉴 자료 보기" Click="OpenPublicData_Click" Margin="18,4" Padding="10,8" ToolTip="기준 메뉴·영양정보와 사용 설명을 브라우저에서 엽니다"/>
+                        <Button Content="내 식단 자료 보기" Click="OpenMyData_Click" Margin="18,4" Padding="10,8" ToolTip="내 구글 드라이브에 저장된 자료를 엽니다"/>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -211,6 +214,7 @@
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="76"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -259,11 +263,14 @@
             </Border>
 
             <!-- 페이지 영역 -->
-            <Frame Grid.Row="1" x:Name="MainFrame" NavigationUIVisibility="Hidden"
+            <Border Grid.Row="1" x:Name="ActivityBanner" Visibility="Collapsed" Background="#E8F3E9" Padding="24,8">
+                <StackPanel><TextBlock x:Name="ActivityText" FontSize="13" Margin="0,0,0,5" TextWrapping="Wrap"/><ProgressBar IsIndeterminate="True" Height="4"/></StackPanel>
+            </Border>
+            <Frame Grid.Row="2" x:Name="MainFrame" NavigationUIVisibility="Hidden"
                    Navigated="MainFrame_Navigated"/>
 
             <!-- ── 도움말 오버레이 ───────────────────────────────── -->
-            <Grid x:Name="HelpOverlay" Grid.Row="0" Grid.RowSpan="2"
+            <Grid x:Name="HelpOverlay" Grid.Row="0" Grid.RowSpan="3"
                   Background="#99000000" Visibility="Collapsed"
                   MouseLeftButtonDown="HelpOverlay_MouseLeftButtonDown">
 
@@ -293,17 +300,17 @@
                                                    Foreground="{StaticResource Brand}"/>
                                         <TextBlock Margin="0,6,0,0" FontSize="13" TextWrapping="Wrap"
                                                    Foreground="{StaticResource InkMuted}"
-                                                   Text="가장 먼저 할 일입니다. 여기 등록된 알러지 성분이 식단 자동 조합에서 제외 기준이 됩니다. 등록이 비어 있으면 알러지 필터가 동작하지 않습니다."/>
+                                                   Text="가장 먼저 할 일입니다. 여기 등록된 알러지 성분이 식단 만들기에서 제외 기준이 됩니다. 등록이 비어 있으면 알러지 필터가 동작하지 않습니다."/>
                                     </StackPanel>
                                 </Border>
 
                                 <Border Style="{StaticResource HelpRow}">
                                     <StackPanel>
-                                        <TextBlock Text="② 식단 자동 조합" FontWeight="Bold" FontSize="14"
+                                        <TextBlock Text="② 식단 만들기" FontWeight="Bold" FontSize="14"
                                                    Foreground="{StaticResource Brand}"/>
                                         <TextBlock Margin="0,6,0,0" FontSize="13" TextWrapping="Wrap"
                                                    Foreground="{StaticResource InkMuted}"
-                                                   Text="나이대와 목표 영양소를 넣으면 알러지를 피한 식단 3안을 만들어 줍니다. 특정 메뉴를 꼭 넣어야 하면 «직접 입력» 탭에서 고정할 수 있습니다."/>
+                                                   Text="나이대, 식사 날짜와 끼니, 한 끼 목표 영양소를 선택하면 일주일 식단을 만들고 내 구글 시트에 저장합니다. 꼭 포함할 메뉴도 선택할 수 있습니다."/>
                                     </StackPanel>
                                 </Border>
 
@@ -323,7 +330,7 @@
                                                    Foreground="{StaticResource InkMuted}"/>
                                         <TextBlock Margin="0,6,0,0" FontSize="13" TextWrapping="Wrap"
                                                    Foreground="{StaticResource InkMuted}"
-                                                   Text="자주 바꾸지 않는 재료입니다. 메뉴 관리에서 레시피의 열량·재료·알러지를, 식재료 DB에서 원천 데이터를 관리합니다. 메뉴 DB의 분류(E열)와 영양성분(F~H열)을 채워 두면 자동 조합 품질이 크게 올라갑니다."/>
+                                                   Text="공공 메뉴 자료의 트랙A는 3~5세, 트랙B는 6~18세용입니다. 메뉴별 1인분 영양정보가 등록되어 있어야 목표 영양소에 맞춰 식단을 만들 수 있습니다. 왼쪽의 공공 메뉴 자료 버튼으로 원본 시트를 열 수 있습니다."/>
                                     </StackPanel>
                                 </Border>
 

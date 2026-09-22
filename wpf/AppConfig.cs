@@ -31,9 +31,9 @@ namespace wpf
                 string path = ConfigFilePath;
                 if (!File.Exists(path))
                 {
-                    LoadError =
-                        $"설정 파일을 찾을 수 없습니다: {path}\n" +
-                        "appsettings.sample.json을 appsettings.json으로 복사한 뒤 값을 채워 주세요.";
+                    using var embedded = typeof(AppConfig).Assembly.GetManifestResourceStream("wpf.DeploymentSettings");
+                    if (embedded != null) { using var reader = new StreamReader(embedded); return JObject.Parse(reader.ReadToEnd()); }
+                    LoadError = "앱의 연결 설정이 포함되어 있지 않습니다. 배포 담당자에게 문의해 주세요.";
                     return new JObject();
                 }
 
@@ -80,10 +80,14 @@ namespace wpf
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                          GetString("CredentialsFileName", "credentials.json"));
 
+        public static bool HasCredentials => File.Exists(CredentialsPath) || typeof(AppConfig).Assembly.GetManifestResourceNames().Contains("wpf.DesktopOAuth");
+        public static Stream OpenCredentials() => File.Exists(CredentialsPath) ? File.OpenRead(CredentialsPath)
+            : typeof(AppConfig).Assembly.GetManifestResourceStream("wpf.DesktopOAuth") ?? throw new InvalidOperationException("앱의 로그인 설정이 없습니다. 배포 담당자에게 문의해 주세요.");
+        public static string UserDataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Baebulttugi");
+
         /// <summary>OAuth 토큰 저장 폴더.</summary>
         public static string TokenStorePath =>
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                         GetString("TokenStoreFolder", "token.json"));
+            Path.Combine(UserDataDirectory, "GoogleSignIn");
 
         /// <summary>사용자 전용 스프레드시트 ID를 기억해 두는 파일 경로.</summary>
         public static string UserSheetIdFilePath =>
@@ -92,10 +96,15 @@ namespace wpf
         // ── 시트(탭) 이름 ────────────────────────────────────────────────
 
         public static string MenuSheetName => GetString("Sheets:Menu", "MenuDatabase");
+        // Generated weekly meals and editable recipes must never share a table.
+        public static string WeeklyMenuSheetName => GetString("Sheets:WeeklyMenu", "메뉴");
+        public static string RecipeSheetName => GetString("Sheets:Recipe", "레시피");
+        public static string TrackASheetName => GetString("Sheets:TrackA", "🔵 트랙A_3-5세");
+        public static string TrackBSheetName => GetString("Sheets:TrackB", "🟢 트랙B_6-18세");
         public static string DietSheetName => GetString("Sheets:Diet", "식단");
         public static string EventSheetName => GetString("Sheets:Event", "Event");
         public static string PatientSheetName => GetString("Sheets:Patient", "알러지 인원");
-        public static string DashboardSheetName => GetString("Sheets:Dashboard", "Dashboard");
+        public static string DashboardSheetName => GetString("Sheets:Dashboard", "대쉬보드");
 
         /// <summary>원가 계산용 식재료 단가 시트. A=식단명 B=식재료명 C=분류 D=1인소요량 E=단위 F=단가</summary>
         public static string CostSheetName => GetString("Sheets:Cost", "원가");

@@ -155,7 +155,7 @@
                     </Border>
                 </StackPanel>
 
-                <DataGrid Grid.Row="1" x:Name="dataGridIngredients" AutoGenerateColumns="True"
+                <DataGrid Grid.Row="1" x:Name="dataGridIngredients" AutoGenerateColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                           Background="White" RowHeight="38" IsReadOnly="False" CanUserAddRows="True" CanUserDeleteRows="True" 
                           GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" AlternatingRowBackground="#F7FAFC" 
                           FontSize="13" Foreground="#2D3748" BorderBrush="#E2E8F0" BorderThickness="1"

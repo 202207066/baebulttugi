@@ -50,6 +50,7 @@ namespace wpf
 
         private async Task LoadSheetNamesToComboBoxAsync()
         {
+            using var activity = AppActivity.Begin("사용할 수 있는 자료 목록을 불러오는 중입니다…");
             try
             {
                 var titles = await _sheetsService.GetSheetTitlesAsync();
@@ -254,6 +255,7 @@ namespace wpf
 
         private async Task UploadCsvToGoogleSheetAsync(string filePath, string sheetName)
         {
+            using var activity = AppActivity.Begin("파일을 읽어 내 자료에 저장하는 중입니다…");
             Mouse.OverrideCursor = Cursors.Wait;
             try
             {
@@ -391,6 +393,7 @@ namespace wpf
         /// </summary>
         private async Task WriteTableAsync(string sheetName, List<IList<object>> values)
         {
+            using var activity = AppActivity.Begin("수정한 자료를 저장하는 중입니다…");
             string quoted = Quote(sheetName);
 
             await _sheetsService.UpdateValuesAsync($"{quoted}!A1", values);
@@ -407,12 +410,17 @@ namespace wpf
 
         // ── 시트 → 표 ──────────────────────────────────────────────────
 
+        private int _dataLoadVersion;
         private async Task LoadDataFromGoogleSheetAsync()
         {
+            int version = ++_dataLoadVersion;
+            dataGridIngredients.ItemsSource = null;
+            using var activity = AppActivity.Begin("선택한 자료를 불러오는 중입니다…");
             try
             {
                 string sheetName = GetTargetSheetName();
-                var values = await _sheetsService.GetValuesAsync($"{Quote(sheetName)}!A1:Z2000");
+                var values = await _sheetsService.GetValuesAsync($"{Quote(sheetName)}!A:Z");
+                if (version != _dataLoadVersion) return;
 
                 if (values.Count == 0)
                 {
@@ -420,18 +428,22 @@ namespace wpf
                     return;
                 }
 
-                var headerCells = values[0].Select(v => v?.ToString() ?? "").ToArray();
-                DataTable dt = BuildTable(headerCells);
+                DataTable dt = await Task.Run(() => {
+                int width = values.Max(row => row.Count);
+                var headerCells = Enumerable.Range(0,width).Select(i => i < values[0].Count ? values[0][i]?.ToString() ?? "" : "").ToArray();
+                DataTable table = BuildTable(headerCells);
 
                 for (int i = 1; i < values.Count; i++)
                 {
                     var row = values[i].Select(v => v?.ToString() ?? "").ToList();
-                    while (row.Count < dt.Columns.Count) row.Add("");
-                    if (row.Count > dt.Columns.Count) row = row.Take(dt.Columns.Count).ToList();
+                    while (row.Count < table.Columns.Count) row.Add("");
+                    if (row.Count > table.Columns.Count) row = row.Take(table.Columns.Count).ToList();
 
-                    dt.Rows.Add(row.Cast<object>().ToArray());
+                    table.Rows.Add(row.Cast<object>().ToArray());
                 }
 
+                return table; });
+                if (version != _dataLoadVersion) return;
                 dataGridIngredients.ItemsSource = dt.DefaultView;
             }
             catch (Exception ex)

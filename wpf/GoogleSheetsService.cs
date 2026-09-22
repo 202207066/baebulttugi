@@ -73,7 +73,7 @@ namespace wpf
                 "App 시작 흐름(App.xaml.cs)을 확인하세요.");
     }
 
-    public class GoogleSheetsService
+    public partial class GoogleSheetsService
     {
         private string TemplateSpreadsheetId => AppConfig.TemplateSpreadsheetId;
         private string? _userSpreadsheetId;
@@ -154,6 +154,7 @@ namespace wpf
         public void SetUserSpreadsheetId(string id)
         {
             _userSpreadsheetId = string.IsNullOrWhiteSpace(id) ? null : id.Trim();
+            _resolvedSheets.Clear();
         }
 
         /// <summary>
@@ -221,7 +222,9 @@ namespace wpf
         /// <summary>시트(탭) 제목으로 내부 sheetId를 찾습니다. 없으면 null.</summary>
         public async Task<int?> GetSheetIdByTitleAsync(string title)
         {
-            var spreadsheet = await _sheetsService.Spreadsheets.Get(SpreadsheetId).ExecuteAsync();
+            var metadata = _sheetsService.Spreadsheets.Get(SpreadsheetId);
+            metadata.Fields = "sheets(properties)";
+            var spreadsheet = await metadata.ExecuteAsync();
             if (spreadsheet.Sheets == null) return null;
 
             foreach (var sheet in spreadsheet.Sheets)
@@ -360,7 +363,7 @@ namespace wpf
 
         /// <summary>메뉴 DB 시트를 준비하고 실제 이름을 돌려줍니다.</summary>
         public Task<string> EnsureMenuSheetAsync() =>
-            EnsureSheetAsync(AppConfig.MenuSheetName,
+            EnsureSheetAsync(AppConfig.RecipeSheetName,
                              "메뉴명", "칼로리", "재료", "유발 알러지",
                              "분류", "탄수화물(g)", "단백질(g)", "지방(g)");
 
@@ -377,7 +380,9 @@ namespace wpf
         public async Task<List<string>> GetSheetTitlesAsync()
         {
             var titles = new List<string>();
-            var spreadsheet = await _sheetsService.Spreadsheets.Get(SpreadsheetId).ExecuteAsync();
+            var metadata = _sheetsService.Spreadsheets.Get(SpreadsheetId);
+            metadata.Fields = "sheets(properties)";
+            var spreadsheet = await metadata.ExecuteAsync();
             if (spreadsheet.Sheets != null)
             {
                 foreach (var sheet in spreadsheet.Sheets)
@@ -393,56 +398,12 @@ namespace wpf
 
         public async Task<DashboardData> GetDashboardDataAsync()
         {
-            var data = new DashboardData();
-
-            if (string.IsNullOrEmpty(SpreadsheetId))
+            var meals = await GetSavedMealsAsync(DateTime.Today);
+            return new DashboardData
             {
-                data.DietStatus = "DB 미배포 상태";
-                data.TodayMenu.Add("DB 초기화 및 배포가 필요합니다.");
-                return data;
-            }
-
-            try
-            {
-                string range = $"'{AppConfig.DashboardSheetName}'!A2:E2";
-                IList<IList<object>> values = await GetValuesAsync(range);
-
-                if (values.Count > 0)
-                {
-                    var row = values[0];
-                    if (row.Count > 0 && row[0] != null) data.TotalPatients = row[0].ToString() + " 명";
-                    if (row.Count > 1 && row[1] != null) data.AllergyPatients = row[1].ToString() + " 명";
-                    if (row.Count > 2 && row[2] != null) data.DietStatus = row[2].ToString() ?? "미구성";
-
-                    if (row.Count > 3 && row[3] != null)
-                    {
-                        string rawMenu = row[3].ToString() ?? "";
-                        string[] menuArray = rawMenu.Split(new char[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
-                        foreach (var menu in menuArray) data.TodayMenu.Add(menu.Trim());
-                    }
-
-                    if (row.Count > 4 && row[4] != null)
-                    {
-                        string rawAlt = row[4].ToString() ?? "";
-                        if (!string.IsNullOrWhiteSpace(rawAlt))
-                        {
-                            string[] altArray = rawAlt.Split(new char[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (var alt in altArray) data.TodayAlternativeMenu.Add(alt.Trim());
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[GoogleSheetsService Error] {ex.Message}");
-                data.TotalPatients = "오류 명";
-                data.AllergyPatients = "오류 명";
-                data.DietStatus = "데이터 로드 실패";
-                data.TodayMenu = new List<string> { "❌ 데이터를 불러오지 못했습니다." };
-                data.TodayAlternativeMenu = new List<string> { "❌ 데이터를 불러오지 못했습니다." };
-            }
-
-            return data;
+                DietStatus = meals.Count == 0 ? "아직 작성되지 않음" : $"{meals.Count}끼 작성됨",
+                TodayMenu = meals.Select(m => m.Description).ToList()
+            };
         }
 
         // ── 피급식자(알러지) 명단 ───────────────────────────────────────
@@ -454,34 +415,11 @@ namespace wpf
         /// </summary>
         public async Task<List<PatientModel>> GetPatientsAsync()
         {
-            var list = new List<PatientModel>();
-
-            // 탭이 없으면 여기서 헤더까지 갖춰 만들어 둡니다.
             string sheet = await EnsurePatientSheetAsync();
-
-            IList<IList<object>> values = await GetValuesAsync($"'{sheet}'!A:E");
-            if (values.Count == 0) return list;
-
-            int startIndex = 0;
-            string firstCell = values[0].Count > 0 ? values[0][0]?.ToString() ?? "" : "";
-            if (!int.TryParse(firstCell, out _)) startIndex = 1;
-
-            for (int i = startIndex; i < values.Count; i++)
-            {
-                var row = values[i];
-                if (row.Count == 0 || string.IsNullOrWhiteSpace(row[0]?.ToString())) continue;
-
-                list.Add(new PatientModel
-                {
-                    Id = int.TryParse(row[0]?.ToString(), out int parsedId) ? parsedId : i,
-                    Name = Cell(row, 1),
-                    Category = row.Count > 2 ? Cell(row, 2) : "일반",
-                    Allergies = Cell(row, 3),
-                    Note = Cell(row, 4)
-                });
-            }
-
-            return list;
+            var rows = await ReadPatientRowsAsync(sheet);
+            var result = PatientSheetCodec.Parse(rows);
+            _patientSnapshot = System.Text.Json.JsonSerializer.Serialize(rows);
+            return result;
         }
 
         private static string Cell(IList<object> row, int index) =>

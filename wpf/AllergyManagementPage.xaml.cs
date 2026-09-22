@@ -46,10 +46,11 @@ namespace wpf
 
         private async void AllergyManagementPage_Loaded(object sender, RoutedEventArgs e)
         {
-            if (DpMonitorDate != null) DpMonitorDate.SelectedDate = DateTime.Today;
+            DpMonitorDate.SelectedDate = DateTime.Today;
 
             await LoadMenuCatalogAsync();
-            RefreshDailyMenuGrid();
+            await LoadSavedDailyMenusAsync();
+            DpMonitorDate.SelectedDateChanged += async (_, _) => await LoadSavedDailyMenusAsync();
 
             // 💡 프로그램이 켜지자마자 구글 시트 DB 서버에서 데이터를 원격으로 긁어옵니다!
             await LoadPatientsFromGoogleSheetAsync();
@@ -60,6 +61,7 @@ namespace wpf
         // ========================================================
         private async Task LoadPatientsFromGoogleSheetAsync()
         {
+            using var activity = AppActivity.Begin("알레르기 대상자 명단을 불러오는 중입니다…");
             try
             {
                 // 시트 → PatientModel 변환은 GoogleSheetsService에 한 벌만 둡니다.
@@ -87,34 +89,11 @@ namespace wpf
         /// </summary>
         private async Task<bool> SaveAllPatientsToGoogleSheetAsync()
         {
+            using var activity = AppActivity.Begin("대상자 정보를 저장하는 중입니다…");
+            IsEnabled = false;
             try
             {
-                var values = new List<IList<object>>
-                {
-                    new List<object> { "ID", "성명", "구분", "특이 알러지 성분", "비고(메모)" }
-                };
-
-                foreach (var p in _patientList)
-                {
-                    values.Add(new List<object> { p.Id, p.Name, p.Category, p.Allergies, p.Note });
-                }
-
-                // 1. 헤더 + 전체 명단을 A1부터 덮어씁니다.
-                string sheet = await _service.EnsurePatientSheetAsync();
-                await _service.UpdateValuesAsync($"'{sheet}'!A1", values);
-
-                // 2. 이번에 쓴 마지막 행 아래에 예전 데이터가 남아 있으면 지웁니다.
-                //    (삭제로 인원이 줄어든 경우) 여기서 실패해도 명단 자체는 온전합니다.
-                int lastWrittenRow = values.Count;
-                try
-                {
-                    await _service.ClearValuesAsync(
-                        $"'{sheet}'!A{lastWrittenRow + 1}:E");
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[꼬리 행 정리 실패] {ex.Message}");
-                }
+                await _service.SavePatientsAsync(_patientList);
 
                 return true;
             }
@@ -129,6 +108,7 @@ namespace wpf
                 await LoadPatientsFromGoogleSheetAsync();
                 return false;
             }
+            finally { IsEnabled = true; }
         }
 
         private void UpdatePatientGrid(List<PatientModel> list)
@@ -342,8 +322,10 @@ namespace wpf
         /// 예전에는 patientAllergySet.Contains(재료명)으로 완전 일치만 잡아
         /// "땅콩" 알러지가 "땅콩분태" 같은 표기를 놓쳤습니다. 부분 일치로 바꿉니다.
         /// </summary>
-        private void BtnScanAllergy_Click(object sender, RoutedEventArgs e)
+        private async void BtnScanAllergy_Click(object sender, RoutedEventArgs e)
         {
+            using var activity = AppActivity.Begin("알레르기 성분을 비교하는 중입니다…");
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
             DateTime selectedDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
             var dailyMenus = _menuList.Where(m => m.ServingDate.Date == selectedDate.Date).ToList();
 
@@ -351,7 +333,7 @@ namespace wpf
             {
                 MessageBox.Show(
                     "해당 날짜에 등록된 제공 메뉴가 없습니다.\n" +
-                    "[메뉴 직접 입력]으로 메뉴를 추가한 뒤 다시 스캔해 주세요.",
+                    "[식단 만들기]에서 식단을 작성한 뒤 다시 확인해 주세요.",
                     "안내", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -368,7 +350,7 @@ namespace wpf
                     string haystack = string.Join(", ", menu.Ingredients);
 
                     var matchedRisks = allergens
-                        .Where(a => haystack.Contains(a, StringComparison.OrdinalIgnoreCase))
+                        .Where(a => GoogleSheetsService.MatchesRegisteredAllergen(new TrackMenu("", menu.MenuName, "", haystack, null, null, null, null, ""), new[] { a }))
                         .ToList();
 
                     if (matchedRisks.Count > 0)
@@ -384,7 +366,9 @@ namespace wpf
             }
 
             DgAllergicMatches.ItemsSource = conflictMatches;
-            MessageBox.Show($"스캔 완료: 총 {conflictMatches.Count}건의 알러지 교차 위험 요인이 검출되었습니다.");
+            int unknown = dailyMenus.Count(m => m.Ingredients.Count == 0);
+            MessageBox.Show($"확인 완료: 알레르기 주의 항목 {conflictMatches.Count}건." +
+                (unknown > 0 ? $"\n알레르기 정보가 없는 메뉴 {unknown}개는 확인하지 못했습니다. 원본 레시피를 확인해 주세요." : "\n등록된 알레르기 정보를 기준으로 한 결과입니다."));
         }
 
         /// <summary>
@@ -395,27 +379,48 @@ namespace wpf
         /// </summary>
         private async Task LoadMenuCatalogAsync()
         {
+            using var activity = AppActivity.Begin("메뉴의 재료와 알레르기 정보를 확인하는 중입니다…");
             try
             {
-                string menuSheet = await _service.EnsureMenuSheetAsync();
-                var values = await _service.GetValuesAsync($"'{menuSheet}'!A2:D");
-
                 _menuCatalog.Clear();
-                foreach (var row in values)
+                foreach (string age in new[] { "3-5", "6-18" })
                 {
-                    string name = row.Count > 0 ? (row[0]?.ToString() ?? "").Trim() : "";
-                    if (name.Length == 0) continue;
-
-                    string materials = row.Count > 2 ? (row[2]?.ToString() ?? "").Trim() : "";
-                    string allergy = row.Count > 3 ? (row[3]?.ToString() ?? "").Trim() : "";
-
-                    _menuCatalog[name] = string.Join(", ",
-                        new[] { materials, allergy }.Where(s => s.Length > 0));
+                    var catalog = await _service.GetTrackCatalogAsync(age);
+                    foreach (var menu in catalog.Menus)
+                    {
+                        _menuCatalog.TryGetValue(menu.Name, out string? prior);
+                        _menuCatalog[menu.Name] = string.Join(", ", new[] { prior, menu.Allergens }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+                    }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[메뉴 DB 로드 실패] {ex.Message}");
+                MessageBox.Show("메뉴 알레르기 정보를 불러오지 못했습니다. " + ex.Message, "자료 확인 필요");
+            }
+        }
+
+        private int _dailyLoadVersion;
+        private async Task LoadSavedDailyMenusAsync()
+        {
+            int version = ++_dailyLoadVersion;
+            using var activity = AppActivity.Begin("선택한 날짜의 식단을 불러오는 중입니다…");
+            DateTime date = DpMonitorDate.SelectedDate ?? DateTime.Today;
+            BtnScanAllergy.IsEnabled = false;
+            try
+            {
+                var meals = await _service.GetSavedMealsAsync(date);
+                if (version != _dailyLoadVersion) return;
+                _menuList = meals.SelectMany(m => m.Menus).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()
+                    .Select(n => new MenuModel { MenuName=n, ServingDate=date,
+                        Ingredients=_menuCatalog.TryGetValue(n, out var info) && !string.IsNullOrWhiteSpace(info) ? new List<string> { info } : new() }).ToList();
+                RefreshDailyMenuGrid();
+                BtnScanAllergy.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                if (version != _dailyLoadVersion) return;
+                _menuList.Clear(); RefreshDailyMenuGrid();
+                MessageBox.Show("식단을 불러오지 못했습니다. " + ex.Message, "연결 확인");
             }
         }
 
@@ -478,7 +483,7 @@ namespace wpf
 
         private void BtnConfirmAlternativeMenu_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("대체 식단 규칙이 확정 반영되었습니다.");
+            if (Window.GetWindow(this) is Main main) main.OpenMealBuilder(DpMonitorDate.SelectedDate);
         }
 
         private static IEnumerable<T> FindVisualChildren<T>(DependencyObject? depObj) where T : DependencyObject

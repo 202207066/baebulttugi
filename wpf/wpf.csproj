@@ -7,16 +7,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <RootNamespace>wpf</RootNamespace>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!--
     비밀정보 파일은 저장소에 커밋하지 않습니다(.gitignore 참고).
-    개발자 각자가 프로젝트 폴더에 직접 두면, 존재할 때만 출력 폴더로 복사됩니다.
+    배포 기본 설정과 데스크톱 OAuth 설정은 빌드에 포함합니다. 사용자는 JSON을 준비하지 않습니다.
   -->
   <ItemGroup>
-    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.json')" />
-    <None Update="credentials.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('credentials.json')" />
-    <None Update="appsettings.sample.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="appsettings.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" Condition="Exists('appsettings.json')" />
+    <None Update="credentials.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" Condition="Exists('credentials.json')" />
+    <EmbeddedResource Include="appsettings.json" LogicalName="wpf.DeploymentSettings" Condition="Exists('appsettings.json')" />
+    <EmbeddedResource Include="credentials.json" LogicalName="wpf.DesktopOAuth" Condition="Exists('credentials.json')" />
+    <None Update="appsettings.sample.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <ItemGroup>

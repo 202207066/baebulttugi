@@ -14,7 +14,7 @@ namespace wpf
     public static class UserPrefs
     {
         private static string FilePath =>
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userprefs.json");
+            Path.Combine(AppConfig.UserDataDirectory, "userprefs.json");
 
         private static JObject _root = Load();
 
@@ -22,9 +22,10 @@ namespace wpf
         {
             try
             {
-                if (File.Exists(FilePath))
+                string source = File.Exists(FilePath) ? FilePath : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userprefs.json");
+                if (File.Exists(source))
                 {
-                    return JObject.Parse(File.ReadAllText(FilePath));
+                    return JObject.Parse(File.ReadAllText(source));
                 }
             }
             catch (Exception ex)
@@ -38,6 +39,7 @@ namespace wpf
         {
             try
             {
+                Directory.CreateDirectory(AppConfig.UserDataDirectory);
                 File.WriteAllText(FilePath, _root.ToString());
             }
             catch (Exception ex)

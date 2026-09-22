@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -34,6 +34,8 @@ namespace wpf
         private Dictionary<string, string> holidayCache = new Dictionary<string, string>();
         private int currentLoadedYear = -1;
         private int currentLoadedMonth = -1;
+        private int _viewVersion;
+        private bool _calendarReady;
 
         public EventCalendar()
         {
@@ -45,13 +47,14 @@ namespace wpf
 
             MainCalendar.SelectedDatesChanged += MainCalendar_SelectedDatesChanged;
             MainCalendar.SelectedDate = DateTime.Today; // 오늘 날짜 기본 선택
+            Loaded += async (_, _) => { _calendarReady = true; await UpdateUI(); };
         }
 
         // 📅 달력에서 날짜를 클릭했을 때 (async 비동기로 변경)
         // EventHandler<SelectionChangedEventArgs>의 sender는 nullable이라 맞춰 줍니다.
         private async void MainCalendar_SelectedDatesChanged(object? sender, SelectionChangedEventArgs e)
         {
-            await UpdateUI();
+            if (_calendarReady) await UpdateUI();
         }
 
         // 🌐 [추가] 공공데이터 API에서 해당 월의 특일(기념일/공휴일) 가져오기
@@ -130,6 +133,8 @@ namespace wpf
         // 🔄 화면 갱신 (API 통신을 위해 async Task로 변경됨)
         private async Task UpdateUI()
         {
+            int version = ++_viewVersion;
+            using var activity = AppActivity.Begin("선택한 날짜의 식단과 일정을 확인하는 중입니다…");
             txtEventInput.Clear();
             currentDayEvents.Clear();
 
@@ -150,6 +155,7 @@ namespace wpf
 
             // 1️⃣ 공공데이터 API 이벤트 처리
             await FetchHolidaysForMonthAsync(selectedDate.Year, selectedDate.Month);
+            if (version != _viewVersion) return;
 
             string dateKey = selectedDate.ToString("yyyyMMdd"); // "20260626" 포맷
             if (holidayCache.TryGetValue(dateKey, out string? holidayName))
@@ -169,12 +175,18 @@ namespace wpf
 
             try
             {
+                var meals = await _service.GetSavedMealsAsync(selectedDate);
+                if (version != _viewVersion) return;
+                txtTodayMenu.Text = meals.Count == 0 ? "아직 식단이 작성되지 않았습니다." : string.Join("\n\n", meals.Select(m => m.Description));
+                BtnCreateMeal.Content = meals.Count == 0 ? "식단 만들기" : "이 주의 식단 다시 만들기";
                 // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
                 SheetName = await _service.EnsureEventSheetAsync();
+                if (version != _viewVersion) return;
 
                 string range = $"'{SheetName}'!A:B";
                 var request = sheetsService.Spreadsheets.Values.Get(SpreadsheetId, range);
                 var response = await request.ExecuteAsync(); // 동기식에서 비동기식으로 변경
+                if (version != _viewVersion) return;
                 IList<IList<object>> values = response.Values;
 
                 if (values != null && values.Count > 0)
@@ -206,8 +218,15 @@ namespace wpf
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"데이터를 불러오지 못했습니다: {ex.Message}", "오류");
+                if (version != _viewVersion) return;
+                txtTodayMenu.Text = "식단 또는 일정을 불러오지 못했습니다. 날짜를 다시 선택해 주세요.";
+                MessageBox.Show($"자료를 불러오지 못했습니다: {ex.Message}", "연결 확인");
             }
+        }
+
+        private void CreateMeal_Click(object sender, RoutedEventArgs e)
+        {
+            if (Window.GetWindow(this) is Main main) main.OpenMealBuilder(MainCalendar.SelectedDate);
         }
 
         /// <summary>일정 개수 배지와 "등록된 일정이 없습니다" 안내를 갱신합니다.</summary>
