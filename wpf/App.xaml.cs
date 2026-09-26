@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace wpf
 {
@@ -15,12 +16,18 @@ namespace wpf
     /// </summary>
     public partial class App : Application
     {
-        protected override void OnStartup(StartupEventArgs e)
+        protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
             // 로그인 창을 닫아도 앱이 곧바로 종료되지 않도록 합니다.
             this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            DispatcherUnhandledException += (_, error) =>
+            {
+                MessageBox.Show("작업 중 오류가 발생했지만 프로그램은 계속 사용할 수 있습니다.\n\n" + error.Exception.Message,
+                    "작업 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                error.Handled = true;
+            };
 
             try
             {
@@ -55,21 +62,37 @@ namespace wpf
                     UserPrefs.HasSeenTutorial = true;
                 }
 
-                // 3. 구글 로그인 (앱 전체에서 단 한 번)
+                // 3. 저장된 로그인 토큰이 있으면 로그인 창을 거치지 않고 바로 엽니다.
+                // 토큰이 만료된 경우에는 아래의 일반 로그인 흐름으로 자연스럽게 돌아갑니다.
                 GoogleSheetsService? sheetsService = null;
-                var login = new LoginWindow
+                if (LoginWindow.HasSavedCredential())
                 {
-                    PrepareDataAsync = async (credential, progress) =>
+                    try
                     {
+                        var credential = await LoginWindow.AuthorizeAsync(System.Threading.CancellationToken.None);
                         sheetsService = new GoogleSheetsService(credential);
-                        await sheetsService.PreparePersonalDatabaseAsync(progress);
+                        await sheetsService.PreparePersonalDatabaseAsync(new Progress<string>(_ => { }));
                         AppServices.Sheets = sheetsService;
                     }
-                };
-                if (login.ShowDialog() != true || sheetsService == null)
+                    catch { sheetsService = null; AppServices.Sheets = null; }
+                }
+
+                if (sheetsService == null)
                 {
-                    Shutdown();
-                    return;
+                    var login = new LoginWindow
+                    {
+                        PrepareDataAsync = async (credential, progress) =>
+                        {
+                            sheetsService = new GoogleSheetsService(credential);
+                            await sheetsService.PreparePersonalDatabaseAsync(progress);
+                            AppServices.Sheets = sheetsService;
+                        }
+                    };
+                    if (login.ShowDialog() != true || sheetsService == null)
+                    {
+                        Shutdown();
+                        return;
+                    }
                 }
 
                 // 5. 메인 창

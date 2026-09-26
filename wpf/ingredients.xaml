@@ -5,8 +5,8 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
       xmlns:local="clr-namespace:wpf"
       mc:Ignorable="d" 
-      Title="Ingredients" Height="700" Width="950"
-      Background="#F5F6FA">
+      Title="Ingredients"
+      Background="#F4F7F3">
     <Grid Margin="30">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -18,12 +18,12 @@
 
         <Grid Grid.Row="0" Margin="0,0,0,20">
             <StackPanel>
-                <TextBlock Text="메뉴 및 식재료 DB 관리" FontSize="24" FontWeight="Bold" Foreground="#1A202C"/>
-                <TextBlock Text="구글 스프레드시트 및 CSV 파일을 통해 로컬 DB 성분을 동기화하고 조회합니다." FontSize="12" Foreground="#A0AEC0" Margin="0,4,0,0"/>
+                <TextBlock Text="메뉴 및 식재료 DB 관리" FontSize="24" FontWeight="Bold" Foreground="#294334"/>
+                <TextBlock Text="CSV 파일을 가져오거나 선택한 급식소의 메뉴·식재료 자료를 확인하고 수정하세요." FontSize="12" Foreground="#7E9585" Margin="0,4,0,0"/>
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Background="#FFFFFF" CornerRadius="10" Padding="20" Margin="0,0,0,15" BorderBrush="#E2E8F0" BorderThickness="1">
+        <Border Grid.Row="1" Background="#FFFFFF" CornerRadius="18" Padding="20" Margin="0,0,0,15" BorderBrush="#DCE7DE" BorderThickness="1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -32,8 +32,8 @@
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="btnSelectFile" Grid.Column="0" Content="📁 CSV 파일 선택" Click="btnSelectFile_Click"
-                        Height="40" Padding="15,0" Background="#EDF2F7" BorderThickness="0" 
-                        Foreground="#4A5568" FontWeight="SemiBold" Margin="0,0,15,0">
+                        Height="40" Padding="15,0" Background="#EAF2EB" BorderThickness="0" 
+                        Foreground="#416449" FontWeight="SemiBold" Margin="0,0,15,0">
                     <Button.Resources>
                         <Style TargetType="Border">
                             <Setter Property="CornerRadius" Value="6"/>
@@ -43,7 +43,7 @@
 
                 <TextBox x:Name="txtFilePath" Grid.Column="1" Text="선택된 파일이 없습니다." IsReadOnly="True" 
                          VerticalContentAlignment="Center" Padding="15,0" FontSize="13" Foreground="#718096"
-                         Background="#F7FAFC" BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,15,0">
+                         Background="#F6F9F5" BorderBrush="#DCE7DE" BorderThickness="1" Margin="0,0,15,0">
                     <TextBox.Resources>
                         <Style TargetType="Border">
                             <Setter Property="CornerRadius" Value="6"/>
@@ -52,7 +52,7 @@
                 </TextBox>
 
                 <Button x:Name="btnUpload" Grid.Column="2" Content="📤 시트에 업로드" Click="btnUpload_Click"
-                        Height="40" Padding="20,0" Background="#3182CE" BorderThickness="0" 
+                        Height="40" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -64,9 +64,9 @@
         </Border>
 
         <Grid Grid.Row="2" Margin="0,0,0,15">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="📄 선택된 시트:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,0"/>
-                <ComboBox x:Name="cmbSheets" Width="160" Height="40" VerticalContentAlignment="Center" Margin="0,0,15,0" FontSize="13" Foreground="#2D3748"
+            <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="📄 선택된 시트:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#416449" Margin="0,0,8,0"/>
+                <ComboBox x:Name="cmbSheets" Width="160" Height="40" VerticalContentAlignment="Center" Margin="0,0,15,0" FontSize="13" Foreground="#294334"
                           SelectionChanged="cmbSheets_SelectionChanged">
                     <ComboBox.Resources>
                         <Style TargetType="Border">
@@ -75,8 +75,8 @@
                     </ComboBox.Resources>
                 </ComboBox>
 
-                <TextBox x:Name="txtNewSheetName" Width="150" Height="40" VerticalContentAlignment="Center" Padding="10,0" FontSize="13" Foreground="#2D3748"
-                         Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" Margin="0,0,5,0">
+                <TextBox x:Name="txtNewSheetName" Width="150" Height="40" VerticalContentAlignment="Center" Padding="10,0" FontSize="13" Foreground="#294334"
+                         Background="#FFFFFF" BorderBrush="#DCE7DE" BorderThickness="1" Margin="0,0,5,0">
                     <TextBox.Resources>
                         <Style TargetType="Border">
                             <Setter Property="CornerRadius" Value="6"/>
@@ -84,7 +84,7 @@
                     </TextBox.Resources>
                 </TextBox>
                 <Button x:Name="btnCreateSheet" Content="➕ 시트 추가" Click="btnCreateSheet_Click"
-                        Height="40" Padding="12,0" Background="#4A5568" BorderThickness="0" 
+                        Height="40" Padding="12,0" Background="#416449" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold" Margin="0,0,25,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -93,9 +93,9 @@
                     </Button.Resources>
                 </Button>
 
-                <TextBlock Text="🔍 필터 검색:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,0"/>
-                <TextBox x:Name="txtFilterKeyword" Width="260" Height="40" VerticalContentAlignment="Center" Padding="10,0" FontSize="13" Foreground="#2D3748"
-                         Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
+                <TextBlock Text="🔍 필터 검색:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#416449" Margin="0,0,8,0"/>
+                <TextBox x:Name="txtFilterKeyword" Width="260" Height="40" VerticalContentAlignment="Center" Padding="10,0" FontSize="13" Foreground="#294334"
+                         Background="#FFFFFF" BorderBrush="#DCE7DE" BorderThickness="1"
                          TextChanged="txtFilterKeyword_TextChanged">
                     <TextBox.Resources>
                         <Style TargetType="Border">
@@ -103,13 +103,13 @@
                         </Style>
                     </TextBox.Resources>
                 </TextBox>
-            </StackPanel>
+            </WrapPanel>
         </Grid>
 
         <Grid Grid.Row="3" Margin="0,0,0,20">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <WrapPanel VerticalAlignment="Center">
                 <Button x:Name="btnAddRow" Content="➕ 행 추가" Click="btnAddRow_Click"
-                        Height="40" Padding="18,0" Background="#4A5568" BorderThickness="0" 
+                        Height="40" Padding="18,0" Background="#416449" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -129,7 +129,7 @@
                 </Button>
 
                 <Button x:Name="btnSaveChanges" Content="💾 변경사항 저장" Click="btnSaveChanges_Click"
-                        Height="40" Padding="20,0" Background="#38A169" BorderThickness="0" 
+                        Height="40" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -137,10 +137,10 @@
                         </Style>
                     </Button.Resources>
                 </Button>
-            </StackPanel>
+            </WrapPanel>
         </Grid>
 
-        <Border Grid.Row="4" Background="#FFFFFF" CornerRadius="10" Padding="25" BorderBrush="#E2E8F0" BorderThickness="1">
+        <Border Grid.Row="4" Background="#FFFFFF" CornerRadius="18" Padding="25" BorderBrush="#DCE7DE" BorderThickness="1">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -149,25 +149,25 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
                     <TextBlock Text="📊 음식 재료 및 성분 분석 목록" FontSize="16" 
-                               FontWeight="Bold" Foreground="#2D3748" VerticalAlignment="Center"/>
-                    <Border Background="#EBF8FF" CornerRadius="12" Padding="8,3" Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="실시간 동기화 데이터" FontSize="11" FontWeight="Bold" Foreground="#2B6CB0"/>
+                               FontWeight="Bold" Foreground="#294334" VerticalAlignment="Center"/>
+                    <Border Background="#EAF3EB" CornerRadius="12" Padding="8,3" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="급식소 자료" FontSize="11" FontWeight="Bold" Foreground="#2E683B"/>
                     </Border>
                 </StackPanel>
 
                 <DataGrid Grid.Row="1" x:Name="dataGridIngredients" AutoGenerateColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                           Background="White" RowHeight="38" IsReadOnly="False" CanUserAddRows="True" CanUserDeleteRows="True" 
-                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" AlternatingRowBackground="#F7FAFC" 
-                          FontSize="13" Foreground="#2D3748" BorderBrush="#E2E8F0" BorderThickness="1"
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EAF2EB" AlternatingRowBackground="#F6F9F5" 
+                          FontSize="13" Foreground="#294334" BorderBrush="#DCE7DE" BorderThickness="1"
                           HeadersVisibility="Column">
                     <DataGrid.Resources>
                         <Style TargetType="DataGridColumnHeader">
-                            <Setter Property="Background" Value="#EDF2F7"/>
-                            <Setter Property="Foreground" Value="#4A5568"/>
+                            <Setter Property="Background" Value="#EAF2EB"/>
+                            <Setter Property="Foreground" Value="#416449"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                             <Setter Property="Padding" Value="12,8"/>
                             <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                            <Setter Property="BorderBrush" Value="#DCE7DE"/>
                         </Style>
                         <Style TargetType="DataGridCell">
                             <Setter Property="Padding" Value="10,0"/>
@@ -182,8 +182,8 @@
                             </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#EBF8FF"/>
-                                    <Setter Property="Foreground" Value="#2B6CB0"/>
+                                    <Setter Property="Background" Value="#EAF3EB"/>
+                                    <Setter Property="Foreground" Value="#2E683B"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>

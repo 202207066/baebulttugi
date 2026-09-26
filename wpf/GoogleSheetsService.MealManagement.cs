@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Google.Apis.Sheets.v4.Data;
 namespace wpf;
@@ -20,7 +20,8 @@ public sealed class StoredMeal
     public string[] Menus => Enumerable.Range(3,6).Select(Value).ToArray();
     public double? Carb => WeeklyMealPlanner.Number(Value(12)); public double? Protein => WeeklyMealPlanner.Number(Value(13));
     public double? Fat => WeeklyMealPlanner.Number(Value(14)); public double? Calories => WeeklyMealPlanner.Number(Value(15));
-    public double? CarbDifference => WeeklyMealPlanner.Number(Value(19)); public string ProteinDifference => Value(20); public string FatDifference => Value(21);
+    public double? TargetCalories => WeeklyMealPlanner.Number(Value(27)); public double? CalorieDifference => WeeklyMealPlanner.Number(Value(28));
+    public string CarbDifference => Value(19); public string ProteinDifference => Value(20); public string FatDifference => Value(21);
     public string Status => Value(22);
     public string Identity => $"{DateText}|{Meal}|{AgeGroup}";
     public string Snapshot => JsonSerializer.Serialize(Raw.Select(x=>Convert.ToString(x,CultureInfo.InvariantCulture)));
@@ -32,6 +33,9 @@ public partial class GoogleSheetsService
     {
         if(rows.Count==0)return [];
         if(Cell(rows[0],1)!="날짜" || Cell(rows[0],2) is not ("끼니" or "구분")) throw new InvalidOperationException("메뉴 시트의 날짜·끼니 헤더를 확인해 주세요.");
+        string[] legacy=["식단 ID","날짜","구분","밥","국","메인","사이드1","사이드2","후식"];
+        for(int c=0;c<Math.Min(rows[0].Count,WeeklyHeaders.Length);c++)
+            if(Cell(rows[0],c).Length>0 && Cell(rows[0],c)!=WeeklyHeaders[c] && !(c<legacy.Length&&Cell(rows[0],c)==legacy[c]))throw new InvalidOperationException($"메뉴 시트 {c+1}열의 구조가 다릅니다. 헤더를 확인해 주세요.");
         var result=new List<StoredMeal>();
         for(int i=1;i<rows.Count;i++) {
             var raw=rows[i];
@@ -54,7 +58,7 @@ public partial class GoogleSheetsService
     public static IList<object> EditedMealValues(StoredMeal meal,IReadOnlyList<TrackMenu> items)
     {
         if(items.Count!=6 || items.Where((m,i)=>m.Category!=WeeklyMealPlanner.Categories[i] || string.IsNullOrWhiteSpace(m.Name)).Any())throw new InvalidOperationException("여섯 분류의 메뉴를 선택해 주세요.");
-        var row=meal.Raw.Take(27).ToList();while(row.Count<27)row.Add("");
+        var row=meal.Raw.Take(WeeklyHeaders.Length).ToList();while(row.Count<WeeklyHeaders.Length)row.Add("");
         row[0]=meal.Date.ToString("yyMMdd")+(meal.Meal switch{"조식"=>"M","중식"=>"L","석식"=>"N",_=>throw new InvalidOperationException("끼니를 확인해 주세요.")});
         for(int i=0;i<6;i++)row[i+3]=items[i].Name;
         for(int i=12;i<16;i++)row[i]="";
@@ -67,8 +71,10 @@ public partial class GoogleSheetsService
             if(targets.All(t=>t is >0) && WeeklyMealPlanner.Number(meal.Value(26)) is double tolerance){
                 for(int i=0;i<3;i++)row[19+i]=Math.Round(totals[i]-targets[i]!.Value,2);
                 row[22]=Enumerable.Range(0,3).All(i=>Math.Abs(totals[i]-targets[i]!.Value)<=targets[i]!.Value*tolerance/100+1e-8)?"허용범위 내":"목표 편차 확인";
-            }else row[22]="目標未設定".Replace("目標未設定","목표 미설정");
+            }else row[22]="목표 미설정";
         }
+        if(items.All(m=>m.HasNutrition) && WeeklyMealPlanner.Number(meal.Value(27)) is double calorieTarget)
+            row[28]=Math.Round(items.Sum(m=>m.Energy)-calorieTarget,1);
         row[24]=DateTimeOffset.Now.ToString("o");row[25]=string.Join(" / ",items.Select(m=>m.Key));
         return row;
     }
@@ -88,11 +94,35 @@ public partial class GoogleSheetsService
             } else {
                 var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
                 var book=await metadata.ExecuteAsync().ConfigureAwait(false);int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
-                if(columns<27)requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=id,Dimension="COLUMNS",Length=27-columns}});
+                if(columns<WeeklyHeaders.Length)requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=id,Dimension="COLUMNS",Length=WeeklyHeaders.Length-columns}});
                 requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=WeeklyHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
                 requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=matches[^1].RowIndex,ColumnIndex=0},Rows=[new RowData{Values=EditedMealValues(selected,replacements).Select(DataCell).ToList()}],Fields="userEnteredValue"}});
             }
             await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
         }finally{_mealSaveGate.Release();}
+    }
+
+    /// <summary>현재 화면에 표시한 주·연령대의 저장 식단을 모두 삭제합니다.</summary>
+    public async Task<int> DeleteStoredMealsForWeekAsync(DateTime week, string age)
+    {
+        RequirePersonalWrite();
+        await _mealSaveGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var sheet = AppConfig.WeeklyMenuSheetName;
+            var raw = await GetValuesAsync(QuoteTitle(sheet)).ConfigureAwait(false);
+            var start = WeeklyMealPlanner.Monday(week);
+            var targets = ParseStoredMeals(raw).Where(m => m.Date >= start && m.Date < start.AddDays(7) &&
+                (m.AgeGroup == age || m.AgeGroup.Length == 0 || (age == "6-18" && m.AgeGroup is "6-11" or "12-18"))).ToList();
+            if (targets.Count == 0) return 0;
+            int id = await GetSheetIdByTitleAsync(sheet).ConfigureAwait(false) ?? throw new InvalidOperationException("메뉴 탭이 없습니다.");
+            var requests = targets.OrderByDescending(m => m.RowIndex).Select(row => new Request
+            {
+                DeleteDimension = new DeleteDimensionRequest { Range = new DimensionRange { SheetId = id, Dimension = "ROWS", StartIndex = row.RowIndex, EndIndex = row.RowIndex + 1 } }
+            }).ToList();
+            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            return targets.Count;
+        }
+        finally { _mealSaveGate.Release(); }
     }
 }

@@ -105,6 +105,7 @@ namespace wpf
         public static string EventSheetName => GetString("Sheets:Event", "Event");
         public static string PatientSheetName => GetString("Sheets:Patient", "알러지 인원");
         public static string DashboardSheetName => GetString("Sheets:Dashboard", "대쉬보드");
+        public static string FacilitySheetName => GetString("Sheets:Facility", "급식소");
 
         /// <summary>원가 계산용 식재료 단가 시트. A=식단명 B=식재료명 C=분류 D=1인소요량 E=단위 F=단가</summary>
         public static string CostSheetName => GetString("Sheets:Cost", "원가");

@@ -12,7 +12,7 @@ public partial class GoogleSheetsService
     public static readonly string[] WeeklyHeaders = ["식단 ID", "날짜", "끼니", "밥류", "국류", "주찬", "부찬", "김치류", "후식류",
         "요일", "연령대", "출처 트랙", "탄수화물(g)", "단백질(g)", "지방(g)", "열량(kcal)",
         "목표 탄수화물(g)", "목표 단백질(g)", "목표 지방(g)", "탄수화물 차이(g)", "단백질 차이(g)", "지방 차이(g)",
-        "목표 충족 상태", "주 시작일", "생성 시각", "메뉴ID 목록", "허용 편차(%)"];
+        "목표 충족 상태", "주 시작일", "생성 시각", "메뉴ID 목록", "허용 편차(%)", "목표 열량(kcal)", "열량 차이(kcal)"];
     private static string QuoteTitle(string title) => "'" + title.Replace("'", "''") + "'";
 
     private readonly System.Threading.SemaphoreSlim _catalogGate = new(1, 1);
@@ -36,6 +36,9 @@ public partial class GoogleSheetsService
     {
         string code = WeeklyMealPlanner.TrackForAge(age);
         string wanted = code == "A" ? AppConfig.TrackASheetName : AppConfig.TrackBSheetName;
+        string nutritionTitle = code == "A"
+            ? "트랙A_메뉴별_영양계산_최종사용자값반영"
+            : "트랙B_메뉴별_영양계산_최종사용자값반영";
         // Tracks are the shared recipe catalog; read the master so existing personal copies
         // receive updated nutrition data without overwriting any personal meal history.
         string sourceId = AppConfig.TemplateSpreadsheetId;
@@ -50,7 +53,67 @@ public partial class GoogleSheetsService
         var request = _sheetsService.Spreadsheets.Values.Get(sourceId, QuoteTitle(title) + "!A:U");
         request.ValueRenderOption = Google.Apis.Sheets.v4.SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.UNFORMATTEDVALUE;
         var values = await request.ExecuteAsync().ConfigureAwait(false);
-        return new(title, sourceId, WeeklyMealPlanner.Parse(values.Values ?? new List<IList<object>>()), template);
+        var baseMenus = WeeklyMealPlanner.Parse(values.Values ?? new List<IList<object>>());
+
+        // 메뉴 분류·알러지·ID는 기존 레시피 트랙을 유지하고, 영양값만 사용자가
+        // 최종 검수한 메뉴별 영양계산 시트에서 가져온다. 이렇게 해야 식단 조합이
+        // 원재료 중량과 국가표준 DB를 반영해 다시 계산된 kcal·탄단지를 기준으로 한다.
+        var nutritionRequest = _sheetsService.Spreadsheets.Values.Get(sourceId, QuoteTitle(nutritionTitle) + "!A:G");
+        nutritionRequest.ValueRenderOption = Google.Apis.Sheets.v4.SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.UNFORMATTEDVALUE;
+        var nutritionValues = (await nutritionRequest.ExecuteAsync().ConfigureAwait(false)).Values ?? new List<IList<object>>();
+        var nutrition = ParseCalculatedNutrition(nutritionValues, nutritionTitle);
+        var menus = baseMenus.Select(menu =>
+        {
+            // 일부 옛 메뉴는 최종 계산표에 아직 이름이 없을 수 있다. 그 때문에
+            // 알러지 관리나 식단 만들기 화면 자체가 열리지 않으면 안 되므로,
+            // 그런 한정된 경우에는 기존 트랙의 검수된 영양값을 보조값으로 쓴다.
+            if (!nutrition.TryGetValue(MenuNutritionKey(menu.Name), out var calculated))
+                return menu with { Source = string.IsNullOrWhiteSpace(menu.Source) ? "기존 트랙 영양값" : menu.Source + " · 기존 트랙 영양값" };
+            return menu with
+            {
+                Carb = calculated.Carb,
+                Protein = calculated.Protein,
+                Fat = calculated.Fat,
+                Calories = calculated.Calories,
+                Source = string.IsNullOrWhiteSpace(menu.Source)
+                    ? nutritionTitle
+                    : menu.Source + " · " + nutritionTitle
+            };
+        }).ToList();
+        return new(title, sourceId, menus, template);
+    }
+
+    private sealed record CalculatedNutrition(double Calories, double Carb, double Protein, double Fat);
+
+    private static string MenuNutritionKey(string value) =>
+        Regex.Replace(value ?? "", @"[^0-9A-Za-z가-힣]", "").ToLowerInvariant();
+
+    private static Dictionary<string, CalculatedNutrition> ParseCalculatedNutrition(IList<IList<object>> rows, string title)
+    {
+        if (rows.Count == 0) throw new InvalidOperationException($"'{title}' 시트가 비어 있습니다.");
+        var headers = rows[0].Select(cell => cell?.ToString()?.Trim() ?? "").ToList();
+        int Column(string header) => headers.IndexOf(header);
+        int name = Column("메뉴명"), kcal = Column("열량(kcal)"), carb = Column("탄수화물(g)"), protein = Column("단백질(g)"), fat = Column("지방(g)");
+        if (new[] { name, kcal, carb, protein, fat }.Any(index => index < 0))
+            throw new InvalidOperationException($"'{title}' 시트에 메뉴명·열량·탄수화물·단백질·지방 헤더가 필요합니다.");
+        string Cell(IList<object> row, int index) => index < row.Count ? Convert.ToString(row[index], CultureInfo.InvariantCulture)?.Trim() ?? "" : "";
+        double Value(IList<object> row, int index, string column)
+        {
+            if (row.Count <= index || !double.TryParse(Cell(row, index), NumberStyles.Float, CultureInfo.InvariantCulture, out double number) || !double.IsFinite(number))
+                throw new InvalidOperationException($"'{title}'의 {column} 값이 올바른 숫자가 아닙니다.");
+            return number;
+        }
+        var result = new Dictionary<string, CalculatedNutrition>(StringComparer.Ordinal);
+        foreach (var row in rows.Skip(1))
+        {
+            string menu = Cell(row, name);
+            if (string.IsNullOrWhiteSpace(menu)) continue;
+            result[MenuNutritionKey(menu)] = new CalculatedNutrition(
+                Value(row, kcal, "열량(kcal)"), Value(row, carb, "탄수화물(g)"),
+                Value(row, protein, "단백질(g)"), Value(row, fat, "지방(g)"));
+        }
+        if (result.Count == 0) throw new InvalidOperationException($"'{title}'에서 메뉴별 영양값을 읽지 못했습니다.");
+        return result;
     }
 
     // Strict read for generation: a network/schema failure must not silently disable allergy exclusions.
@@ -124,7 +187,7 @@ public partial class GoogleSheetsService
             m.Day, m.AgeGroup, m.Track, m.Carb, m.Protein, m.Fat, m.Calories,
             m.Targets.Carb, m.Targets.Protein, m.Targets.Fat, m.CarbDifference, m.ProteinDifference, m.FatDifference,
             m.Status, WeeklyMealPlanner.Monday(m.Date).ToString("yyyy-MM-dd"), now,
-            string.Join(" / ", m.Items.Select(i => i.Key)), m.Targets.TolerancePercent }.Select(DataCell).ToList() }).ToList();
+            string.Join(" / ", m.Items.Select(i => i.Key)), m.Targets.TolerancePercent, (object?)m.Targets.Calories ?? "", (object?)m.CalorieDifference ?? "" }.Select(DataCell).ToList() }).ToList();
         var book = await _sheetsService.Spreadsheets.Get(SpreadsheetId).ExecuteAsync();
         int columns = book.Sheets.First(s => s.Properties.SheetId == id).Properties.GridProperties.ColumnCount ?? 0;
         var requests = new List<Request>();

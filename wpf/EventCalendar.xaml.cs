@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -28,14 +28,16 @@ namespace wpf
 
         // 💡 공공데이터포털 특일 정보 API 설정 (키는 appsettings.json에서 읽습니다)
         private static string OpenApiKey => AppConfig.HolidayApiKey;
-        private static readonly HttpClient httpClient = new HttpClient();
+        private static readonly HttpClient httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
         // API 호출 낭비를 막기 위한 캐시 (키: "20260626", 값: "이벤트명")
         private Dictionary<string, string> holidayCache = new Dictionary<string, string>();
         private int currentLoadedYear = -1;
         private int currentLoadedMonth = -1;
         private int _viewVersion;
+        private DateTime? _requestedDate;
         private bool _calendarReady;
+        private readonly HashSet<DateTime> _eventDates = new();
 
         public EventCalendar()
         {
@@ -45,6 +47,8 @@ namespace wpf
             _service = AppServices.Require();
             sheetsService = _service.Sheets;
 
+            MainCalendar.LayoutUpdated += (_,_) => PaintDates();
+            MainCalendar.DisplayDateChanged += async (_,_) => { if(_calendarReady){ await FetchHolidaysForMonthAsync(MainCalendar.DisplayDate.Year,MainCalendar.DisplayDate.Month); PaintDates(); } };
             MainCalendar.SelectedDatesChanged += MainCalendar_SelectedDatesChanged;
             MainCalendar.SelectedDate = DateTime.Today; // 오늘 날짜 기본 선택
             Loaded += async (_, _) => { _calendarReady = true; await UpdateUI(); };
@@ -54,19 +58,23 @@ namespace wpf
         // EventHandler<SelectionChangedEventArgs>의 sender는 nullable이라 맞춰 줍니다.
         private async void MainCalendar_SelectedDatesChanged(object? sender, SelectionChangedEventArgs e)
         {
-            if (_calendarReady) await UpdateUI();
+            var selected = e.AddedItems.OfType<DateTime>().LastOrDefault();
+            if (selected == default) return;
+            _requestedDate = selected.Date;
+            if (_calendarReady) await UpdateUI(_requestedDate);
         }
 
         // 🌐 [추가] 공공데이터 API에서 해당 월의 특일(기념일/공휴일) 가져오기
         private async Task FetchHolidaysForMonthAsync(int year, int month)
         {
+            foreach(var item in CalendarDates.Holidays(year)) holidayCache[item.Key.ToString("yyyyMMdd")]=item.Value;
             // 이미 이번 달 데이터를 불러왔다면 API 재요청 안 함 (최적화)
             if (currentLoadedYear == year && currentLoadedMonth == month) return;
 
             // 키가 설정되지 않았으면 공휴일 조회를 건너뜁니다(구글 시트 일정은 그대로 동작).
             if (!AppConfig.HasHolidayApiKey)
             {
-                holidayCache.Clear();
+                // Keep verified built-in dates when the API is unavailable.
                 currentLoadedYear = year;
                 currentLoadedMonth = month;
                 return;
@@ -89,7 +97,7 @@ namespace wpf
                 {
                     System.Diagnostics.Debug.WriteLine(
                         $"[특일정보 API] 예상과 다른 응답입니다. status={(int)response.StatusCode}, body={json.Substring(0, Math.Min(200, json.Length))}");
-                    holidayCache.Clear();
+                    // Keep verified built-in dates when the API is unavailable.
                     currentLoadedYear = year;
                     currentLoadedMonth = month;
                     return;
@@ -98,7 +106,7 @@ namespace wpf
                 JObject jsonObj = JObject.Parse(json);
                 var itemsToken = jsonObj["response"]?["body"]?["items"]?["item"];
 
-                holidayCache.Clear(); // 달이 바뀌었으니 이전 캐시 초기화
+                // Keep verified built-in dates when the API is unavailable. // 달이 바뀌었으니 이전 캐시 초기화
 
                 if (itemsToken != null)
                 {
@@ -131,31 +139,32 @@ namespace wpf
         }
 
         // 🔄 화면 갱신 (API 통신을 위해 async Task로 변경됨)
-        private async Task UpdateUI()
+        private async Task UpdateUI(DateTime? selectedOverride = null)
         {
             int version = ++_viewVersion;
+            DateTime? requestedDate = selectedOverride?.Date ?? MainCalendar.SelectedDate?.Date;
             using var activity = AppActivity.Begin("선택한 날짜의 식단과 일정을 확인하는 중입니다…");
             txtEventInput.Clear();
-            currentDayEvents.Clear();
 
             if (!MainCalendar.SelectedDate.HasValue)
             {
                 txtBannerYear.Text = "";
                 txtSelectedDate.Text = "날짜를 선택해주세요";
                 BadgeHoliday.Visibility = Visibility.Collapsed;
+                currentDayEvents.Clear();
                 lstEvents.ItemsSource = null;
                 RefreshEventListState();
                 txtHolidayEvent.Text = "등록된 특별한 이벤트가 없습니다.";
                 return;
             }
 
-            DateTime selectedDate = MainCalendar.SelectedDate.Value;
+            DateTime selectedDate = requestedDate!.Value;
             txtBannerYear.Text = selectedDate.ToString("yyyy년");
             txtSelectedDate.Text = selectedDate.ToString("M월 d일 (ddd)");
 
             // 1️⃣ 공공데이터 API 이벤트 처리
             await FetchHolidaysForMonthAsync(selectedDate.Year, selectedDate.Month);
-            if (version != _viewVersion) return;
+            if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
 
             string dateKey = selectedDate.ToString("yyyyMMdd"); // "20260626" 포맷
             if (holidayCache.TryGetValue(dateKey, out string? holidayName))
@@ -170,24 +179,32 @@ namespace wpf
                 BadgeHoliday.Visibility = Visibility.Collapsed;
             }
 
+            string special = CalendarDates.Special(selectedDate);
+            if(special.Length>0)txtHolidayEvent.Text=(holidayCache.ContainsKey(dateKey)?txtHolidayEvent.Text+"\n":"")+special;
+            PaintDates();
             // 2️⃣ 구글 시트 개인 일정 처리
             if (sheetsService == null) return;
 
             try
             {
                 var meals = await _service.GetSavedMealsAsync(selectedDate);
-                if (version != _viewVersion) return;
-                txtTodayMenu.Text = meals.Count == 0 ? "아직 식단이 작성되지 않았습니다." : string.Join("\n\n", meals.Select(m => m.Description));
+                if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
+                lstTodayMeals.ItemsSource = meals.Count == 0 ? new[] { "아직 식단이 작성되지 않았습니다." } : meals.Select(m => m.Description).ToList();
                 BtnCreateMeal.Content = meals.Count == 0 ? "식단 만들기" : "이 주의 식단 다시 만들기";
                 // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
                 SheetName = await _service.EnsureEventSheetAsync();
-                if (version != _viewVersion) return;
+                if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
 
                 string range = $"'{SheetName}'!A:B";
                 var request = sheetsService.Spreadsheets.Values.Get(SpreadsheetId, range);
                 var response = await request.ExecuteAsync(); // 동기식에서 비동기식으로 변경
-                if (version != _viewVersion) return;
+                if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
                 IList<IList<object>> values = response.Values;
+                var eventDates = new HashSet<DateTime>();
+                if(values!=null)foreach(var eventRow in values)if(eventRow.Count>1 && !string.IsNullOrWhiteSpace(eventRow[1]?.ToString()) && DateTime.TryParse(eventRow[0]?.ToString(),out var eventDate))eventDates.Add(eventDate.Date);
+                _eventDates.Clear();_eventDates.UnionWith(eventDates);
+                PaintDates();
+                var foundEvents = new List<GoogleSheetRow>();
 
                 if (values != null && values.Count > 0)
                 {
@@ -201,7 +218,7 @@ namespace wpf
 
                             if (!string.IsNullOrWhiteSpace(content))
                             {
-                                currentDayEvents.Add(new GoogleSheetRow
+                                foundEvents.Add(new GoogleSheetRow
                                 {
                                     RowIndex = i + 1,
                                     Content = content
@@ -211,6 +228,8 @@ namespace wpf
                     }
                 }
 
+                currentDayEvents = foundEvents;
+                lstEvents.SelectedIndex = -1;
                 lstEvents.ItemsSource = null;
                 lstEvents.ItemsSource = currentDayEvents.Select(e => e.Content).ToList();
 
@@ -218,9 +237,28 @@ namespace wpf
             }
             catch (Exception ex)
             {
-                if (version != _viewVersion) return;
-                txtTodayMenu.Text = "식단 또는 일정을 불러오지 못했습니다. 날짜를 다시 선택해 주세요.";
+                if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
+                lstTodayMeals.ItemsSource = new[] { "식단 또는 일정을 불러오지 못했습니다. 날짜를 다시 선택해 주세요." };
                 MessageBox.Show($"자료를 불러오지 못했습니다: {ex.Message}", "연결 확인");
+            }
+        }
+
+        private void PaintDates()
+        {
+            foreach(var day in Descendants<System.Windows.Controls.Primitives.CalendarDayButton>(MainCalendar)) {
+                if(day.DataContext is not DateTime date)continue;
+                string? holiday=holidayCache.GetValueOrDefault(date.ToString("yyyyMMdd")) ?? CalendarDates.Holidays(date.Year).GetValueOrDefault(date.Date);
+                var mark=CalendarDates.Mark(date,holiday,_eventDates.Contains(date.Date));
+                if(Equals(day.Tag,mark))continue;
+                day.Tag=mark;day.ToolTip=mark.Label;
+                System.Windows.Automation.AutomationProperties.SetName(day,mark.Label);
+            }
+        }
+        private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject
+        {
+            for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);i++){
+                var child=System.Windows.Media.VisualTreeHelper.GetChild(root,i);if(child is T typed)yield return typed;
+                foreach(var nested in Descendants<T>(child))yield return nested;
             }
         }
 

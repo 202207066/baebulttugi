@@ -61,6 +61,10 @@ namespace wpf
             Save();
         }
 
+        private static string GetString(string key) => _root[key]?.ToString() ?? "";
+        private static void SetString(string key, string value) { _root[key] = value; Save(); }
+        public static string SelectedFacilityId { get => GetString("selectedFacilityId"); set => SetString("selectedFacilityId", value); }
+
         /// <summary>시작 튜토리얼을 이미 본 적이 있는가.</summary>
         public static bool HasSeenTutorial
         {

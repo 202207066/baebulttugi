@@ -23,6 +23,30 @@ namespace wpf
             Closing += (_, e) => { if (_preparingData) { e.Cancel = true; return; } _closed = true; _cancellation?.Cancel(); };
         }
 
+        public static bool HasSavedCredential()
+        {
+            try
+            {
+                return Directory.Exists(AppConfig.TokenStorePath) &&
+                    Directory.EnumerateFiles(AppConfig.TokenStorePath, "*", SearchOption.AllDirectories).Any();
+            }
+            catch { return false; }
+        }
+
+        public static async Task<UserCredential> AuthorizeAsync(CancellationToken cancellationToken)
+        {
+            string[] scopes = { DriveService.Scope.Drive, SheetsService.Scope.Spreadsheets };
+            using var stream = AppConfig.OpenCredentials();
+            return await GoogleWebAuthorizationBroker.AuthorizeAsync(
+                GoogleClientSecrets.FromStream(stream).Secrets, scopes, "user", cancellationToken,
+                new FileDataStore(AppConfig.TokenStorePath, true));
+        }
+
+        public static void ClearSavedCredential()
+        {
+            if (Directory.Exists(AppConfig.TokenStorePath)) Directory.Delete(AppConfig.TokenStorePath, true);
+        }
+
         private async void OkButton_Click(object sender, RoutedEventArgs e)
         {
             if (_cancellation != null) return;
@@ -33,19 +57,7 @@ namespace wpf
             Topmost = true;
             try
             {
-                string[] scopes = { DriveService.Scope.Drive, SheetsService.Scope.Spreadsheets };
-
-                using (var stream = AppConfig.OpenCredentials())
-                {
-                    string credPath = AppConfig.TokenStorePath;
-
-                    UserCredential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-                        GoogleClientSecrets.FromStream(stream).Secrets,
-                        scopes,
-                        "user",
-                        _cancellation.Token,
-                        new FileDataStore(credPath, true));
-                }
+                UserCredential = await AuthorizeAsync(_cancellation.Token);
 
                 if (_closed) return;
                 _preparingData = true;

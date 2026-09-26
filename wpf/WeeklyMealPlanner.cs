@@ -13,7 +13,7 @@ public record TrackMenu(string Id, string Name, string Category, string Allergen
     public double Energy => Calories ?? (Carb!.Value * 4 + Protein!.Value * 4 + Fat!.Value * 9);
 }
 
-public record MealTargets(double Carb, double Protein, double Fat, double TolerancePercent);
+public record MealTargets(double Carb, double Protein, double Fat, double TolerancePercent, double? Calories = null);
 
 public sealed class WeeklyMeal
 {
@@ -39,10 +39,12 @@ public sealed class WeeklyMeal
     public double CarbDifference => Math.Round(Carb - Targets.Carb, 2);
     public double ProteinDifference => Math.Round(Protein - Targets.Protein, 2);
     public double FatDifference => Math.Round(Fat - Targets.Fat, 2);
+    public double? CalorieDifference => Targets.Calories.HasValue ? Math.Round(Calories - Targets.Calories.Value, 1) : null;
     public bool WithinTolerance =>
         Math.Abs(Items.Sum(x => x.Carb!.Value) - Targets.Carb) <= Targets.Carb * Targets.TolerancePercent / 100 + 1e-8 &&
         Math.Abs(Items.Sum(x => x.Protein!.Value) - Targets.Protein) <= Targets.Protein * Targets.TolerancePercent / 100 + 1e-8 &&
-        Math.Abs(Items.Sum(x => x.Fat!.Value) - Targets.Fat) <= Targets.Fat * Targets.TolerancePercent / 100 + 1e-8;
+        Math.Abs(Items.Sum(x => x.Fat!.Value) - Targets.Fat) <= Targets.Fat * Targets.TolerancePercent / 100 + 1e-8 &&
+        (!Targets.Calories.HasValue || Math.Abs(Calories - Targets.Calories.Value) <= Targets.Calories.Value * Targets.TolerancePercent / 100 + 1e-8);
     public string Status => WithinTolerance ? "허용범위 내" : "목표 편차 확인";
 }
 
@@ -107,6 +109,7 @@ public static class WeeklyMealPlanner
         if (days.Count == 0 || days.Any(d => (int)d < 0 || (int)d > 6) || meals.Count == 0 || meals.Any(m => m is not ("조식" or "중식" or "석식")))
             throw new ArgumentException("급식 요일과 끼니를 선택해 주세요.");
         if (new[] { targets.Carb, targets.Protein, targets.Fat }.Any(x => !double.IsFinite(x) || x <= 0) ||
+            (targets.Calories.HasValue && (!double.IsFinite(targets.Calories.Value) || targets.Calories.Value <= 0)) ||
             !double.IsFinite(targets.TolerancePercent) || targets.TolerancePercent < 0 || targets.TolerancePercent > 100)
             throw new ArgumentException("한 끼 영양 목표는 0보다 큰 숫자, 허용 편차는 0~100%로 입력해 주세요.");
         var pools = Categories.Select(c => menus.Where(m => m.Category == c && m.HasNutrition &&
@@ -126,9 +129,10 @@ public static class WeeklyMealPlanner
         double Score(TrackMenu[] items)
         {
             if (items.Select(x => x.Name).Distinct().Count() != 6) return double.PositiveInfinity;
-            var deviations = new[] { Math.Abs(items.Sum(x => x.Carb!.Value) - targets.Carb) / targets.Carb,
+            var deviations = new List<double> { Math.Abs(items.Sum(x => x.Carb!.Value) - targets.Carb) / targets.Carb,
                 Math.Abs(items.Sum(x => x.Protein!.Value) - targets.Protein) / targets.Protein,
                 Math.Abs(items.Sum(x => x.Fat!.Value) - targets.Fat) / targets.Fat };
+            if (targets.Calories.HasValue) deviations.Add(Math.Abs(items.Sum(x => x.Energy) - targets.Calories.Value) / targets.Calories.Value);
             // Prefer meeting all three limits; diversity only breaks near ties.
             return deviations.Sum() + deviations.Sum(d => Math.Max(0, d - targets.TolerancePercent / 100)) * 10 +
                 items.Sum(x => usage.GetValueOrDefault(NameKey(x))) * 0.005;

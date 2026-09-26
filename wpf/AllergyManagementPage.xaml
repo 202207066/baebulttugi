@@ -5,13 +5,13 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       mc:Ignorable="d"
       Title="알러지 케어 스마트 관리 센터" d:DesignHeight="768" d:DesignWidth="1116"
-      Background="#F5F6FA">
+      Background="{StaticResource Canvas}" FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Ink}">
 
     <Page.Resources>
         <Style x:Key="ModernCardStyle" TargetType="Border">
             <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="BorderBrush" Value="#E1EAE3"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="20"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -34,12 +34,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#4A90E2"/>
-                                <Setter Property="Foreground" Value="#4A90E2"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#3E8055"/>
+                                <Setter Property="Foreground" Value="#2F6E42"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="False">
-                                <Setter Property="Foreground" Value="#718096"/>
+                                <Setter Property="Foreground" Value="#718276"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -56,8 +56,8 @@
 
         <Grid Grid.Row="0" Margin="0,0,0,25">
             <StackPanel>
-                <TextBlock Text="피급식자 및 알러지 케어 설정" FontSize="26" FontWeight="Bold" Foreground="#1A202C"/>
-                <TextBlock Text="시스템 규칙 및 개별 알러지 성분을 분석하여 안전한 식단을 매칭합니다." FontSize="13" Foreground="#718096" Margin="2,4,0,0"/>
+                <TextBlock Text="피급식자 및 알러지 케어 설정" FontSize="26" FontWeight="Bold" Foreground="{StaticResource Ink}"/>
+                <TextBlock Text="시스템 규칙 및 개별 알러지 성분을 분석하여 안전한 식단을 매칭합니다." FontSize="13" Foreground="{StaticResource InkSubtle}" Margin="2,4,0,0"/>
             </StackPanel>
         </Grid>
 

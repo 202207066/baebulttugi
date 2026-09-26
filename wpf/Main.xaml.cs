@@ -12,7 +12,7 @@ namespace wpf
 {
     public partial class Main : Window
     {
-        private readonly GoogleSheetsService _sheetsService;
+        private GoogleSheetsService _sheetsService;
         private readonly string _ageGroup;
         private int _navigationVersion;
 
@@ -27,6 +27,7 @@ namespace wpf
             _sheetsService = sheetsService ?? throw new ArgumentNullException(nameof(sheetsService));
             _ageGroup = ageGroup ?? string.Empty;
 
+            SizeChanged += (_,_) => { TxtToday.Visibility=ActualWidth<1350?Visibility.Collapsed:Visibility.Visible; };
             this.Loaded += Main_Loaded;
             AppActivity.Changed += OnActivityChanged;
             Closed += (_, _) => AppActivity.Changed -= OnActivityChanged;
@@ -34,13 +35,14 @@ namespace wpf
 
         private async void Main_Loaded(object sender, RoutedEventArgs e)
         {
+            IsEnabled = false;
             TxtToday.Text = DateTime.Now.ToString("yyyy년 M월 d일 (ddd)");
 
-            // 로그인한 계정 이름을 상단 바와 사이드바에 항상 띄웁니다.
-            await ShowSignedInUserAsync();
 
             try
             {
+                await RestoreAccountAsync();
+                await LoadFacilitiesAsync();
                 BtnDashboard.IsChecked = true;
                 SetHeader("종합 대시보드", "오늘의 식단과 알러지 현황을 한눈에 봅니다");
 
@@ -48,46 +50,21 @@ namespace wpf
             }
             catch (Exception ex)
             {
-                MessageBox.Show("대시보드를 불러오는 중 오류가 발생했습니다:\n" + ex.Message,
-                                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                var panel = new StackPanel { Margin = new Thickness(32) };
+                panel.Children.Add(new TextBlock { Text = "자료를 불러오지 못했습니다", FontSize = 24 });
+                panel.Children.Add(new TextBlock { Text = ex.Message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,16,0,16) });
+                var retry = new Button { Content = "다시 불러오기", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16,8,16,8) };
+                retry.Click += (_, _) => Main_Loaded(this, new RoutedEventArgs());
+                panel.Children.Add(retry);
+                MainFrame.Navigate(new Page { Content = panel });
             }
+            finally { IsEnabled = true; }
 
             // 이 PC에서 처음 들어온 사용자에게 화면 안내를 한 번 띄웁니다.
             if (!UserPrefs.HasSeenTour)
             {
                 HelpOverlay.Visibility = Visibility.Visible;
                 UserPrefs.HasSeenTour = true;
-            }
-        }
-
-        /// <summary>
-        /// 구글에서 로그인한 계정의 이름·이메일을 받아 화면에 표시합니다.
-        /// 조회에 실패해도 화면은 그대로 동작합니다.
-        /// </summary>
-        private async Task ShowSignedInUserAsync()
-        {
-            using var activity = AppActivity.Begin("로그인한 계정을 확인하는 중입니다…");
-            try
-            {
-                GoogleUserInfo user = await _sheetsService.LoadCurrentUserAsync();
-
-                TxtUserName.Text = user.FriendlyName;
-                TxtUserEmail.Text = user.Email;
-                TxtUserInitial.Text = user.Initial;
-
-                TxtSideUserName.Text = user.FriendlyName;
-                TxtSideUserEmail.Text = user.Email;
-                TxtSideInitial.Text = user.Initial;
-
-                this.Title = $"배불뚝이 · 스마트 식단 및 알러지 케어 — {user.FriendlyName}";
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[사용자 표시 실패] {ex.Message}");
-                TxtUserName.Text = "로그인됨";
-                TxtUserEmail.Text = "";
-                TxtSideUserName.Text = "로그인됨";
-                TxtSideUserEmail.Text = "";
             }
         }
 
@@ -103,6 +80,25 @@ namespace wpf
         private void BtnHelp_Click(object sender, RoutedEventArgs e)
         {
             HelpOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void BtnLogout_Click(object sender, RoutedEventArgs e)
+        {
+            if (MessageBox.Show("이 PC의 구글 로그인 정보를 지우고 로그인 화면으로 돌아갈까요?", "로그아웃",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            try
+            {
+                LoginWindow.ClearSavedCredential();
+                AppServices.Sheets = null;
+                string? executable = Environment.ProcessPath;
+                if (!string.IsNullOrWhiteSpace(executable))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable) { UseShellExecute = true });
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("로그아웃하지 못했습니다. " + ex.Message, "로그아웃", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void BtnCloseHelp_Click(object sender, RoutedEventArgs e)
@@ -197,6 +193,7 @@ namespace wpf
         private void NavigateTo(ToggleButton sourceButton, Func<Page> pageFactory,
                                 string pageTitle, string pageSubtitle)
         {
+            if (_sheetsService.CurrentFacility == null) { ShowFacilitySetup(); return; }
             _navigationVersion++;
             sourceButton.IsChecked = true;
             SetHeader(pageTitle, pageSubtitle);
@@ -223,6 +220,7 @@ namespace wpf
 
         private async Task<Page> LoadDefaultDashboardAsync()
         {
+            if (_sheetsService.CurrentFacility == null) return ShowFacilitySetup();
             int navigation = ++_navigationVersion;
             using var activity = AppActivity.Begin("오늘의 식단과 대상자 정보를 불러오는 중입니다…");
             DashboardData dbData = await _sheetsService.GetDashboardDataAsync();
@@ -230,19 +228,19 @@ namespace wpf
             // 인원 수와 알러지 현황은 Dashboard 시트의 요약값 대신
             // 알러지 명단 시트를 직접 집계해 실제 데이터와 어긋나지 않게 합니다.
             List<PatientModel> patients;
-            List<(string Allergen, List<string> Names)> allergyGroups;
+            List<(string Allergen, List<PatientModel> Patients)> allergyGroups;
             bool patientsLoaded = true;
             try
             {
                 patients = await _sheetsService.GetPatientsAsync();
-                allergyGroups = patients.SelectMany(p => GoogleSheetsService.SplitAllergens(p.Allergies).Select(a => (Allergen: a, p.Name)))
-                    .GroupBy(x => x.Allergen).Select(g => (g.Key, g.Select(x => x.Name).ToList())).ToList();
+                allergyGroups = patients.SelectMany(p => GoogleSheetsService.SplitAllergens(p.Allergies).Select(a => (Allergen: a, Patient: p)))
+                    .GroupBy(x => x.Allergen).Select(g => (g.Key, g.Select(x => x.Patient).ToList())).ToList();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[대시보드 명단 집계 실패] {ex.Message}");
                 patients = new List<PatientModel>();
-                allergyGroups = new List<(string, List<string>)>();
+                allergyGroups = new List<(string, List<PatientModel>)>();
                 patientsLoaded = false;
 
                 dbData.AllergyPatients = "확인 필요";
@@ -258,8 +256,10 @@ namespace wpf
             }
 
             int? dinerCount = null;
-            try { dinerCount = (await _sheetsService.GetDinersAsync()).Count; dbData.TotalPatients = $"{dinerCount} 명"; }
+            try { dinerCount = _sheetsService.CurrentFacility?.Diners ?? (await _sheetsService.GetDinersAsync()).Count; dbData.TotalPatients = $"{dinerCount} 명"; }
             catch { dbData.TotalPatients = "확인 필요"; }
+            try { await _sheetsService.SaveFacilityDashboardAsync(dbData); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("급식소 요약 저장 실패: " + ex.Message); }
             Page dashboardPage = new Page { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F5F6FA")) };
             ScrollViewer scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             Grid mainGrid = new Grid { Margin = new Thickness(30) };
@@ -268,7 +268,7 @@ namespace wpf
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
             Grid titleGrid = new Grid { Margin = new Thickness(0, 0, 0, 25) };
-            titleGrid.Children.Add(new TextBlock { Text = "대시보드", FontSize = 26, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A202C")) });
+            titleGrid.Children.Add(new TextBlock { Text = (_sheetsService.CurrentFacility?.Name ?? "") + " 대시보드", FontSize = 26, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A202C")) });
 
             string todayText = DateTime.Now.ToString("yyyy년 MM월 dd일 (ddd)");
             titleGrid.Children.Add(new TextBlock { Text = $"오늘 날짜: {todayText}", HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, FontSize = 14, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#718096")) });
@@ -281,11 +281,16 @@ namespace wpf
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             var dinerCard = CreateWidgetCard("총 관리 피급식자 수", dbData.TotalPatients, "#2D3748", new Thickness(0, 0, 15, 0), 0);
-            var dinerButton = new Button { Content = dinerCount == 0 ? "식수인원 입력하러 가기" : "식수인원 관리", Margin = new Thickness(0,12,0,0), Padding = new Thickness(10,8,10,8) };
-            dinerButton.Click += (_,_) => NavigateTo(BtnDashboard, () => new DinersPage(), "식수인원 관리", "직접 입력하거나 CSV 파일로 명단을 등록하세요");
+            var dinerButton = new Button { Content = "수정", Margin = new Thickness(0,12,0,0), Padding = new Thickness(10,8,10,8) };
+            dinerButton.Click += async (_,_) => await EditDinerCountAsync();
             ((StackPanel)dinerCard.Child).Children.Add(dinerButton);
             cardGrid.Children.Add(dinerCard);
-            cardGrid.Children.Add(CreateWidgetCard("주의 필요 알러지 환자", dbData.AllergyPatients, "#E53E3E", new Thickness(10, 0, 10, 0), 1));
+            var allergyCard = CreateWidgetCard("주의 필요 알러지 환자", dbData.AllergyPatients, "#E53E3E", new Thickness(10, 0, 10, 0), 1);
+            var allergyButton = new Button { Content = "알러지 관리 설정", Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(10, 8, 10, 8) };
+            allergyButton.Click += (_, _) => NavigateTo(BtnManagement, () => new AllergyManagementPage(),
+                "피급식자 · 알러지 관리", "대상자를 등록하고 그날 메뉴와의 교차 위험을 점검합니다");
+            ((StackPanel)allergyCard.Child).Children.Add(allergyButton);
+            cardGrid.Children.Add(allergyCard);
             cardGrid.Children.Add(CreateWidgetCard("금일 식단 구성 상태", dbData.DietStatus, "#3182CE", new Thickness(15, 0, 0, 0), 2, true));
             Grid.SetRow(cardGrid, 1);
             mainGrid.Children.Add(cardGrid);
@@ -345,11 +350,11 @@ namespace wpf
             // 실제 등록 인원과 아무 관계가 없었습니다. 명단에서 집계합니다.
             if (allergyGroups.Count > 0)
             {
-                foreach (var (allergen, names) in allergyGroups)
+                foreach (var (allergen, groupPatients) in allergyGroups)
                 {
                     allergyList.Items.Add(CreateAllergyCard(
                         $"{allergen} 알러지",
-                        "대상자: " + FormatNames(names),
+                        groupPatients,
                         $"기본 메뉴: {defaultMenuText}",
                         $"대체 식단: {altMenuText}"));
                 }
@@ -358,7 +363,7 @@ namespace wpf
             {
                 allergyList.Items.Add(CreateAllergyCard(
                     patientsLoaded ? "등록된 알레르기 없음" : "명단을 불러오지 못했습니다.",
-                    patientsLoaded ? "‘피급식자 알러지 관리’ 화면에서 대상자를 등록해 주세요." : "연결을 확인한 뒤 다시 불러와 주세요.",
+                    new List<PatientModel>(),
                     $"기본 메뉴: {defaultMenuText}",
                     "대체 식단: 해당 없음"));
             }
@@ -377,15 +382,6 @@ namespace wpf
 
             if (navigation == _navigationVersion) MainFrame.Navigate(dashboardPage);
             return dashboardPage;
-        }
-
-        /// <summary>"김철수, 이영희 외 3명" 형태로 줄여 표시합니다.</summary>
-        private static string FormatNames(List<string> names)
-        {
-            if (names == null || names.Count == 0) return "없음";
-            if (names.Count <= 2) return string.Join(", ", names);
-
-            return $"{names[0]}, {names[1]} 외 {names.Count - 2}명";
         }
 
         private Border CreateWidgetCard(string title, string value, string colorHex, Thickness margin, int column, bool isCompact = false)
@@ -411,7 +407,7 @@ namespace wpf
             };
         }
 
-        private ListBoxItem CreateAllergyCard(string label, string targetedUsers, string defaultMenu, string alternativeMenu)
+        private ListBoxItem CreateAllergyCard(string label, IReadOnlyList<PatientModel> patients, string defaultMenu, string alternativeMenu)
         {
             ListBoxItem item = new ListBoxItem { Margin = new Thickness(0, 0, 0, 12), Padding = new Thickness(0) };
             Border border = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFF5F5")), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FED7D7")), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(15), MaxWidth = 580 };
@@ -420,13 +416,24 @@ namespace wpf
             StackPanel headerStack = new StackPanel();
             Border labelTag = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2E7D32")), CornerRadius = new CornerRadius(3), Padding = new Thickness(6, 2, 6, 2), Child = new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White } };
             headerStack.Children.Add(labelTag);
-            headerStack.Children.Add(new TextBlock { Text = targetedUsers, TextWrapping = TextWrapping.Wrap, FontSize = 13, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 0) });
+            string names = patients.Count == 0 ? label : string.Join(", ", patients.Take(5).Select(p => p.Name));
+            headerStack.Children.Add(new TextBlock { Text = patients.Count == 0 ? names : $"대상자 {patients.Count}명: {names}", TextWrapping = TextWrapping.Wrap, FontSize = 13, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 0) });
             mainStack.Children.Add(headerStack);
 
             StackPanel detailsStack = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
             detailsStack.Children.Add(new TextBlock { Text = defaultMenu, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#718096")) });
             detailsStack.Children.Add(new TextBlock { Text = alternativeMenu, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#38A169")) });
             mainStack.Children.Add(detailsStack);
+
+            if (patients.Count > 5)
+            {
+                var detail = new Expander { Header = $"상세 정보 보기 ({patients.Count}명)", Margin = new Thickness(0, 10, 0, 0), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#315D40")) };
+                var people = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+                foreach (var patient in patients)
+                    people.Children.Add(new TextBlock { Text = $"{patient.Name} · {patient.Category} · {patient.Allergies}" + (string.IsNullOrWhiteSpace(patient.Note) ? "" : $" · {patient.Note}"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 2), FontSize = 12 });
+                detail.Content = people;
+                mainStack.Children.Add(detail);
+            }
 
             border.Child = mainStack;
             item.Content = border;

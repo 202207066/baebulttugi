@@ -82,14 +82,53 @@ public partial class GoogleSheetsService
     private async Task<(string Title, IList<IList<object>> Rows, int Header)> ReadDinerRowsAsync(bool create)
     {
         var titles = await GetSheetTitlesAsync().ConfigureAwait(false);
-        string? title = titles.FirstOrDefault(t => Normalize(t) == "식수인원");
+        string? title = titles.FirstOrDefault(t => Normalize(t) == "피급식자명단")
+            ?? titles.FirstOrDefault(t => Normalize(t) == "식수인원");
         if (title == null && !create) return ("식수인원", new List<IList<object>>(), -1);
         title ??= await EnsureSheetAsync("식수인원", "이름", "나이", "성별", "특이사항", "등록일자").ConfigureAwait(false);
         var rows = await GetValuesAsync(QuoteTitle(title) + "!A:Z").ConfigureAwait(false);
+        // 식수 요약과 개인 명단은 서로 다른 자료다. 요약 시트는 그대로 보존한다.
+        if (FindDinerSummaryHeader(rows) >= 0 || rows.Count == 0)
+        {
+            if (!create) return (title, rows, -1);
+            title = await EnsureSheetAsync("피급식자 명단", "이름", "나이", "성별", "특이사항", "등록일자").ConfigureAwait(false);
+            rows = await GetValuesAsync(QuoteTitle(title) + "!A:Z").ConfigureAwait(false);
+        }
         int header = -1;
         for (int i = 0; i < Math.Min(15, rows.Count); i++) if (rows[i].Any(c => c.ToString()?.Trim() == "이름")) { header = i; break; }
         if (header < 0) throw new InvalidOperationException("식수인원 시트에서 이름 헤더를 찾지 못했습니다.");
         return (title, rows, header);
+    }
+    private static int FindDinerSummaryHeader(IList<IList<object>> rows)
+    {
+        for (int i = 0; i < Math.Min(15, rows.Count); i++)
+            if (rows[i].Any(c => Normalize(c.ToString() ?? "") == "급식소식수인원")) return i;
+        return -1;
+    }
+    private async Task<int> ReadInitialDinerCountAsync()
+    {
+        var titles = await GetSheetTitlesAsync().ConfigureAwait(false);
+        var title = titles.FirstOrDefault(t => Normalize(t) == "식수인원");
+        if (title != null)
+        {
+            var rows = await GetValuesAsync(QuoteTitle(title) + "!A:Z").ConfigureAwait(false);
+            int header = FindDinerSummaryHeader(rows);
+            if (header >= 0)
+            {
+                int column = rows[header].ToList().FindIndex(c => Normalize(c.ToString() ?? "") == "급식소식수인원");
+                int total = 0;
+                foreach (var row in rows.Skip(header + 1))
+                {
+                    string value = Cell(row, column);
+                    if (string.IsNullOrWhiteSpace(value)) continue;
+                    if (!int.TryParse(value, NumberStyles.Integer | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out int count) || count < 0)
+                        throw new InvalidOperationException("식수인원 시트의 급식소 식수 인원은 0 이상의 정수여야 합니다.");
+                    total = checked(total + count);
+                }
+                return total;
+            }
+        }
+        return (await GetDinersAsync().ConfigureAwait(false)).Count;
     }
     public async Task<List<Diner>> GetDinersAsync()
     {

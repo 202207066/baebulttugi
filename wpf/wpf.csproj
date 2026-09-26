@@ -31,4 +31,5 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
+  <ItemGroup><EmbeddedResource Include="RecipePortions.json" LogicalName="wpf.RecipePortions"/></ItemGroup>
 </Project>

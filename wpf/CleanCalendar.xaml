@@ -1,12 +1,17 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <Style x:Key="CleanDay" TargetType="CalendarDayButton">
-  <Setter Property="Height" Value="48"/><Setter Property="MinWidth" Value="42"/><Setter Property="Margin" Value="3"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#293D35"/>
+  <Setter Property="Height" Value="48"/><Setter Property="MinWidth" Value="24"/><Setter Property="Margin" Value="3"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#293D35"/>
   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CalendarDayButton">
-   <Border x:Name="Day" CornerRadius="12" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+   <Border x:Name="Day" CornerRadius="12" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"><Grid><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5"><Ellipse x:Name="EventDot" Width="5" Height="5" Fill="#3176B5" Margin="2,0" Visibility="Collapsed"/><Rectangle x:Name="SpecialDot" Width="5" Height="5" Fill="#CA7B19" Margin="2,0" Visibility="Collapsed"/></StackPanel></Grid></Border>
    <ControlTemplate.Triggers>
     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Day" Property="Background" Value="#F0F6F1"/></Trigger>
     <Trigger Property="IsToday" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="#75A986"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="#256641"/></Trigger>
-    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Day" Property="Background" Value="#286A47"/><Setter TargetName="Day" Property="BorderBrush" Value="#286A47"/><Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="Bold"/></Trigger>
+    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Day" Property="Background" Value="#E0EDE3"/><Setter TargetName="Day" Property="BorderBrush" Value="#286A47"/><Setter Property="Foreground" Value="#263E2F"/><Setter Property="FontWeight" Value="Bold"/></Trigger>
+    <DataTrigger Binding="{Binding DayOfWeek}" Value="Saturday"><Setter Property="Foreground" Value="#2474B6"/></DataTrigger>
+    <DataTrigger Binding="{Binding DayOfWeek}" Value="Sunday"><Setter Property="Foreground" Value="#C44343"/></DataTrigger>
+    <DataTrigger Binding="{Binding Tag.IsHoliday,RelativeSource={RelativeSource Self}}" Value="True"><Setter Property="Foreground" Value="#C44343"/></DataTrigger>
+    <DataTrigger Binding="{Binding Tag.HasEvent,RelativeSource={RelativeSource Self}}" Value="True"><Setter TargetName="EventDot" Property="Visibility" Value="Visible"/></DataTrigger>
+    <DataTrigger Binding="{Binding Tag.HasSpecial,RelativeSource={RelativeSource Self}}" Value="True"><Setter TargetName="SpecialDot" Property="Visibility" Value="Visible"/></DataTrigger>
     <Trigger Property="IsInactive" Value="True"><Setter Property="Foreground" Value="#BDCBC3"/></Trigger>
     <Trigger Property="IsBlackedOut" Value="True"><Setter Property="Opacity" Value="0.35"/></Trigger>
     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="#152F23"/><Setter TargetName="Day" Property="BorderThickness" Value="2"/></Trigger>
@@ -15,7 +20,7 @@
  </Style>
  <Style x:Key="CleanCalendarButton" TargetType="CalendarButton">
   <Setter Property="Margin" Value="4"/><Setter Property="Height" Value="58"/><Setter Property="Foreground" Value="#293D35"/>
-  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CalendarButton"><Border x:Name="Bd" CornerRadius="10" Background="#F5F8F5"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#DDECE0"/></Trigger><Trigger Property="IsInactive" Value="True"><Setter Property="Opacity" Value="0.35"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CalendarButton"><Border x:Name="Bd" CornerRadius="10" Background="#F5F8F5"><Grid><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5"><Ellipse x:Name="EventDot" Width="5" Height="5" Fill="#3176B5" Margin="2,0" Visibility="Collapsed"/><Rectangle x:Name="SpecialDot" Width="5" Height="5" Fill="#CA7B19" Margin="2,0" Visibility="Collapsed"/></StackPanel></Grid></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#DDECE0"/></Trigger><Trigger Property="IsInactive" Value="True"><Setter Property="Opacity" Value="0.35"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
  </Style>
  <Style x:Key="CleanCalendar" TargetType="Calendar">
   <Setter Property="Language" Value="ko-KR"/><Setter Property="FirstDayOfWeek" Value="Monday"/><Setter Property="Background" Value="White"/><Setter Property="BorderThickness" Value="0"/>

@@ -27,6 +27,34 @@ internal static class Program
 
     private static void Run(string[] args)
     {
+        if (args.Length > 1 && args[0] == "sidebar-preview")
+        {
+            var previewApp = new wpf.App(); previewApp.InitializeComponent();
+            var window = new wpf.Main(new GoogleSheetsService(null!));
+            var root = (FrameworkElement)window.Content;
+            ((System.Windows.Controls.TextBlock)window.FindName("SideAccountName")).Text = "배불뚝이";
+            ((System.Windows.Controls.TextBlock)window.FindName("SideAccountEmail")).Text = "example@gmail.com";
+            ((System.Windows.Controls.TextBlock)window.FindName("SideAccountInitial")).Text = "배";
+            ((System.Windows.Controls.TextBlock)window.FindName("FacilityCount")).Text = "추가 버튼으로 급식소를 등록하세요";
+            root.Measure(new Size(1480,880)); root.Arrange(new Rect(0,0,1480,880)); root.UpdateLayout();
+            var selector = (System.Windows.Controls.ComboBox)window.FindName("FacilityBox");
+            var toggle = (FrameworkElement)selector.Template.FindName("SelectorToggle", selector);
+            Check(toggle.ActualWidth >= selector.ActualWidth - 2, "Selector background fills available width");
+            selector.ItemsSource = new[] { new Facility("default", "유한대", "preview", 150, true), new Facility("second", "두 번째 급식소", "preview-2", 80, false) };
+            selector.SelectedIndex = 0; root.UpdateLayout();
+            var selectedName = (System.Windows.Controls.TextBlock)selector.Template.FindName("SelectedFacilityName", selector);
+            Check(selectedName.Text == "유한대", "Selected facility displays its name instead of record contents");
+            selector.SelectedIndex = 1; root.UpdateLayout();
+            Check(selectedName.Text == "두 번째 급식소", "Selected name updates when switching facilities");
+            selector.SelectedIndex = -1; root.UpdateLayout();
+            Check(string.IsNullOrEmpty(selectedName.Text), "Empty selection clears previous facility name");
+            selector.SelectedIndex = 0; root.UpdateLayout();
+            var bitmap = new RenderTargetBitmap(1480,880,96,96,PixelFormats.Pbgra32); bitmap.Render(root);
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var output = File.Create(args[1]); encoder.Save(output);
+            return;
+        }
+        if (args.Contains("facilities")) { FacilityChecks.Run(); return; }
         var menus = WeeklyMealPlanner.Categories.Select((c, i) => new TrackMenu("A" + i, "Menu" + i, c, "", 10, 3, 2, null, "test fixture")).ToList();
         var target = new MealTargets(60, 18, 12, 0);
         var weekdays = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
@@ -45,6 +73,9 @@ internal static class Program
         Reject(() => Generate(custom: menus.Select(m => m with { Carb = null }).ToArray()), "Missing nutrition never treated as zero");
         Check(WeeklyMealPlanner.Number("0") == 0 && WeeklyMealPlanner.Number("") == null && WeeklyMealPlanner.Number("-1") == null && WeeklyMealPlanner.Number("NaN") == null && WeeklyMealPlanner.Number("12.5 g") == 12.5, "Strict numeric parsing preserves true zero");
         Check(Generate(goals: new MealTargets(500, 500, 500, 15)).All(m => !m.WithinTolerance), "Unattainable goals labelled outside tolerance");
+        var boy = NutritionProfiles.Get("9-11", "남").PerMeal(3);
+        Check(boy.Calories == 666.7 && boy.Carb == 95.8 && boy.Protein == 25 && boy.Fat == 16.7, "Age and sex profile calculates per-meal energy and macro targets from KDRI ratios");
+        Check(NutritionProfiles.Get("3-5", "여").DailyCalories == 1400, "Preschool profile uses shared 3-5 age standard");
         Check(GoogleSheetsService.MatchesRegisteredAllergen(menus[0] with { Allergens = "⑤⑥⑩⑬" }, ["대두"]), "Circled allergy codes map to names");
         Check(GoogleSheetsService.MatchesRegisteredAllergen(menus[0] with { Allergens = "1,5,6,13" }, ["달걀"]), "Comma-separated allergy codes map to synonyms");
         Check(!GoogleSheetsService.MatchesRegisteredAllergen(menus[0] with { Allergens = "⑬" }, ["메밀"]), "Code 13 does not match code 3");
@@ -69,7 +100,7 @@ internal static class Program
         using (var batch = JsonDocument.Parse(http.LastBatch))
         {
             var requests = batch.RootElement.GetProperty("requests");
-            Check(requests[0].GetProperty("appendDimension").GetProperty("length").GetInt32() == 18, "Existing narrow sheet expanded before writing");
+            Check(requests[0].GetProperty("appendDimension").GetProperty("length").GetInt32() == GoogleSheetsService.WeeklyHeaders.Length - 9, "Existing narrow sheet expanded before writing");
             var cells = requests[2].GetProperty("appendCells").GetProperty("rows")[0].GetProperty("values");
             Check(cells[12].GetProperty("userEnteredValue").GetProperty("numberValue").GetDouble() == 60, "Nutrition saved as numeric cells");
         }
@@ -99,6 +130,9 @@ internal static class Program
         var fixedWeek=WeeklyMealPlanner.Generate(varied,new DateTime(2026,9,21),weekdays,["중식"],"3-5","A",target,new Dictionary<string,string>{{"밥류",varied[0].Key}},seed:42);
         Check(fixedWeek.All(x=>x.Items[0].Key==varied[0].Key),"Fixed menu remains fixed while other dishes vary");
         Check(DinerCsv.Parse(new StringReader("이름,나이,성별,특이사항\n홍길동,5,남,\"우유,난류\"\n"))[0].Notes=="우유,난류","Quoted CSV fields preserve commas");
+        var ingredients = IngredientCsv.Parse(new StringReader("식재료명,규격,단가\n쌀,20kg,56000\n당근,10kg,23000\n"), "purchase.csv");
+        Check(ingredients.Count == 2 && ingredients[0].Name == "쌀" && ingredients[1].Price == "23000", "Ingredient CSV accepts a named source and searchable columns");
+        Reject(() => IngredientCsv.Parse(new StringReader("가격\n3000\n"), "bad.csv"), "Ingredient CSV rejects missing ingredient-name header");
         Reject(()=>DinerCsv.Parse(new StringReader("이름,나이\n아이,-1")),"Invalid ages rejected before any upload");
         Reject(()=>DinerCsv.Parse(new StringReader("나이\n5")),"Missing CSV name header rejected");
         EntryChecks.Run(Check, args.Length > 2 ? args[2] : null);
@@ -115,15 +149,15 @@ internal static class Program
             var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bmp));
             using var file = File.Create(args[1]); encoder.Save(file);
             string folder = Path.GetDirectoryName(args[1])!;
+            ManagementChecks.Run(Check, Reject, folder);
             FeedbackChecks.Render(new MenuInputPage(), Path.Combine(folder,"recipe-ui.png"),1140,960);
-            FeedbackChecks.Render(new DinersPage(), Path.Combine(folder,"diners-ui.png"),1140,960);
             var fixedPanel = (System.Windows.Controls.WrapPanel)page.FindName("FixedPanel");
             var combo = ((System.Windows.Controls.StackPanel)fixedPanel.Children[0]).Children.OfType<System.Windows.Controls.ComboBox>().Single();
             combo.ItemsSource = new[]{placeholder}.Concat(varied).ToList(); combo.SelectedIndex=0;
             Check(System.Windows.Controls.VirtualizingPanel.GetIsVirtualizing(combo),"Fixed-menu list uses virtualization");
             var peer = new System.Windows.Automation.Peers.ComboBoxAutomationPeer(combo);
             Check(new System.Windows.Automation.Peers.ListBoxItemAutomationPeer(placeholder,peer).GetName() == placeholder.Name,"Fixed-menu accessibility peers read names without crashing");
-            FeedbackChecks.Render(new CalculatePage(), Path.Combine(folder,"cost-ui.png"),1140,800);
+            FeedbackChecks.Render(new CalculatePage(), Path.Combine(folder,"cost-ui.png"),1140,1250);
             var calendarPage = new EventCalendar();
             FeedbackChecks.Render(calendarPage, Path.Combine(folder,"calendar-ui.png"),1140,900);
             var calendar = (System.Windows.Controls.Calendar)calendarPage.FindName("MainCalendar");
@@ -180,6 +214,7 @@ internal sealed class Factory(FakeSheets handler) : IHttpClientFactory
 
 internal sealed class FakeSheets : HttpMessageHandler
 {
+    public bool CostMode;
     public int BatchCount;
     public bool Mismatch;
     public string LastBatch = "";
@@ -209,10 +244,13 @@ internal sealed class FakeSheets : HttpMessageHandler
         else if (request.RequestUri!.AbsolutePath.Contains("/values/"))
         {
             var rows = new List<object[]> { Mismatch ? ["메뉴명","칼로리"] : ["식단 ID","날짜","구분","밥","국","메인","사이드1","사이드2","후식"] };
+            if(CostMode) rows = [GoogleSheetsService.CostHeaders.Take(8).Cast<object>().ToArray()];
             rows.AddRange(SavedRows);
             json = JsonSerializer.Serialize(new { values = rows });
         }
         else json = "{\"sheets\":[{\"properties\":{\"title\":\"메뉴\",\"sheetId\":42,\"gridProperties\":{\"columnCount\":9,\"rowCount\":1000}}}]}";
+        if(CostMode && request.Method != HttpMethod.Post && !request.RequestUri!.AbsolutePath.Contains("/values/"))
+            json=JsonSerializer.Serialize(new{sheets=new[]{new{properties=new{title=AppConfig.CostSheetName,sheetId=42,gridProperties=new{columnCount=8,rowCount=1000}}}}});
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json,Encoding.UTF8,"application/json") };
     }
 }
