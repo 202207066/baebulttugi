@@ -1,6 +1,6 @@
 ﻿using System.Globalization;
 namespace wpf;
-public record CalendarDateMark(bool IsHoliday,bool HasSpecial,bool HasEvent,string Label);
+public record CalendarDateMark(bool IsHoliday,bool HasSpecial,bool HasEvent,string Label) { public bool HasMeal { get; init; } public bool ConnectPrevious { get; init; } public bool ConnectNext { get; init; } public System.Windows.CornerRadius MealCorners => new(ConnectPrevious ? 0 : 14, ConnectNext ? 0 : 14, ConnectNext ? 0 : 14, ConnectPrevious ? 0 : 14); public string EventIcon { get; init; } = ""; }
 public static class CalendarDates
 {
     private static readonly Dictionary<int,Dictionary<DateTime,string>> cache=new();

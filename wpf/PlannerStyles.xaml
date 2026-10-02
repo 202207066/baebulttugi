@@ -1,5 +1,18 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="CleanCalendar.xaml"/></ResourceDictionary.MergedDictionaries>
+ <Style x:Key="GuideExpander" TargetType="Expander">
+  <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
+   <StackPanel>
+    <ToggleButton Style="{x:Null}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Padding="16,12">
+     <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="#EDF4EC" CornerRadius="10" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border></ControlTemplate></ToggleButton.Template>
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/></Grid.ColumnDefinitions><ContentPresenter Content="{TemplateBinding Header}"/><TextBlock x:Name="Arrow" Grid.Column="1" Text="＋" HorizontalAlignment="Right"/></Grid>
+    </ToggleButton>
+    <ContentPresenter x:Name="GuideContent" ContentSource="Content" Visibility="Collapsed" HorizontalAlignment="Stretch"/>
+   </StackPanel>
+   <ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="GuideContent" Property="Visibility" Value="Visible"/><Setter TargetName="Arrow" Property="Text" Value="−"/></Trigger></ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
  <Style x:Key="PlannerCard" TargetType="Border"><Setter Property="Background" Value="White"/><Setter Property="CornerRadius" Value="18"/><Setter Property="BorderBrush" Value="#E1EAE3"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="24"/><Setter Property="Margin" Value="0,0,0,16"/></Style>
  <Style TargetType="TextBox">
   <Setter Property="Height" Value="48"/><Setter Property="Padding" Value="14,0"/><Setter Property="FontSize" Value="17"/><Setter Property="Foreground" Value="#263E2F"/><Setter Property="Background" Value="#F8FAF8"/><Setter Property="BorderBrush" Value="#DBE5DD"/><Setter Property="BorderThickness" Value="1"/><Setter Property="VerticalContentAlignment" Value="Center"/>

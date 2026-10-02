@@ -21,6 +21,11 @@ public partial class Menu_table : Page
     public Menu_table(string ageGroup = "", DateTime? selectedDate = null)
     {
         InitializeComponent();
+        GridDietResult.SelectedCellsChanged += (_,_) => {
+            var meal = MealPresentation.Selected(GridDietResult);
+            string Number(double? value) => value.HasValue ? value.Value.ToString("0.#") : "미확인";
+            SelectedMealSummary.Text = meal == null ? "메뉴 칸을 선택하면 해당 끼니의 영양 합계를 확인하고 수정할 수 있습니다." : $"{meal} · 탄수화물 {Number(meal.Carb)} g · 단백질 {Number(meal.Protein)} g · 지방 {Number(meal.Fat)} g · {Number(meal.Calories)} kcal";
+        };
         _service = AppServices.Require();
         WeekPicker.SelectedDate = WeeklyMealPlanner.Monday(selectedDate ?? DateTime.Today);
         CboAgeGroup.SelectedIndex = ageGroup is "6-18" or "6-11" or "12-18" ? 1 : 0;
@@ -30,7 +35,7 @@ public partial class Menu_table : Page
         {
             var panel = new StackPanel { Width = 235, Margin = new Thickness(0, 12, 16, 0) };
             panel.Children.Add(new TextBlock { Text = category, Margin = new Thickness(0,0,0,8) });
-            var combo = new ComboBox { DisplayMemberPath = "Name", SelectedValuePath = "Key" };
+            var combo = new ComboBox { DisplayMemberPath = "DisplayName", SelectedValuePath = "Key" };
             combo.SelectionChanged += (_, _) => UpdateFixedMenuStatus();
             panel.Children.Add(combo);
             _fixed.Add(category, combo);
@@ -167,7 +172,7 @@ public partial class Menu_table : Page
             SaveStatus.Text = "주간 식단을 조합하는 중입니다…";
             var generated = await Task.Run(() => WeeklyMealPlanner.Generate(eligible, week, days, meals, age, catalog.Title, targets, fixedIds));
             _results = generated;
-            GridDietResult.ItemsSource = _results;
+            MealPresentation.Show(GridDietResult, _results.Select(m => new MealDisplayColumn($"{m.Date:M/d} ({m.Day})\n{m.Meal}", m.Items.Select(x => x.DisplayName).ToArray(), m.Calories)).ToList());
             await SaveAsync();
         }
         catch (Exception ex)
@@ -246,13 +251,13 @@ public partial class Menu_table : Page
         var week=WeeklyMealPlanner.Monday(WeekPicker.SelectedDate??DateTime.Today);string age=Age;
         WeekTitle.Text=$"{week:M월 d일} ~ {week.AddDays(6):M월 d일} 식단";
         GridDietResult.ItemsSource=null;
-        try { using var activity=AppActivity.Begin("저장된 한 주의 식단을 불러오는 중입니다…");var meals=await _service.GetStoredMealsAsync(week,age);if(version!=_weekVersion)return;GridDietResult.ItemsSource=meals; }
+        try { using var activity=AppActivity.Begin("저장된 한 주의 식단을 불러오는 중입니다…");var meals=await _service.GetStoredMealsAsync(week,age);if(version!=_weekVersion)return;var display=await _service.DisplayMealsAsync(meals);if(version!=_weekVersion)return;MealPresentation.Show(GridDietResult,display); }
         catch(Exception ex) { if(version==_weekVersion)SaveStatus.Text="주간 식단 조회 실패: "+ex.Message; }
     }
     private async void EditMeal_Click(object sender,RoutedEventArgs e)
     {
         if(_busy)return;
-        if(GridDietResult.SelectedItem is not StoredMeal meal){SaveStatus.Text="표에서 저장된 끼니를 선택해 주세요.";return;}
+        if(MealPresentation.Selected(GridDietResult) is not StoredMeal meal){SaveStatus.Text="표에서 저장된 끼니를 선택해 주세요.";return;}
         _busy=true;SettingsPanel.IsEnabled=false;
         try {
             using var activity=AppActivity.Begin("수정할 메뉴를 준비하는 중입니다…");
@@ -266,7 +271,7 @@ public partial class Menu_table : Page
     private async void DeleteMeal_Click(object sender,RoutedEventArgs e)
     {
         if(_busy)return;
-        if(GridDietResult.SelectedItem is not StoredMeal meal){SaveStatus.Text="표에서 삭제할 끼니를 선택해 주세요.";return;}
+        if(MealPresentation.Selected(GridDietResult) is not StoredMeal meal){SaveStatus.Text="표에서 삭제할 끼니를 선택해 주세요.";return;}
         if(MessageBox.Show($"{meal} 식단을 삭제할까요?", "식단 삭제",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
         _busy=true;SettingsPanel.IsEnabled=false;
         try{using var activity=AppActivity.Begin("식단을 삭제하는 중입니다…");await _service.ChangeStoredMealAsync(meal,null);await LoadWeekAsync();SaveStatus.Text="선택한 끼니를 삭제했습니다.";}

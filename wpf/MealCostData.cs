@@ -12,6 +12,10 @@ public sealed class RecipePortion
 public sealed class PortionIngredient { public string Name {get;set;}="";public decimal Amount {get;set;} public string Unit {get;set;}="g"; }
 public sealed class CostDraft
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? MenuLabel { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplayMenu => MenuLabel ?? MealPresentation.Label(Menu, null);
     public string Menu {get;set;}="";public string Name {get;set;}="";public string Category {get;set;}="";
     public string Amount {get;set;}="";public string Unit {get;set;}="g";public string Price {get;set;}="";
     public string PriceQuantity {get;set;}="1";public string PriceUnit {get;set;}="kg";public string Source {get;set;}="직접 입력";

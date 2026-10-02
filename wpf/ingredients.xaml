@@ -32,7 +32,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="btnSelectFile" Grid.Column="0" Content="📁 CSV 파일 선택" Click="btnSelectFile_Click"
-                        Height="40" Padding="15,0" Background="#EAF2EB" BorderThickness="0" 
+                        Height="Auto" Padding="15,0" Background="#EAF2EB" BorderThickness="0" 
                         Foreground="#416449" FontWeight="SemiBold" Margin="0,0,15,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -52,7 +52,7 @@
                 </TextBox>
 
                 <Button x:Name="btnUpload" Grid.Column="2" Content="📤 시트에 업로드" Click="btnUpload_Click"
-                        Height="40" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
+                        Height="Auto" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -84,7 +84,7 @@
                     </TextBox.Resources>
                 </TextBox>
                 <Button x:Name="btnCreateSheet" Content="➕ 시트 추가" Click="btnCreateSheet_Click"
-                        Height="40" Padding="12,0" Background="#416449" BorderThickness="0" 
+                        Height="Auto" Padding="12,0" Background="#416449" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold" Margin="0,0,25,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -109,7 +109,7 @@
         <Grid Grid.Row="3" Margin="0,0,0,20">
             <WrapPanel VerticalAlignment="Center">
                 <Button x:Name="btnAddRow" Content="➕ 행 추가" Click="btnAddRow_Click"
-                        Height="40" Padding="18,0" Background="#416449" BorderThickness="0" 
+                        Height="Auto" Padding="18,0" Background="#416449" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -119,7 +119,7 @@
                 </Button>
 
                 <Button x:Name="btnDeleteRow" Content="➖ 선택행 삭제" Click="btnDeleteRow_Click"
-                        Height="40" Padding="18,0" Background="#E53E3E" BorderThickness="0" 
+                        Height="Auto" Padding="18,0" Background="#E53E3E" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold" Margin="0,0,15,0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -129,7 +129,7 @@
                 </Button>
 
                 <Button x:Name="btnSaveChanges" Content="💾 변경사항 저장" Click="btnSaveChanges_Click"
-                        Height="40" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
+                        Height="Auto" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
                         Foreground="White" FontWeight="Bold">
                     <Button.Resources>
                         <Style TargetType="Border">

@@ -74,7 +74,8 @@ internal sealed class EntryHttp:HttpMessageHandler
             foreach(var values in doc.RootElement.GetProperty("values").EnumerateArray()) {var entry=values.EnumerateArray().Select(x=>x.ValueKind==JsonValueKind.Number?(object)x.GetDouble():x.ToString()).ToList();while(table.Count<=row)table.Add([]);table[row++]=entry;}
             body=new {};
         } else if(path.Contains("/values/")) {
-            if(path.Contains("내_트랙")||path.Contains("식수인원"))body=new{values=table};
+            if(path.Contains("최종사용자값반영"))body=new{values=new List<List<object>> { new(){"메뉴명","열량(kcal)","탄수화물(g)","단백질(g)","지방(g)"}, new(){"테스트밥",57,10,2,1} }};
+            else if(path.Contains("내_트랙")||path.Contains("식수인원"))body=new{values=table};
             else body=new{values=new List<List<object>>{GoogleSheetsService.PersonalTrackHeaders.Cast<object>().ToList(),new(){"","A-1","테스트밥","밥류","","","","","","",10,2,1,57}}};
         } else body=new {sheets=new[]{"식수인원","내_트랙A_레시피","내_트랙B_레시피",AppConfig.TrackASheetName,AppConfig.TrackBSheetName}.Select((title,i)=>new{properties=new{title,sheetId=i}})};
         return new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(JsonSerializer.Serialize(body),Encoding.UTF8,"application/json")};

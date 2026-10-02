@@ -398,11 +398,12 @@ namespace wpf
 
         public async Task<DashboardData> GetDashboardDataAsync()
         {
-            var meals = await GetSavedMealsAsync(DateTime.Today);
+            var stored = (await GetStoredMealsAsync(DateTime.Today)).Where(m => m.Date == DateTime.Today).ToList();
+            var meals = await DisplayMealsAsync(stored);
             return new DashboardData
             {
                 DietStatus = meals.Count == 0 ? "아직 작성되지 않음" : $"{meals.Count}끼 작성됨",
-                TodayMenu = meals.Select(m => m.Description).ToList()
+                TodayMenu = meals.Select(m => m.Header + "\n" + string.Join(", ", m.Menus)).ToList()
             };
         }
 

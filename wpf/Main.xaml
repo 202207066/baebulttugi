@@ -262,11 +262,11 @@
                                 <TextBlock x:Name="AccountEmail" FontSize="10" Foreground="#65836B" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
-                        <Button x:Name="BtnHelp" Style="{StaticResource GhostButton}" Content="? 도움말" Width="96"
+                        <Button x:Name="BtnHelp" Style="{StaticResource GhostButton}" Content="? 도움말" MinWidth="96"
                                 Click="BtnHelp_Click" Margin="0,0,16,0"
                                 ToolTip="처음 사용 안내와 화면 설명을 다시 봅니다"/>
 
-                        <Button x:Name="BtnLogout" Style="{StaticResource GhostButton}" Content="로그아웃" Width="108" Height="42" Padding="12,8"
+                        <Button x:Name="BtnLogout" Style="{StaticResource GhostButton}" Content="로그아웃" MinWidth="108" Height="Auto" Padding="12,8"
                                 FontSize="13" FontWeight="SemiBold" Click="BtnLogout_Click" Margin="0,0,16,0"
                                 ToolTip="이 PC에 저장된 구글 로그인 정보를 지웁니다"/>
 
@@ -362,7 +362,7 @@
 
                         <Grid Grid.Row="2" Margin="0,20,0,0">
                             <Button x:Name="BtnReplayTutorial" Content="처음 안내 다시 보기"
-                                    HorizontalAlignment="Left" Width="170"
+                                    HorizontalAlignment="Left" MinWidth="170"
                                     Click="BtnReplayTutorial_Click"/>
                             <Button x:Name="BtnCloseHelp" Content="닫기" Width="110"
                                     HorizontalAlignment="Right"

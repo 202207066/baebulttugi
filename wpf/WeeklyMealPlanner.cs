@@ -8,6 +8,8 @@ public record TrackMenu(string Id, string Name, string Category, string Allergen
 {
     // Track B restarts IDs in each section. Keep source IDs, but distinguish recipes.
     public override string ToString() => Name;
+    public double? DisplayCalories => Calories ?? (HasNutrition ? Energy : null);
+    public string DisplayName => Id.Length == 0 ? Name : MealPresentation.Label(Name, DisplayCalories);
     public string Key => $"{Id}:{Category}:{Name}";
     public bool HasNutrition => Carb.HasValue && Protein.HasValue && Fat.HasValue;
     public double Energy => Calories ?? (Carb!.Value * 4 + Protein!.Value * 4 + Fat!.Value * 9);

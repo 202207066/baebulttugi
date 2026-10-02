@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -15,6 +15,7 @@ public partial class CalculatePage : Page
     private List<IngredientCatalogItem> ingredientCatalog=[];
     private List<IngredientItem> result=[];
     private bool busy;
+    private readonly Dictionary<string,string[]> displayMenus = new();
     public CalculatePage(){InitializeComponent();Loaded+=async(_,_)=>await Load();}
     private void ClearResult(){result=[];if(dgCalculationResult==null)return;dgCalculationResult.ItemsSource=null;txtTotalCount.Text="재료 —";txtCostPerPerson.Text="1인당 —";txtTotalCost.Text="총 원가 —";}
     private void InputsChanged(object sender,TextChangedEventArgs e)=>ClearResult();
@@ -26,6 +27,7 @@ public partial class CalculatePage : Page
         using var activity=AppActivity.Begin("저장된 식단과 원가 자료를 불러오는 중입니다…");
         try {
             var meals=await service.GetStoredMealsAsync();
+            displayMenus.Clear(); foreach(var m in await service.DisplayMealsAsync(meals)) if(m.Stored != null) displayMenus[m.Stored.Identity] = m.Menus;
             cbTargetMenu.ItemsSource=meals.OrderByDescending(m=>m.Date).ToList();
             costs=await service.GetMealCostsAsync();
             personalKeys.Clear();
@@ -44,8 +46,10 @@ public partial class CalculatePage : Page
         if(cbTargetMenu.SelectedItem is not StoredMeal meal){CostInputs.ItemsSource=null;return;}
         try{
             drafts=new(MealCostData.Build(meal,costs,personalKeys.GetValueOrDefault(meal.AgeGroup.Length==0?"3-5":meal.AgeGroup)));
+            var labels = displayMenus.GetValueOrDefault(meal.Identity);
+            foreach(var draft in drafts) { int index = Array.IndexOf(meal.Menus, draft.Menu); if(labels != null && index >= 0) draft.MenuLabel = labels[index]; }
             drafts.CollectionChanged+=(_,_)=>ClearResult();CostInputs.ItemsSource=drafts;
-            MealSummary.Text=string.Join(" · ",meal.Menus.Where(n=>n.Length>0));
+            MealSummary.Text=string.Join(" · ",displayMenus.GetValueOrDefault(meal.Identity, meal.Menus.Select(n=>MealPresentation.Label(n,null)).ToArray()).Where(n=>n.Length>0));
             TxtDataStatus.Text=$"재료 {drafts.Count}행 · 단가 미입력 {drafts.Count(d=>d.Price.Length==0)}행. 재료·분량을 확인하고 구매 단가를 입력해 주세요.";
         }catch(Exception ex){TxtDataStatus.Text="레시피 연결 실패: "+ex.Message;}
     }

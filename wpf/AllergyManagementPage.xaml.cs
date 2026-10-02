@@ -409,9 +409,12 @@ namespace wpf
             try
             {
                 var meals = await _service.GetSavedMealsAsync(date);
+                var stored = (await _service.GetStoredMealsAsync(date)).Where(m => m.Date == date.Date).ToList();
+                var displays = await _service.DisplayMealsAsync(stored);
+                var labels = displays.SelectMany(m => m.Stored!.Menus.Select((n,i) => (Name:n, Label:m.Menus[i]))).GroupBy(x => x.Name).ToDictionary(g => g.Key, g => string.Join(" / ", g.Select(x=>x.Label).Distinct()));
                 if (version != _dailyLoadVersion) return;
                 _menuList = meals.SelectMany(m => m.Menus).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()
-                    .Select(n => new MenuModel { MenuName=n, ServingDate=date,
+                    .Select(n => new MenuModel { MenuName=n, DisplayLabel=labels.GetValueOrDefault(n), ServingDate=date,
                         Ingredients=_menuCatalog.TryGetValue(n, out var info) && !string.IsNullOrWhiteSpace(info) ? new List<string> { info } : new() }).ToList();
                 RefreshDailyMenuGrid();
                 BtnScanAllergy.IsEnabled = true;
@@ -532,6 +535,8 @@ namespace wpf
 
     public class MenuModel
     {
+        public string? DisplayLabel { get; set; }
+        public string DisplayName => DisplayLabel ?? MealPresentation.Label(MenuName, null);
         public string MenuName { get; set; } = string.Empty;
         public DateTime ServingDate { get; set; }
         public List<string> Ingredients { get; set; } = new List<string>();

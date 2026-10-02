@@ -1,4 +1,4 @@
-<Page x:Class="wpf.AllergyManagementPage"
+﻿<Page x:Class="wpf.AllergyManagementPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -134,16 +134,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <Button x:Name="BtnSavePatient" Grid.Row="4" Height="42" Background="#4A90E2" BorderThickness="0" Cursor="Hand">
-                                <Button.Resources>
-                                    <Style TargetType="Border">
-                                        <Setter Property="CornerRadius" Value="6"/>
-                                    </Style>
-                                </Button.Resources>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="💾 신규 피급식자 DB 등록" Foreground="White" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
+                            <Button x:Name="BtnSavePatient" Grid.Row="4" Style="{StaticResource PrimaryButton}" Height="Auto" MinHeight="46" Padding="18,10" HorizontalAlignment="Stretch" Content="신규 피급식자 등록"/>
                         </Grid>
                     </Border>
 
@@ -163,7 +154,7 @@
                                 <Border Grid.Column="0" Style="{StaticResource RoundedInputStyle}" Margin="0,0,8,0">
                                     <TextBox x:Name="TxtSearchPatient" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" Padding="8,0" Tag="검색할 피급식자 이름을 입력하세요..."/>
                                 </Border>
-                                <Button x:Name="BtnSearchPatient" Grid.Column="1" Content="🔍 검색" Width="80" Height="36" Background="#4A5568" Foreground="White" FontWeight="SemiBold" BorderThickness="0">
+                                <Button x:Name="BtnSearchPatient" Grid.Column="1" Content="🔍 검색" MinWidth="80" Height="Auto" Background="#4A5568" Foreground="White" FontWeight="SemiBold" BorderThickness="0">
                                     <Button.Resources>
                                         <Style TargetType="Border">
                                             <Setter Property="CornerRadius" Value="6"/>
@@ -208,14 +199,14 @@
                         </Border>
 
                         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button x:Name="BtnUpdatePatient" Content="✏️ 정보 수정" Width="110" Height="38" Background="#EDF2F7" Foreground="#4A5568" FontWeight="SemiBold" BorderThickness="0" Margin="0,0,8,0">
+                            <Button x:Name="BtnUpdatePatient" Content="✏️ 정보 수정" MinWidth="110" Height="Auto" Background="#EDF2F7" Foreground="#4A5568" FontWeight="SemiBold" BorderThickness="0" Margin="0,0,8,0">
                                 <Button.Resources>
                                     <Style TargetType="Border">
                                         <Setter Property="CornerRadius" Value="6"/>
                                     </Style>
                                 </Button.Resources>
                             </Button>
-                            <Button x:Name="BtnDeletePatient" Content="🗑️ 명단 삭제" Width="110" Height="38" Background="#FFF5F5" Foreground="#E53E3E" FontWeight="SemiBold" BorderThickness="0">
+                            <Button x:Name="BtnDeletePatient" Content="🗑️ 명단 삭제" MinWidth="110" Height="Auto" Background="#FFF5F5" Foreground="#E53E3E" FontWeight="SemiBold" BorderThickness="0">
                                 <Button.Resources>
                                     <Style TargetType="Border">
                                         <Setter Property="CornerRadius" Value="6"/>
@@ -280,12 +271,12 @@
                                         </Style>
                                     </DataGrid.Resources>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="메뉴명" Binding="{Binding MenuName}" Width="130"/>
+                                        <DataGridTextColumn Header="메뉴 · 열량" Binding="{Binding DisplayName}" Width="230"/>
                                         <DataGridTextColumn Header="포함 성분 정보" Binding="{Binding Ingredients}" Width="*"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <Border Grid.Row="2" Background="#F8FAFC" Padding="15,0">
-                                    <Button x:Name="BtnManualMenuInput" Content="➕ 식단 메뉴 수동 임의 입력" Height="34" Background="White" BorderBrush="#CBD5E0" Foreground="#4A5568" FontWeight="SemiBold" Padding="15,0" HorizontalAlignment="Left">
+                                    <Button x:Name="BtnManualMenuInput" Content="➕ 식단 메뉴 수동 임의 입력" Height="Auto" Background="White" BorderBrush="#CBD5E0" Foreground="#4A5568" FontWeight="SemiBold" Padding="15,0" HorizontalAlignment="Left">
                                         <Button.Resources>
                                             <Style TargetType="Border">
                                                 <Setter Property="CornerRadius" Value="4"/>
@@ -324,7 +315,7 @@
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <Border Grid.Row="2" Background="#F8FAFC" Padding="15,0">
-                                    <Button x:Name="BtnConfirmAlternativeMenu" Content="알레르기를 반영해 식단 만들기" Height="36" Background="#38A169" BorderThickness="0" Foreground="White" FontWeight="Bold" Padding="20,0" HorizontalAlignment="Right">
+                                    <Button x:Name="BtnConfirmAlternativeMenu" Content="알레르기를 반영해 식단 만들기" Height="Auto" Background="#38A169" BorderThickness="0" Foreground="White" FontWeight="Bold" Padding="20,0" HorizontalAlignment="Right">
                                         <Button.Resources>
                                             <Style TargetType="Border">
                                                 <Setter Property="CornerRadius" Value="4"/>

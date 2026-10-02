@@ -38,6 +38,7 @@ public static class NutritionProfiles
     ];
 
     public static NutritionProfile Get(string ageBand, string sex) =>
-        All.FirstOrDefault(p => p.AgeBand == ageBand && (p.Sex == sex || p.Sex == "공통"))
+        All.FirstOrDefault(p => p.AgeBand == ageBand && p.Sex == sex)
+        ?? All.FirstOrDefault(p => p.AgeBand == ageBand && p.Sex == "공통")
         ?? throw new InvalidOperationException("선택한 성별·연령의 영양 기준을 찾지 못했습니다.");
 }

@@ -38,11 +38,15 @@ namespace wpf
         private DateTime? _requestedDate;
         private bool _calendarReady;
         private readonly HashSet<DateTime> _eventDates = new();
+        private readonly HashSet<DateTime> _mealDates = new();
+        private readonly Dictionary<DateTime,string> _eventIcons = new();
+        private static readonly string[] EventIcons = ["📌", "🎉", "🎂", "🍁", "🎄", "⭐"];
 
         public EventCalendar()
         {
             InitializeComponent();
 
+            EventIconPicker.ItemsSource = EventIcons; EventIconPicker.Text = "📌";
             // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
             _service = AppServices.Require();
             sheetsService = _service.Sheets;
@@ -187,9 +191,12 @@ namespace wpf
 
             try
             {
-                var meals = await _service.GetSavedMealsAsync(selectedDate);
+                var allMeals = await _service.GetStoredMealsAsync();
+                if (version != _viewVersion) return;
+                _mealDates.Clear(); _mealDates.UnionWith(allMeals.Select(m => m.Date.Date));
+                var meals = await _service.DisplayMealsAsync(allMeals.Where(m => m.Date.Date == selectedDate.Date).ToList());
                 if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
-                lstTodayMeals.ItemsSource = meals.Count == 0 ? new[] { "아직 식단이 작성되지 않았습니다." } : meals.Select(m => m.Description).ToList();
+                lstTodayMeals.ItemsSource = meals.Count == 0 ? new[] { "아직 식단이 작성되지 않았습니다." } : meals.Select(m => m.Header + "\n" + string.Join("\n", m.Menus) + "\n합계: " + (m.Calories.HasValue ? $"{m.Calories:0.#} kcal" : "열량 미확인")).ToList();
                 BtnCreateMeal.Content = meals.Count == 0 ? "식단 만들기" : "이 주의 식단 다시 만들기";
                 // 탭이 없으면 헤더까지 갖춰 자동으로 만듭니다.
                 SheetName = await _service.EnsureEventSheetAsync();
@@ -203,6 +210,13 @@ namespace wpf
                 var eventDates = new HashSet<DateTime>();
                 if(values!=null)foreach(var eventRow in values)if(eventRow.Count>1 && !string.IsNullOrWhiteSpace(eventRow[1]?.ToString()) && DateTime.TryParse(eventRow[0]?.ToString(),out var eventDate))eventDates.Add(eventDate.Date);
                 _eventDates.Clear();_eventDates.UnionWith(eventDates);
+                _eventIcons.Clear();
+                if(values != null) foreach(var row in values) if(row.Count > 1 && DateTime.TryParse(row[0]?.ToString(), out var day) && !string.IsNullOrWhiteSpace(row[1]?.ToString())) {
+                    var content = row[1]?.ToString() ?? "";
+                    var icon = EventIconText.LeadingIcon(content) is string parsed && parsed.Length > 0 ? parsed : "📌";
+                    if(!_eventIcons.ContainsKey(day.Date)) _eventIcons[day.Date] = icon;
+                    else if(!_eventIcons[day.Date].Contains(icon)) _eventIcons[day.Date] += icon;
+                }
                 PaintDates();
                 var foundEvents = new List<GoogleSheetRow>();
 
@@ -248,7 +262,8 @@ namespace wpf
             foreach(var day in Descendants<System.Windows.Controls.Primitives.CalendarDayButton>(MainCalendar)) {
                 if(day.DataContext is not DateTime date)continue;
                 string? holiday=holidayCache.GetValueOrDefault(date.ToString("yyyyMMdd")) ?? CalendarDates.Holidays(date.Year).GetValueOrDefault(date.Date);
-                var mark=CalendarDates.Mark(date,holiday,_eventDates.Contains(date.Date));
+                var mark=CalendarDates.Mark(date,holiday,_eventDates.Contains(date.Date)) with { HasMeal = _mealDates.Contains(date.Date), ConnectPrevious = date.DayOfWeek != DayOfWeek.Sunday && _mealDates.Contains(date.Date.AddDays(-1)), ConnectNext = date.DayOfWeek != DayOfWeek.Saturday && _mealDates.Contains(date.Date.AddDays(1)), EventIcon = _eventIcons.GetValueOrDefault(date.Date, "") };
+                if(mark.HasMeal) mark = mark with { Label = mark.Label + " · 식단 작성됨" };
                 if(Equals(day.Tag,mark))continue;
                 day.Tag=mark;day.ToolTip=mark.Label;
                 System.Windows.Automation.AutomationProperties.SetName(day,mark.Label);
@@ -281,7 +296,10 @@ namespace wpf
         {
             if (lstEvents.SelectedItem != null)
             {
-                txtEventInput.Text = lstEvents.SelectedItem.ToString();
+                var text = lstEvents.SelectedItem.ToString() ?? "";
+                var icon = EventIconText.LeadingIcon(text);
+                EventIconPicker.Text = icon.Length > 0 ? icon : "📌";
+                txtEventInput.Text = icon.Length == 0 ? text : text[icon.Length..].TrimStart();
             }
         }
 
@@ -303,7 +321,7 @@ namespace wpf
                 string range = $"'{SheetName}'!A:B";
 
                 var valueRange = new ValueRange();
-                var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), newEvent };
+                var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), EventIconText.Compose(EventIconPicker.Text, newEvent) };
                 valueRange.Values = new List<IList<object>> { objectList };
 
                 var appendRequest = sheetsService.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
@@ -337,7 +355,7 @@ namespace wpf
 
                 string range = $"'{SheetName}'!B{targetRowIndex}";
                 var valueRange = new ValueRange();
-                valueRange.Values = new List<IList<object>> { new List<object> { updatedEvent } };
+                valueRange.Values = new List<IList<object>> { new List<object> { EventIconText.Compose(EventIconPicker.Text, updatedEvent) } };
 
                 var updateRequest = sheetsService.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
                 updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
