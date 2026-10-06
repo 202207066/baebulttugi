@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Globalization;
 namespace wpf;
@@ -17,7 +17,7 @@ public partial class MenuInputPage : Page
     private void Filter(){if(MenuGrid!=null)MenuGrid.ItemsSource=menus.Where(m=>m.Name.Contains(SearchBox.Text.Trim(),StringComparison.OrdinalIgnoreCase)).ToList();}
     private void SearchChanged(object sender,TextChangedEventArgs e)=>Filter();
     private void MenuSelected(object sender,SelectionChangedEventArgs e){if(MenuGrid.SelectedItem is not TrackMenu m)return;selected=m;NameBox.Text=m.Name;CategoryBox.SelectedItem=m.Category;AllergyBox.Text=m.Allergens;CarbBox.Text=m.Carb?.ToString(CultureInfo.InvariantCulture)??"";ProteinBox.Text=m.Protein?.ToString(CultureInfo.InvariantCulture)??"";FatBox.Text=m.Fat?.ToString(CultureInfo.InvariantCulture)??"";EnergyBox.Text=m.Calories?.ToString(CultureInfo.InvariantCulture)??"";SourceBox.Text=m.Source;IngredientsBox.Text=ingredients.GetValueOrDefault(m.Key,"");}
-    private void Clear(){selected=null;MenuGrid.SelectedItem=null;foreach(var box in new[]{NameBox,AllergyBox,CarbBox,ProteinBox,FatBox,EnergyBox,IngredientsBox,SourceBox})box.Clear();CategoryBox.SelectedIndex=0;}
+    private void Clear(){selected=null;MenuGrid.SelectedItem=null;foreach(var box in new[]{NameBox,CarbBox,ProteinBox,FatBox,EnergyBox,IngredientsBox,SourceBox})box.Clear(); AllergyBox.Clear();CategoryBox.SelectedIndex=0;}
     private void NewClick(object sender,RoutedEventArgs e)=>Clear();
     private async void RefreshClick(object sender,RoutedEventArgs e){if(!busy)await Load(true);}
     private async void SaveClick(object sender,RoutedEventArgs e){if(busy)return;busy=true;Root.IsEnabled=false;try{

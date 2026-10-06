@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -46,7 +46,7 @@ namespace wpf
         {
             InitializeComponent();
 
-            EventIconPicker.ItemsSource = EventIcons; EventIconPicker.Text = "📌";
+            EventIconPicker.Text = "📌";
             // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
             _service = AppServices.Require();
             sheetsService = _service.Sheets;
@@ -148,7 +148,7 @@ namespace wpf
             int version = ++_viewVersion;
             DateTime? requestedDate = selectedOverride?.Date ?? MainCalendar.SelectedDate?.Date;
             using var activity = AppActivity.Begin("선택한 날짜의 식단과 일정을 확인하는 중입니다…");
-            txtEventInput.Clear();
+            txtEventInput.Text = "";
 
             if (!MainCalendar.SelectedDate.HasValue)
             {

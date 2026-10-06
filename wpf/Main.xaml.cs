@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -428,22 +428,26 @@ namespace wpf
         {
             ListBoxItem item = new ListBoxItem { Margin = new Thickness(0, 0, 0, 12), Padding = new Thickness(0) };
             // The list container must not draw a full-width hover/selection rectangle.
-            item.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+            item.HorizontalContentAlignment = HorizontalAlignment.Left;
+            item.HorizontalAlignment = HorizontalAlignment.Left;
             var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
             presenter.SetBinding(ContentPresenter.ContentProperty, new System.Windows.Data.Binding("Content") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
             item.Template = new ControlTemplate(typeof(ListBoxItem)) { VisualTree = presenter };
-            Border border = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFF5F5")), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FED7D7")), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(15), MaxWidth = 580 };
+            Border border = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFF5F5")), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FED7D7")), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(15), MaxWidth = 580, HorizontalAlignment = HorizontalAlignment.Left };
             StackPanel mainStack = new StackPanel();
 
             StackPanel headerStack = new StackPanel();
-            Border labelTag = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2E7D32")), CornerRadius = new CornerRadius(3), Padding = new Thickness(6, 2, 6, 2), Child = new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White } };
+            Border labelTag = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2E7D32")), HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(3), Padding = new Thickness(6, 2, 6, 2), Child = new TextBlock { Text = label, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White } };
             headerStack.Children.Add(labelTag);
             string names = patients.Count == 0 ? label : string.Join(", ", patients.Take(5).Select(p => p.Name));
             headerStack.Children.Add(new TextBlock { Text = patients.Count == 0 ? names : $"대상자 {patients.Count}명: {names}", TextWrapping = TextWrapping.Wrap, FontSize = 13, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 0) });
             mainStack.Children.Add(headerStack);
 
             StackPanel detailsStack = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-            detailsStack.Children.Add(new TextBlock { Text = defaultMenu, TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#718096")) });
+            var menuDetails = new TextBlock { Text = defaultMenu, TextWrapping = TextWrapping.Wrap, FontSize = 12, Visibility = Visibility.Collapsed };
+            var showDetails = new Button { Content = "기본 식단 보기", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(8,4,8,4), Margin = new Thickness(0,6,0,0) };
+            showDetails.Click += (_,_) => { menuDetails.Visibility = menuDetails.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; showDetails.Content = menuDetails.Visibility == Visibility.Visible ? "기본 식단 접기" : "기본 식단 보기"; };
+            detailsStack.Children.Add(showDetails); detailsStack.Children.Add(menuDetails);
             detailsStack.Children.Add(new TextBlock { Text = alternativeMenu, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#38A169")) });
             mainStack.Children.Add(detailsStack);
 

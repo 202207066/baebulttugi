@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 
 namespace wpf;
@@ -241,6 +241,32 @@ public partial class Menu_table : Page
         FixedMenuStatus.Text = $"선택 {selected.Count}/6개 · {kcal:N0} kcal ({kcal-targets.Calories!.Value:+0.0;-0.0;0.0}) · 탄수 {carb:N1} g ({carb-targets.Carb:+0.0;-0.0;0.0}) · 단백질 {protein:N1} g ({protein-targets.Protein:+0.0;-0.0;0.0}) · 지방 {fat:N1} g ({fat-targets.Fat:+0.0;-0.0;0.0}) · {costText}";
     }
     private void TargetCostChanged(object sender, TextChangedEventArgs e) => UpdateFixedMenuStatus();
+
+    private async void ExportPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var week = WeeklyMealPlanner.Monday(WeekPicker.SelectedDate ?? DateTime.Today);
+            var age = Age;
+            var facility = _service.CurrentFacility?.Name ?? "우리 급식소";
+            using var activity = AppActivity.Begin("저장된 식단으로 PDF를 만드는 중입니다…");
+            var meals = await _service.GetStoredMealsAsync(week, age);
+            if (meals.Count == 0) { SaveStatus.Text = "선택한 주에 저장된 식단이 없습니다. 식단을 저장한 뒤 PDF를 만들어 주세요."; return; }
+            var display = await _service.DisplayMealsAsync(meals);
+            var cooking = await _service.GetCookingMethodsAsync();
+            var catalog = await _service.GetTrackCatalogAsync(age);
+            var allergens = catalog.Menus.GroupBy(m=>CookingMethods.Key(m.Name)).ToDictionary(g=>g.Key,g=>string.Join(", ",g.Select(m=>m.Allergens).Where(a=>a.Length>0).Distinct()));
+            var dialog = new Microsoft.Win32.SaveFileDialog { Filter="PDF 문서 (*.pdf)|*.pdf", DefaultExt=".pdf", FileName=$"식단표_{week:yyyy-MM-dd}_{age}세.pdf" };
+            if(dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+            MealPlanPdf.Save(dialog.FileName, facility, week, display, cooking, allergens);
+            SaveStatus.Text = "PDF를 저장했습니다: " + dialog.FileName;
+            MessageBox.Show(Window.GetWindow(this), "식단표 PDF를 저장했습니다. PDF 뷰어에서 열어 인쇄할 수 있습니다.", "PDF 저장 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch(Exception ex) { SaveStatus.Text="PDF를 만들지 못했습니다: "+ex.Message; }
+        finally { _busy=false; }
+    }
 
     private int _weekVersion;
     private async void WeekChanged(object? sender, SelectionChangedEventArgs e) { if (_ready && !_busy) await LoadWeekAsync(); }

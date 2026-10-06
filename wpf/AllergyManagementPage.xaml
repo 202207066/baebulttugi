@@ -1,4 +1,4 @@
-﻿<Page x:Class="wpf.AllergyManagementPage"
+<Page x:Class="wpf.AllergyManagementPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -103,26 +103,32 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="🛡️ 식약처 지정 알러지 유발 물질" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,6" FontSize="13"/>
+                                <TextBlock Grid.Row="0" Text="🛡️ 식약처 지정 알레르기 유발 물질" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,6" FontSize="13"/>
                                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                                     <WrapPanel Orientation="Horizontal" ItemWidth="110" ItemHeight="30" Margin="0,5,0,0">
-                                        <CheckBox Content="우유" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="달걀" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="땅콩" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="대두" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="밀" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="조개류" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="새우" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="게" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="고등어" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="굴" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="복숭아" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="호두" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="아몬드" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="참깨" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="소고기" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="닭고기" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Content="콩류(기타)" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="달걀" Content="1. 난류" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="우유" Content="2. 우유" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="메밀" Content="3. 메밀" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="땅콩" Content="4. 땅콩" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="대두" Content="5. 대두" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="밀" Content="6. 밀" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="고등어" Content="7. 고등어" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="게" Content="8. 게" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="새우" Content="9. 새우" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="돼지고기" Content="10. 돼지고기" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="복숭아" Content="11. 복숭아" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="토마토" Content="12. 토마토" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="아황산류" Content="13. 아황산류" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="호두" Content="14. 호두" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="닭고기" Content="15. 닭고기" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="소고기" Content="16. 쇠고기" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="오징어" Content="17. 오징어" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="조개류" Content="18. 조개류" ToolTip="굴·전복·홍합을 포함합니다." Margin="0,2" Foreground="#2D3748"/>
+                                        
+                                        <CheckBox Tag="잣" Content="19. 잣" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="아몬드" Content="기타 · 아몬드" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="참깨" Content="기타 · 참깨" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="콩류(기타)" Content="기타 · 콩류(기타)" Margin="0,2" Foreground="#2D3748"/>
                                     </WrapPanel>
                                 </ScrollViewer>
                             </Grid>
@@ -165,7 +171,7 @@
                         </Border>
 
                         <Border Grid.Row="1" Style="{StaticResource ModernCardStyle}" Padding="0" Margin="0,0,0,15" ClipToBounds="True">
-                            <DataGrid x:Name="DgPatients" AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" BorderThickness="0" Background="White" RowHeight="40" ColumnHeaderHeight="40">
+                            <DataGrid IsReadOnly="True" CanUserDeleteRows="False" x:Name="DgPatients" AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" BorderThickness="0" Background="White" RowHeight="40" ColumnHeaderHeight="40">
                                 <DataGrid.Resources>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="Background" Value="#F7FAFC"/>
@@ -189,11 +195,11 @@
                                     </Style>
                                 </DataGrid.Resources>
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
-                                    <DataGridTextColumn Header="이름" Binding="{Binding Name}" Width="100"/>
-                                    <DataGridTextColumn Header="분류" Binding="{Binding Category}" Width="100"/>
-                                    <DataGridTextColumn Header="특이 알러지 성분" Binding="{Binding Allergies}" Width="160"/>
-                                    <DataGridTextColumn Header="메모" Binding="{Binding Note}" Width="*"/>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id, Mode=OneWay}" Width="60"/>
+                                    <DataGridTextColumn Header="이름" Binding="{Binding Name, Mode=OneWay}" Width="100"/>
+                                    <DataGridTextColumn Header="분류" Binding="{Binding Category, Mode=OneWay}" Width="100"/>
+                                    <DataGridTextColumn Header="특이 알러지 성분" Binding="{Binding Allergies, Mode=OneWay}" Width="160"/>
+                                    <DataGridTextColumn Header="메모" Binding="{Binding Note, Mode=OneWay}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Border>
@@ -259,7 +265,7 @@
                                 <Border Grid.Row="0" Background="#F7FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="20,0">
                                     <TextBlock Text="📋 당일 식단 메뉴 성분표" FontWeight="Bold" Foreground="#2D3748" VerticalAlignment="Center" FontSize="14"/>
                                 </Border>
-                                <DataGrid x:Name="DgDailyMenu" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" BorderThickness="0" Background="White" RowHeight="38" ColumnHeaderHeight="38">
+                                <DataGrid IsReadOnly="True" CanUserDeleteRows="False" x:Name="DgDailyMenu" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" BorderThickness="0" Background="White" RowHeight="38" ColumnHeaderHeight="38">
                                     <DataGrid.Resources>
                                         <Style TargetType="DataGridColumnHeader">
                                             <Setter Property="Background" Value="#FFFFFF"/>
@@ -271,8 +277,8 @@
                                         </Style>
                                     </DataGrid.Resources>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="메뉴 · 열량" Binding="{Binding DisplayName}" Width="230"/>
-                                        <DataGridTextColumn Header="포함 성분 정보" Binding="{Binding Ingredients}" Width="*"/>
+                                        <DataGridTextColumn Header="메뉴 · 열량" Binding="{Binding DisplayName, Mode=OneWay}" Width="230"/>
+                                        <DataGridTextColumn Header="포함 성분 정보" Binding="{Binding Ingredients, Mode=OneWay}" Width="*"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <Border Grid.Row="2" Background="#F8FAFC" Padding="15,0">
@@ -297,7 +303,7 @@
                                 <Border Grid.Row="0" Background="#FFF5F5" BorderBrush="#FED7D7" BorderThickness="0,0,0,1" Padding="20,0">
                                     <TextBlock Text="⚠️ 알러지 자동 추출 및 대체 메뉴 매칭 제안" FontWeight="Bold" Foreground="#C53030" VerticalAlignment="Center" FontSize="14"/>
                                 </Border>
-                                <DataGrid x:Name="DgAllergicMatches" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" BorderThickness="0" Background="White" RowHeight="38" ColumnHeaderHeight="38">
+                                <DataGrid IsReadOnly="True" CanUserDeleteRows="False" x:Name="DgAllergicMatches" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" BorderThickness="0" Background="White" RowHeight="38" ColumnHeaderHeight="38">
                                     <DataGrid.Resources>
                                         <Style TargetType="DataGridColumnHeader">
                                             <Setter Property="Background" Value="#FFFFFF"/>
@@ -309,9 +315,9 @@
                                         </Style>
                                     </DataGrid.Resources>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="위험 대상자" Binding="{Binding PatientName}" Width="100"/>
-                                        <DataGridTextColumn Header="제한 물질" Binding="{Binding RiskIngredients}" Width="120"/>
-                                        <DataGridTextColumn Header="💡 제안하는 대체 메뉴" Binding="{Binding SuggestedAlternative}" Width="*"/>
+                                        <DataGridTextColumn Header="위험 대상자" Binding="{Binding PatientName, Mode=OneWay}" Width="100"/>
+                                        <DataGridTextColumn Header="제한 물질" Binding="{Binding RiskIngredients, Mode=OneWay}" Width="120"/>
+                                        <DataGridTextColumn Header="💡 제안하는 대체 메뉴" Binding="{Binding SuggestedAlternative, Mode=OneWay}" Width="*"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <Border Grid.Row="2" Background="#F8FAFC" Padding="15,0">

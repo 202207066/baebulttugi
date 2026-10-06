@@ -157,8 +157,11 @@ namespace wpf
                 {
                     if (child != null && child.Content != null)
                     {
-                        string checkBoxName = child.Content.ToString()!;
-                        child.IsChecked = allergyList.Contains(checkBoxName);
+                        string checkBoxName = (child.Tag ?? child.Content).ToString()!;
+                        child.IsChecked = allergyList.Contains(checkBoxName)
+                            || (checkBoxName == "달걀" && allergyList.Overlaps(new[] { "난류", "계란" }))
+                            || (checkBoxName == "소고기" && allergyList.Contains("쇠고기"))
+                            || (checkBoxName == "조개류" && allergyList.Overlaps(new[] { "굴", "전복", "홍합" }));
                     }
                 }
             }
@@ -184,7 +187,7 @@ namespace wpf
                 {
                     if (child?.IsChecked == true && child.Content != null)
                     {
-                        selectedAllergies.Add(child.Content.ToString() ?? "");
+                        selectedAllergies.Add((child.Tag ?? child.Content).ToString() ?? "");
                     }
                 }
             }
@@ -242,7 +245,7 @@ namespace wpf
                     {
                         if (child?.IsChecked == true && child.Content != null)
                         {
-                            updatedAllergies.Add(child.Content.ToString() ?? "");
+                            updatedAllergies.Add((child.Tag ?? child.Content).ToString() ?? "");
                         }
                     }
                 }
@@ -434,7 +437,7 @@ namespace wpf
 
             DgDailyMenu.ItemsSource = filteredMenus.Select(m => new
             {
-                m.MenuName,
+                m.DisplayName,
                 Ingredients = string.Join(", ", m.Ingredients)
             }).ToList();
         }
