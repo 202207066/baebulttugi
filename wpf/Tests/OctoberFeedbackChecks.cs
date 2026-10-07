@@ -99,11 +99,14 @@ internal static class OctoberFeedbackChecks
         Check(methods.ContainsKey(CookingMethods.Key("현미밥"))&&!methods.ContainsKey(CookingMethods.Key("현미죽")),"Cooking matches whitespace differences without substituting different dishes");
         var recipePages=MealPlanPdf.CreatePages("검증용 급식소",first.Date,printMeals,methods);
         MealPlanPdf.Save(System.IO.Path.Combine(folder,"weekly-recipes.pdf"),"검증용 급식소",first.Date,printMeals,methods);
+        foreach(var page in recipePages){page.Measure(new Size(MealPlanPdf.Width,MealPlanPdf.Height));page.Arrange(new Rect(0,0,MealPlanPdf.Width,MealPlanPdf.Height));page.UpdateLayout();}
+        Check(!Descendants<TextBlock>(recipePages[0]).Any(t=>t.Text.Contains("조리방법")),"Meal page never includes recipes");
+        Check(recipePages.Count>1 && Descendants<TextBlock>(recipePages[1]).Any(t=>t.Text.Contains("조리방법")),"Recipes start on page two");
         var longMethod=string.Concat(Enumerable.Repeat("재료를 손질하고 충분히 익혀 제공합니다. ",600));
         var longPages=MealPlanPdf.CreatePages("검증",first.Date,printMeals,new Dictionary<string,string>{{CookingMethods.Key("현미밥"),longMethod}});
         Check(longPages.Count>1,"Long cooking methods continue onto extra pages");
         foreach(var page in longPages){page.Measure(new Size(MealPlanPdf.Width,MealPlanPdf.Height));page.Arrange(new Rect(0,0,MealPlanPdf.Width,MealPlanPdf.Height));page.UpdateLayout();}
-        var allText=string.Concat(longPages.SelectMany(p=>Descendants<TextBlock>(p)).Where(t=>System.Windows.Media.VisualTreeHelper.GetParent(t) is Border b && b.Padding.Left==12).Select(t=>t.Text).Where(t=>t.StartsWith("현미밥\n")||t.StartsWith("현미밥 (계속)\n")).Select(t=>t[(t.IndexOf('\n')+1)..]));
+        var allText=string.Concat(longPages.SelectMany(p=>Descendants<TextBlock>(p)).Where(t=>System.Windows.Media.VisualTreeHelper.GetParent(t) is Border b && b.Padding.Left==12 && t.Inlines.FirstInline is System.Windows.Documents.Run title && (title.Text=="현미밥" || title.Text=="현미밥 (계속)")).Select(t=>string.Concat(t.Inlines.OfType<System.Windows.Documents.Run>().Skip(1).Select(r=>r.Text))[1..]));
         Check(allText==longMethod,"Cooking pagination retains the complete instructions");
         var pages=MealPlanPdf.CreatePages("검증용 급식소",first.Date,printMeals);
         Check(pages.Count==1,"Weekly lunch PDF fits one A4 page");

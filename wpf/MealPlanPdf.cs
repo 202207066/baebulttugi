@@ -19,10 +19,10 @@ public static class MealPlanPdf
     static readonly Brush Line=new SolidColorBrush(Color.FromRgb(159,193,205));
     static readonly Brush Tint=new SolidColorBrush(Color.FromRgb(222,236,241));
     static TextBlock Text(string value,double size=17,bool bold=false) => new() {Text=value,FontSize=size,FontFamily=new FontFamily("Malgun Gothic"),Foreground=Ink,FontWeight=bold?FontWeights.Bold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap};
-    static Border Cell(string value,bool heading=false) => new() {Padding=new Thickness(6),BorderBrush=Line,BorderThickness=new Thickness(0,0,1,1),Background=heading?Tint:Brushes.White,Child=new TextBlock {Text=value,FontFamily=new FontFamily("Malgun Gothic"),Foreground=Ink,FontSize=heading?17:16,FontWeight=heading?FontWeights.Bold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center}};
-    static Grid Row(string label,IEnumerable<string> values,bool heading=false)
+    static Border Cell(string value,bool heading=false) => new() {Padding=new Thickness(6),BorderBrush=Line,BorderThickness=new Thickness(0,0,1,1),Background=heading?Tint:Brushes.White,Child=new TextBlock {Text=value,FontFamily=new FontFamily("Malgun Gothic"),Foreground=Ink,FontSize=heading?17:17,VerticalAlignment=VerticalAlignment.Center,LineHeight=26,FontWeight=heading?FontWeights.Bold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center}};
+    static Grid Row(string label,IEnumerable<string> values,bool heading=false,double minHeight=0)
     {
-        var grid=new Grid {Width=Inner};grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(80)});
+        var grid=new Grid {Width=Inner,MinHeight=minHeight};grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(80)});
         for(int i=0;i<7;i++)grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength((Inner-80)/7)});
         grid.Children.Add(Cell(label,true));int col=1;
         foreach(string value in values) {var cell=Cell(value,heading);Grid.SetColumn(cell,col++);grid.Children.Add(cell);}
@@ -63,8 +63,17 @@ public static class MealPlanPdf
             foreach(var group in age.GroupBy(x=>x.Stored!.Meal).OrderBy(g=>g.Key=="조식"?0:g.Key=="중식"?1:g.Key=="석식"?2:3))
             {
                 string[] PerDay(Func<MealDisplayColumn,string> display)=>Enumerable.Range(0,7).Select(i=>string.Join("\n",group.Where(x=>x.Stored!.Date==week.AddDays(i)).Select(display))).Select(x=>x.Length==0?"-":x).ToArray();
-                string Menu(MealDisplayColumn meal)=>string.Join("\n",meal.Stored!.Menus.Where(n=>n.Length>0).Select(n=>n+(allergens?.TryGetValue(CookingMethods.Key(n),out var code)==true && AllergyCodes(code).Length>0?" ("+AllergyCodes(code)+")":"")));
-                Add(Row(group.Key switch {"조식"=>"아침","중식"=>"점심","석식"=>"저녁",_=>group.Key},PerDay(Menu)));
+                string mealLabel=group.Key switch {"조식"=>"아침","중식"=>"점심","석식"=>"저녁",_=>group.Key};
+                string[] categories=["밥류","국류","주찬","부찬","김치","후식"];
+                for(int menuIndex=0;menuIndex<6;menuIndex++)
+                {
+                    string Menu(MealDisplayColumn meal)
+                    {
+                        string n=meal.Stored!.Menus.ElementAtOrDefault(menuIndex)??"";
+                        return n+(allergens?.TryGetValue(CookingMethods.Key(n),out var code)==true && AllergyCodes(code).Length>0?" ("+AllergyCodes(code)+")":"");
+                    }
+                    Add(Row(mealLabel+"\n"+categories[menuIndex],PerDay(Menu),minHeight:age.Select(x=>x.Stored!.Meal).Distinct().Count()==1?90:48));
+                }
                 Add(Row("열량\n탄·단·지",PerDay(d=>N(d.Calories,"kcal")+"\n"+N(d.Stored!.Carb,"g")+" / "+N(d.Stored.Protein,"g")+" / "+N(d.Stored.Fat,"g"))));
             }
             var legend=Text("알레르기: "+string.Join(" · ",AllergenPicker.Names.Select((n,i)=>$"{i+1} {n}"))+"\n코드가 비어 있는 메뉴는 알레르기 없음이 아니라 확인이 필요한 항목입니다.",12);legend.Margin=new Thickness(0,10,0,14);Add(legend);
@@ -79,7 +88,7 @@ public static class MealPlanPdf
                 Add(Text("자료: test 구글 시트 · 조리방법 | 메뉴명 일치 기준 · 반복 메뉴는 한 번만 표시",12),true);
                 foreach(var name in age.SelectMany(m=>m.Stored!.Menus).Where(n=>n.Length>0).DistinctBy(CookingMethods.Key))
                 {
-                    string method=cooking.GetValueOrDefault(CookingMethods.Key(name),"조리방법 미등록 · 자료에서 일치하는 메뉴를 찾지 못했습니다.");
+                    if(!cooking.TryGetValue(CookingMethods.Key(name),out string? method) || string.IsNullOrWhiteSpace(method))continue;
                     // Split long methods by measured character ranges, preserving every character.
                     bool continued=false;
                     while(method.Length>0)
@@ -100,6 +109,11 @@ public static class MealPlanPdf
                         if(best<method.Length&&char.IsHighSurrogate(method[best-1]))best--;
                         Add(Block(best),true);method=method[best..];continued=true;
                     }
+                }
+                var missing=age.SelectMany(m=>m.Stored!.Menus).Where(n=>n.Length>0 && (!cooking.TryGetValue(CookingMethods.Key(n),out var method)||string.IsNullOrWhiteSpace(method))).DistinctBy(CookingMethods.Key).ToArray();
+                if(missing.Length>0)
+                {
+                    var note=Text("조리방법 미등록\n"+string.Join(" · ",missing),14);note.Margin=new Thickness(0,20,0,0);Add(note,true);
                 }
             }
         }
