@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using wpf;
 internal static class OctoberFeedbackChecks
@@ -102,6 +102,17 @@ internal static class OctoberFeedbackChecks
         foreach(var page in recipePages){page.Measure(new Size(MealPlanPdf.Width,MealPlanPdf.Height));page.Arrange(new Rect(0,0,MealPlanPdf.Width,MealPlanPdf.Height));page.UpdateLayout();}
         Check(!Descendants<TextBlock>(recipePages[0]).Any(t=>t.Text.Contains("조리방법")),"Meal page never includes recipes");
         Check(recipePages.Count>1 && Descendants<TextBlock>(recipePages[1]).Any(t=>t.Text.Contains("조리방법")),"Recipes start on page two");
+        var mealText=Descendants<TextBlock>(recipePages[0]).ToList();
+        Check(mealText.Any(t=>t.Text=="중식")&&!mealText.Any(t=>t.Text.Contains("밥류")),"PDF groups menus into meal rows without category rows");
+        Check(mealText.Any(t=>t.Text.Contains("현미밥")&&t.Text.Contains("사과")&&t.Text.Contains("475 kcal")&&t.Text.Contains("탄 65 g")),"Meal cell contains all menus and nutrition");
+        var metadata=mealText.Single(t=>t.Text.StartsWith("발행:"));
+        Check(metadata.TransformToAncestor(recipePages[0]).Transform(new Point()).Y>1450,"Publisher metadata is in the bottom footer");
+        var recipeText=recipePages.Skip(1).SelectMany(p=>Descendants<TextBlock>(p)).ToList();
+        Check(Enumerable.Range(0,5).All(i=>recipeText.Any(t=>t.Text==$"10월 {5+i}일 ({"월화수목금"[i]}) · 중식")),"Recipes identify each date and actual weekday");
+        Check(recipeText.Count(t=>t.Inlines.FirstInline is System.Windows.Documents.Run r&&r.Text=="배추김치")==3,"Repeated recipes remain available under each relevant date");
+        var fullMeals=new[]{"조식","중식","석식"}.SelectMany(meal=>printMeals.Select(m=>m with {Stored=new StoredMeal {Date=m.Stored!.Date,Raw=m.Stored.Raw.Select((x,i)=>i==2?(object)meal:x).ToList()}})).ToList();
+        Check(MealPlanPdf.CreatePages("검증",first.Date,fullMeals).Count==1,"Three meals per day fit a single meal-table page");
+        MealPlanPdf.Save(System.IO.Path.Combine(folder,"three-meals.pdf"),"검증용 급식소",first.Date,fullMeals);
         var longMethod=string.Concat(Enumerable.Repeat("재료를 손질하고 충분히 익혀 제공합니다. ",600));
         var longPages=MealPlanPdf.CreatePages("검증",first.Date,printMeals,new Dictionary<string,string>{{CookingMethods.Key("현미밥"),longMethod}});
         Check(longPages.Count>1,"Long cooking methods continue onto extra pages");

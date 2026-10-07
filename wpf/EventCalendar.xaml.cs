@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,8 +32,6 @@ namespace wpf
 
         // API 호출 낭비를 막기 위한 캐시 (키: "20260626", 값: "이벤트명")
         private Dictionary<string, string> holidayCache = new Dictionary<string, string>();
-        private int currentLoadedYear = -1;
-        private int currentLoadedMonth = -1;
         private int _viewVersion;
         private DateTime? _requestedDate;
         private bool _calendarReady;
@@ -71,75 +69,7 @@ namespace wpf
         // 🌐 [추가] 공공데이터 API에서 해당 월의 특일(기념일/공휴일) 가져오기
         private async Task FetchHolidaysForMonthAsync(int year, int month)
         {
-            foreach(var item in CalendarDates.Holidays(year)) holidayCache[item.Key.ToString("yyyyMMdd")]=item.Value;
-            // 이미 이번 달 데이터를 불러왔다면 API 재요청 안 함 (최적화)
-            if (currentLoadedYear == year && currentLoadedMonth == month) return;
-
-            // 키가 설정되지 않았으면 공휴일 조회를 건너뜁니다(구글 시트 일정은 그대로 동작).
-            if (!AppConfig.HasHolidayApiKey)
-            {
-                // Keep verified built-in dates when the API is unavailable.
-                currentLoadedYear = year;
-                currentLoadedMonth = month;
-                return;
-            }
-
-            // API 요청 주소 조립 (평문 http → https, 키는 URL 인코딩)
-            string url =
-                "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo" +
-                $"?serviceKey={Uri.EscapeDataString(OpenApiKey)}" +
-                $"&solYear={year}&solMonth={month:D2}&_type=json&numOfRows=50";
-
-            try
-            {
-                HttpResponseMessage response = await httpClient.GetAsync(url);
-                string json = await response.Content.ReadAsStringAsync();
-
-                // 키가 잘못되면 공공데이터포털은 200 응답에 XML 오류문서를 실어 보냅니다.
-                // 그대로 JObject.Parse하면 예외가 나므로 미리 걸러냅니다.
-                if (!response.IsSuccessStatusCode || !json.TrimStart().StartsWith("{"))
-                {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[특일정보 API] 예상과 다른 응답입니다. status={(int)response.StatusCode}, body={json.Substring(0, Math.Min(200, json.Length))}");
-                    // Keep verified built-in dates when the API is unavailable.
-                    currentLoadedYear = year;
-                    currentLoadedMonth = month;
-                    return;
-                }
-
-                JObject jsonObj = JObject.Parse(json);
-                var itemsToken = jsonObj["response"]?["body"]?["items"]?["item"];
-
-                // Keep verified built-in dates when the API is unavailable. // 달이 바뀌었으니 이전 캐시 초기화
-
-                if (itemsToken != null)
-                {
-                    // 공공데이터 API는 항목이 여러 개면 Array, 1개면 Object로 주는 골때리는 특징이 있어서 분기 처리함
-                    if (itemsToken is JArray itemsArray)
-                    {
-                        foreach (var item in itemsArray)
-                        {
-                            string date = item["locdate"]?.ToString() ?? "";
-                            string name = item["dateName"]?.ToString() ?? "";
-                            if (!string.IsNullOrEmpty(date)) holidayCache[date] = name;
-                        }
-                    }
-                    else if (itemsToken is JObject singleItem)
-                    {
-                        string date = singleItem["locdate"]?.ToString() ?? "";
-                        string name = singleItem["dateName"]?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(date)) holidayCache[date] = name;
-                    }
-                }
-
-                currentLoadedYear = year;
-                currentLoadedMonth = month;
-            }
-            catch (Exception ex)
-            {
-                // 공휴일 조회 실패는 치명적이지 않으므로 화면을 막지 않고 로그만 남깁니다.
-                System.Diagnostics.Debug.WriteLine($"[특일정보 API] 연동 실패(무시됨): {ex.Message}");
-            }
+            foreach(var item in await WeekSchedule.HolidaysAsync(year,month))holidayCache[item.Key.ToString("yyyyMMdd")]=item.Value;
         }
 
         // 🔄 화면 갱신 (API 통신을 위해 async Task로 변경됨)
@@ -149,6 +79,7 @@ namespace wpf
             DateTime? requestedDate = selectedOverride?.Date ?? MainCalendar.SelectedDate?.Date;
             using var activity = AppActivity.Begin("선택한 날짜의 식단과 일정을 확인하는 중입니다…");
             txtEventInput.Text = "";
+            EventClosed.IsChecked=false;
 
             if (!MainCalendar.SelectedDate.HasValue)
             {
@@ -299,7 +230,8 @@ namespace wpf
                 var text = lstEvents.SelectedItem.ToString() ?? "";
                 var icon = EventIconText.LeadingIcon(text);
                 EventIconPicker.Text = icon.Length > 0 ? icon : "📌";
-                txtEventInput.Text = icon.Length == 0 ? text : text[icon.Length..].TrimStart();
+                EventClosed.IsChecked=WeekDayNotice.IsClosure(text);
+                txtEventInput.Text = (icon.Length == 0 ? text : text[icon.Length..].TrimStart()).Replace("[휴무]", "").Trim();
             }
         }
 
@@ -321,7 +253,7 @@ namespace wpf
                 string range = $"'{SheetName}'!A:B";
 
                 var valueRange = new ValueRange();
-                var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), EventIconText.Compose(EventIconPicker.Text, newEvent) };
+                var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), EventIconText.Compose(EventIconPicker.Text, (EventClosed.IsChecked==true?"[휴무] ":"")+newEvent) };
                 valueRange.Values = new List<IList<object>> { objectList };
 
                 var appendRequest = sheetsService.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
@@ -355,7 +287,7 @@ namespace wpf
 
                 string range = $"'{SheetName}'!B{targetRowIndex}";
                 var valueRange = new ValueRange();
-                valueRange.Values = new List<IList<object>> { new List<object> { EventIconText.Compose(EventIconPicker.Text, updatedEvent) } };
+                valueRange.Values = new List<IList<object>> { new List<object> { EventIconText.Compose(EventIconPicker.Text, (EventClosed.IsChecked==true?"[휴무] ":"")+updatedEvent) } };
 
                 var updateRequest = sheetsService.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
                 updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;

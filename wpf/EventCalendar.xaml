@@ -1,4 +1,4 @@
-<Page x:Class="wpf.EventCalendar"
+﻿<Page x:Class="wpf.EventCalendar"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:emoji="clr-namespace:Emoji.Wpf;assembly=Emoji.Wpf" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -183,7 +183,7 @@
                         <StackPanel>
                             <TextBlock Text="일정 내용" Style="{StaticResource Caption}" Margin="2,0,0,7"/>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8"><TextBlock Text="이벤트 아이콘" VerticalAlignment="Center" Margin="0,0,12,0"/><emoji:RichTextBox x:Name="EventIconPicker" Width="110" Height="46" FontSize="20" ToolTip="Win + . 키로 이모지를 입력하세요"/></StackPanel>
+                            <CheckBox x:Name="EventClosed" Content="휴무일 · 자동 식단 생성에서 제외" Margin="0,0,0,10"/><StackPanel Orientation="Horizontal" Margin="0,0,0,8"><TextBlock Text="이벤트 아이콘" VerticalAlignment="Center" Margin="0,0,12,0"/><emoji:RichTextBox x:Name="EventIconPicker" Width="110" Height="46" FontSize="20" ToolTip="Win + . 키로 이모지를 입력하세요"/></StackPanel>
                             <TextBlock Text="아이콘 입력란에서 Win + . 키로 이모지를 선택하세요." FontSize="11" Foreground="#718276" TextWrapping="Wrap" Margin="0,0,0,8"/><emoji:RichTextBox x:Name="txtEventInput" Height="72"
 
                                      VerticalContentAlignment="Top" Padding="10,8"

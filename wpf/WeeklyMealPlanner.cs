@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace wpf;
@@ -54,6 +54,7 @@ public static class WeeklyMealPlanner
 {
     public static readonly string[] Categories = ["밥류", "국류", "주찬", "부찬", "김치류", "후식류"];
     public static DateTime Monday(DateTime date) => date.Date.AddDays(-((int)date.DayOfWeek + 6) % 7);
+    public static DateTime Sunday(DateTime date) => date.Date.AddDays(-(int)date.DayOfWeek);
     public static string TrackForAge(string age) => age switch
     {
         "3-5" => "A", "6-18" or "6-11" or "12-18" => "B",
@@ -105,7 +106,7 @@ public static class WeeklyMealPlanner
 
     public static List<WeeklyMeal> Generate(IReadOnlyList<TrackMenu> menus, DateTime week,
         IReadOnlyCollection<DayOfWeek> days, IReadOnlyList<string> meals, string age,
-        string track, MealTargets targets, IReadOnlyDictionary<string, string>? fixedIds = null, int? seed = null)
+        string track, MealTargets targets, IReadOnlyDictionary<string, string>? fixedIds = null, int? seed = null, bool sundayFirst = false)
     {
         TrackForAge(age);
         if (days.Count == 0 || days.Any(d => (int)d < 0 || (int)d > 6) || meals.Count == 0 || meals.Any(m => m is not ("조식" or "중식" or "석식")))
@@ -141,7 +142,7 @@ public static class WeeklyMealPlanner
         }
         for (int day = 0; day < 7; day++)
         {
-            var date = Monday(week).AddDays(day);
+            var date = (sundayFirst ? Sunday(week) : Monday(week)).AddDays(day);
             if (!days.Contains(date.DayOfWeek)) continue;
             foreach (var meal in meals.Distinct())
             {

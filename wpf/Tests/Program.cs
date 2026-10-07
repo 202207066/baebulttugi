@@ -27,6 +27,7 @@ internal static class Program
 
     private static void Run(string[] args)
     {
+        if(args.Length > 1 && args[0] == "week-feedback") { WeekFeedbackChecks.Run(args[1]); return; }
         if(args.Length > 1 && args[0] == "october-feedback") { OctoberFeedbackChecks.Run(args[1]); return; }
         if (args.Length > 1 && args[0] == "sidebar-preview")
         {

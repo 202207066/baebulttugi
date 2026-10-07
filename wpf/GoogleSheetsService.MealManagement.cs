@@ -45,12 +45,12 @@ public partial class GoogleSheetsService
         }
         return result;
     }
-    public async Task<List<StoredMeal>> GetStoredMealsAsync(DateTime? week=null,string? age=null)
+    public async Task<List<StoredMeal>> GetStoredMealsAsync(DateTime? week=null,string? age=null,bool sundayFirst=false)
     {
         var titles=await GetSheetTitlesAsync().ConfigureAwait(false);
         if(!titles.Contains(AppConfig.WeeklyMenuSheetName))return [];
         var rows=await GetValuesAsync(QuoteTitle(AppConfig.WeeklyMenuSheetName)).ConfigureAwait(false);
-        var start=WeeklyMealPlanner.Monday(week??DateTime.Today);
+        var start=sundayFirst?WeeklyMealPlanner.Sunday(week??DateTime.Today):WeeklyMealPlanner.Monday(week??DateTime.Today);
         return ParseStoredMeals(rows).Where(m=>(!week.HasValue || (m.Date>=start && m.Date<start.AddDays(7))) &&
             (age==null || m.AgeGroup==age || m.AgeGroup.Length==0 || (age=="6-18" && m.AgeGroup is "6-11" or "12-18")))
             .GroupBy(m=>m.Identity).Select(g=>g.Last()).OrderBy(m=>m.Date).ThenBy(m=>m.Meal=="조식"?0:m.Meal=="중식"?1:2).ToList();
@@ -103,7 +103,7 @@ public partial class GoogleSheetsService
     }
 
     /// <summary>현재 화면에 표시한 주·연령대의 저장 식단을 모두 삭제합니다.</summary>
-    public async Task<int> DeleteStoredMealsForWeekAsync(DateTime week, string age)
+    public async Task<int> DeleteStoredMealsForWeekAsync(DateTime week, string age, bool sundayFirst=false)
     {
         RequirePersonalWrite();
         await _mealSaveGate.WaitAsync().ConfigureAwait(false);
@@ -111,7 +111,7 @@ public partial class GoogleSheetsService
         {
             var sheet = AppConfig.WeeklyMenuSheetName;
             var raw = await GetValuesAsync(QuoteTitle(sheet)).ConfigureAwait(false);
-            var start = WeeklyMealPlanner.Monday(week);
+            var start = sundayFirst?WeeklyMealPlanner.Sunday(week):WeeklyMealPlanner.Monday(week);
             var targets = ParseStoredMeals(raw).Where(m => m.Date >= start && m.Date < start.AddDays(7) &&
                 (m.AgeGroup == age || m.AgeGroup.Length == 0 || (age == "6-18" && m.AgeGroup is "6-11" or "12-18"))).ToList();
             if (targets.Count == 0) return 0;

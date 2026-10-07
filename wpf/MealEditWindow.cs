@@ -1,11 +1,11 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 namespace wpf;
 public sealed class MealEditWindow : Window
 {
     private readonly List<TrackMenu> selections=[];
     public TrackMenu[] Selection => selections.ToArray();
-    public MealEditWindow(StoredMeal meal,IReadOnlyList<TrackMenu> catalog)
+    public MealEditWindow(StoredMeal meal,IReadOnlyList<TrackMenu> catalog,int? menuIndex=null,bool showSave=true)
     {
         Title="끼니 수정 · "+meal;Width=620;Height=720;MaxHeight=SystemParameters.WorkArea.Height;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("/wpf;component/PlannerStyles.xaml",UriKind.Relative)});
@@ -18,6 +18,7 @@ public sealed class MealEditWindow : Window
             var chosen=list.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??list.FirstOrDefault(m=>m.Name==meal.Menus[i]);
             if(chosen==null){chosen=new TrackMenu("기존",meal.Menus[i],category,"",null,null,null,null,"");list.Insert(0,chosen);}
             int index=i; selections.Add(chosen);
+            if(menuIndex.HasValue && menuIndex.Value!=i)continue;
             var section=new Expander { Header=category+" · "+chosen.DisplayName, Style=(Style)FindResource("GuideExpander"),Margin=new Thickness(0,8,0,0) };
             var panel=new StackPanel(); section.Content=panel; root.Children.Add(section);
             var search = new TextBox { ToolTip = "메뉴 이름 일부를 입력하세요", Margin = new Thickness(0,0,0,5) };
@@ -46,7 +47,8 @@ public sealed class MealEditWindow : Window
 
             };
         }
+        if(menuIndex.HasValue)root.Children.OfType<Expander>().Single().IsExpanded=true;
         var save=new Button{Content="변경한 식단 저장",Style=(Style)FindResource("PrimaryButton"),Margin=new Thickness(0,22,0,0)};
-        save.Click+=(_,_)=>{if(selections.All(m=>m.Name.Length>0))DialogResult=true;};root.Children.Add(save);
+        save.Click+=(_,_)=>{if(selections.All(m=>m.Name.Length>0))DialogResult=true;};if(showSave)root.Children.Add(save);
     }
 }

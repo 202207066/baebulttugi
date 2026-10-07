@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -304,13 +304,14 @@ namespace wpf
             Grid leftGrid = new Grid();
             leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            var monday = WeeklyMealPlanner.Monday(DateTime.Today);
+            var monday = WeeklyMealPlanner.Sunday(DateTime.Today);
             leftGrid.Children.Add(new TextBlock { Text = $"이번 주 식단 · {monday:M/d} ~ {monday.AddDays(6):M/d}", FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0,0,0,16) });
             var weekPanel = new StackPanel();
             try {
-                var weekMeals = await _sheetsService.GetStoredMealsAsync(monday);
+                var weekMeals = await _sheetsService.GetStoredMealsAsync(monday,sundayFirst:true);
+                var notices=await WeekSchedule.LoadAsync(_sheetsService,monday);
                 var display = await _sheetsService.DisplayMealsAsync(weekMeals);
-                var table = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column, MinHeight = 240, MaxHeight = 580 };
+                var table = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column, MinHeight = 240, Width=1120 };
                 var ageTabs = new TabControl { Margin = new Thickness(0,0,0,16), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
                 ageTabs.Items.Add(new TabItem { Header = "3–5세", Tag = "3-5", Padding = new Thickness(18,10,18,10) });
                 ageTabs.Items.Add(new TabItem { Header = "6–18세", Tag = "6-18", Padding = new Thickness(18,10,18,10) });
@@ -320,13 +321,13 @@ namespace wpf
                 void FilterWeek() {
                     var age = (ageTabs.SelectedItem as TabItem)?.Tag?.ToString() ?? "3-5";
                     var chosen = display.Where(m => DashboardAgeFilter.Matches(m.Stored?.AgeGroup ?? "", age)).ToList();
-                    MealPresentation.Show(table,chosen);
-                    table.Visibility = chosen.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                    WeekMealTable.ShowDashboard(table,chosen,notices);
+                    table.Visibility = Visibility.Visible;
                     empty.Visibility = chosen.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
                     summary.Text = $"{chosen.Select(m=>m.Stored!.Date).Distinct().Count()}일 · {chosen.Count}끼 작성됨 · 메뉴별 1인분 기준";
                 }
                 ageTabs.SelectionChanged += (_,e) => { if(ReferenceEquals(e.Source,ageTabs)) FilterWeek(); };
-                weekPanel.Children.Add(ageTabs); weekPanel.Children.Add(summary); weekPanel.Children.Add(table); weekPanel.Children.Add(empty);
+                weekPanel.Children.Add(ageTabs); weekPanel.Children.Add(summary); weekPanel.Children.Add(new Viewbox {Child=table,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,HorizontalAlignment=HorizontalAlignment.Stretch}); weekPanel.Children.Add(empty);
                 ageTabs.SelectedIndex = 0;
                 FilterWeek();
             } catch(Exception ex) { weekPanel.Children.Add(new TextBlock { Text = "주간 식단 조회 실패: " + ex.Message, TextWrapping = TextWrapping.Wrap }); }
@@ -354,6 +355,8 @@ namespace wpf
 
             ListBox allergyList = new ListBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
             ScrollViewer.SetHorizontalScrollBarVisibility(allergyList, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(allergyList, ScrollBarVisibility.Disabled);
+            allergyList.PreviewMouseWheel+=WeekMealTable.ScrollDashboard;
 
             string defaultMenuText = (dbData.TodayMenu != null && dbData.TodayMenu.Count > 0)
                 ? string.Join(", ", dbData.TodayMenu) : "아직 식단이 작성되지 않았습니다.";

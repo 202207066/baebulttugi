@@ -1,10 +1,10 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 namespace wpf;
 
 public record MealDisplayColumn(string Header, string[] Menus, double? Calories, StoredMeal? Stored = null);
-public record MealTableHeading(string Title, string Detail);
+public record MealTableHeading(string Title, string Detail, string Color="#28523A");
 public record MealCellText(string Name, string Calories);
 public record MealDisplayRow(string Category, string[] Cells)
 {
@@ -67,10 +67,10 @@ public static class MealPresentation
     private static void FitColumns(DataGrid grid)
     {
         if(grid.Columns.Count < 2 || grid.ActualWidth <= 0) return;
-        double width = Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
+        double width = grid.Tag is WeekMealTableState ? Math.Max(130,(grid.ActualWidth-150)/7) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
         foreach(var column in grid.Columns.Skip(1)) column.Width = new DataGridLength(width);
     }
-    public static StoredMeal? Selected(DataGrid grid) => grid.SelectedCells.Count > 0 && grid.Tag is IReadOnlyList<MealDisplayColumn> meals && grid.SelectedCells[0].Column?.DisplayIndex is int i && i > 0 && i <= meals.Count ? meals[i - 1].Stored : null;
+    public static StoredMeal? Selected(DataGrid grid) => grid.Tag is WeekMealTableState ? WeekMealTable.Selected(grid).Meal : grid.SelectedCells.Count > 0 && grid.Tag is IReadOnlyList<MealDisplayColumn> meals && grid.SelectedCells[0].Column?.DisplayIndex is int i && i > 0 && i <= meals.Count ? meals[i - 1].Stored : null;
 }
 public partial class GoogleSheetsService
 {

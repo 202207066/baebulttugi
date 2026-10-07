@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -28,16 +28,18 @@ public static class MealPlanPdf
         foreach(string value in values) {var cell=Cell(value,heading);Grid.SetColumn(cell,col++);grid.Children.Add(cell);}
         return grid;
     }
-    public static IReadOnlyList<FrameworkElement> CreatePages(string facility,DateTime week,IReadOnlyList<MealDisplayColumn> source,IReadOnlyDictionary<string,string>? cooking=null,IReadOnlyDictionary<string,string>? allergens=null)
+    public static IReadOnlyList<FrameworkElement> CreatePages(string facility,DateTime week,IReadOnlyList<MealDisplayColumn> source,IReadOnlyDictionary<string,string>? cooking=null,IReadOnlyDictionary<string,string>? allergens=null,bool sundayFirst=false,IReadOnlyList<WeekDayNotice>? schedule=null)
     {
-        week=WeeklyMealPlanner.Monday(week);
+        week=sundayFirst?WeeklyMealPlanner.Sunday(week):WeeklyMealPlanner.Monday(week);
         var meals=source.Where(x=>x.Stored!=null&&x.Stored.Date>=week&&x.Stored.Date<week.AddDays(7)).ToList();
         if(meals.Count==0)throw new InvalidOperationException("출력할 저장된 식단이 없습니다.");
+        var days=Enumerable.Range(0,7).Select(i=>week.AddDays(i)).Select(d=>schedule?.FirstOrDefault(n=>n.Date.Date==d)??new WeekDayNotice(d,CalendarDates.Holidays(d.Year).GetValueOrDefault(d,""),"")).ToArray();
         var pages=new List<FrameworkElement>();
         foreach(var age in meals.GroupBy(x=>x.Stored!.AgeGroup))
         {
             StackPanel body=null!;double used=0;
             StackPanel? mealTable=null;
+            string recipeContext="";
             void NewPage(bool recipe=false)
             {
                 var page=new Grid {Width=Width,Height=Height,Background=Brushes.White};
@@ -45,7 +47,11 @@ public static class MealPlanPdf
                 body=new StackPanel {Margin=new Thickness(32,20,32,0)};page.Children.Add(body);
                 var title=Text($"{week:yyyy년 M월} "+(recipe?"조리방법":"식단표"),38,true);title.TextAlignment=TextAlignment.Center;title.Foreground=new SolidColorBrush(Color.FromRgb(61,134,157));body.Children.Add(title);
                 var subtitle=Text($"{facility} · {(age.Key.Length==0?"연령 미지정":age.Key+"세")} | {week:M월 d일} ~ {week.AddDays(6):M월 d일}",19,true);subtitle.TextAlignment=TextAlignment.Center;subtitle.Margin=new Thickness(0,6,0,10);body.Children.Add(subtitle);
-                var meta=Text($"발행: {facility}    작성일: {DateTime.Today:yyyy.MM.dd}    배불뚝이 SMART MEAL CARE",12);meta.Margin=new Thickness(0,0,0,14);body.Children.Add(meta);
+                var meta=Text($"발행: {facility}    작성일: {DateTime.Today:yyyy.MM.dd}    배불뚝이 SMART MEAL CARE",12);meta.VerticalAlignment=VerticalAlignment.Bottom;meta.Margin=new Thickness(32,0,32,42);page.Children.Add(meta);
+                if(recipe && recipeContext.Length>0)
+                {
+                    var context=Text(recipeContext,22,true);context.Margin=new Thickness(0,18,0,8);body.Children.Add(context);
+                }
                 body.Measure(new Size(Width,double.PositiveInfinity));used=body.DesiredSize.Height;
                 var footer=Text($"저장된 식단 · 1인분 기준 · 미확인 영양값은 0으로 계산하지 않습니다.                         {pages.Count+1}",12);footer.VerticalAlignment=VerticalAlignment.Bottom;footer.Margin=new Thickness(32,0,32,20);page.Children.Add(footer);pages.Add(page);
             }
@@ -59,22 +65,20 @@ public static class MealPlanPdf
             }
             NewPage();
             mealTable=new StackPanel {Width=Inner};
-            Add(Row("일자",Enumerable.Range(0,7).Select(i=>$"{week.AddDays(i):%d}일 ({"일월화수목금토"[(int)week.AddDays(i).DayOfWeek]})"),true));
+            var dates=Row("일자",days.Select(d=>$"{d.Date:%d}일 ({"일월화수목금토"[(int)d.Date.DayOfWeek]})"+(d.Description.Length>0?"\n"+d.Description:"")),true);
+            for(int i=0;i<7;i++)((TextBlock)((Border)dates.Children[i+1]).Child).Foreground=(Brush)new BrushConverter().ConvertFromString(days[i].DateColor)!;
+            Add(dates);
             foreach(var group in age.GroupBy(x=>x.Stored!.Meal).OrderBy(g=>g.Key=="조식"?0:g.Key=="중식"?1:g.Key=="석식"?2:3))
             {
-                string[] PerDay(Func<MealDisplayColumn,string> display)=>Enumerable.Range(0,7).Select(i=>string.Join("\n",group.Where(x=>x.Stored!.Date==week.AddDays(i)).Select(display))).Select(x=>x.Length==0?"-":x).ToArray();
-                string mealLabel=group.Key switch {"조식"=>"아침","중식"=>"점심","석식"=>"저녁",_=>group.Key};
-                string[] categories=["밥류","국류","주찬","부찬","김치","후식"];
-                for(int menuIndex=0;menuIndex<6;menuIndex++)
+                string[] PerDay(Func<MealDisplayColumn,string> display)=>Enumerable.Range(0,7).Select(i=>string.Join("\n",group.Where(x=>x.Stored!.Date==week.AddDays(i)).Select(display))).Select((x,i)=>x.Length==0?(days[i].IsClosed?"휴무":"-"):x).ToArray();
+                string Menu(MealDisplayColumn meal)
                 {
-                    string Menu(MealDisplayColumn meal)
-                    {
-                        string n=meal.Stored!.Menus.ElementAtOrDefault(menuIndex)??"";
-                        return n+(allergens?.TryGetValue(CookingMethods.Key(n),out var code)==true && AllergyCodes(code).Length>0?" ("+AllergyCodes(code)+")":"");
-                    }
-                    Add(Row(mealLabel+"\n"+categories[menuIndex],PerDay(Menu),minHeight:age.Select(x=>x.Stored!.Meal).Distinct().Count()==1?90:48));
+                    var menuLines=meal.Stored!.Menus.Where(n=>!string.IsNullOrWhiteSpace(n)).Select(n=>
+                        n+(allergens?.TryGetValue(CookingMethods.Key(n),out var code)==true && AllergyCodes(code).Length>0?" ("+AllergyCodes(code)+")":""));
+                    return string.Join("\n",menuLines)+"\n\n"+N(meal.Calories,"kcal")+
+                        "\n탄 "+N(meal.Stored.Carb,"g")+"\n단 "+N(meal.Stored.Protein,"g")+"\n지 "+N(meal.Stored.Fat,"g");
                 }
-                Add(Row("열량\n탄·단·지",PerDay(d=>N(d.Calories,"kcal")+"\n"+N(d.Stored!.Carb,"g")+" / "+N(d.Stored.Protein,"g")+" / "+N(d.Stored.Fat,"g"))));
+                Add(Row(group.Key,PerDay(Menu),minHeight:270));
             }
             var legend=Text("알레르기: "+string.Join(" · ",AllergenPicker.Names.Select((n,i)=>$"{i+1} {n}"))+"\n코드가 비어 있는 메뉴는 알레르기 없음이 아니라 확인이 필요한 항목입니다.",12);legend.Margin=new Thickness(0,10,0,14);Add(legend);
             mealTable.Measure(new Size(Inner,double.PositiveInfinity));
@@ -85,10 +89,22 @@ public static class MealPlanPdf
             {
                 NewPage(true);
                 var heading=Text("이번 식단의 조리방법",23,true);heading.Margin=new Thickness(0,14,0,10);Add(heading,true);
-                Add(Text("자료: test 구글 시트 · 조리방법 | 메뉴명 일치 기준 · 반복 메뉴는 한 번만 표시",12),true);
-                foreach(var name in age.SelectMany(m=>m.Stored!.Menus).Where(n=>n.Length>0).DistinctBy(CookingMethods.Key))
+                Add(Text("자료: test 구글 시트 · 조리방법 | 메뉴명 일치 기준 · 날짜·끼니별 안내",12),true);
+                foreach(var day in age.GroupBy(m=>m.Stored!.Date.Date).OrderBy(g=>g.Key))
+                foreach(var meal in day.GroupBy(m=>m.Stored!.Meal).OrderBy(g=>g.Key=="조식"?0:g.Key=="중식"?1:g.Key=="석식"?2:3))
                 {
-                    if(!cooking.TryGetValue(CookingMethods.Key(name),out string? method) || string.IsNullOrWhiteSpace(method))continue;
+                    recipeContext=$"{day.Key:M월 d일} ({"일월화수목금토"[(int)day.Key.DayOfWeek]}) · {meal.Key}";
+                    if(Height-65-used<180)NewPage(true);
+                    else
+                    {
+                        var context=Text(recipeContext,22,true);context.Margin=new Thickness(0,22,0,8);Add(context,true);
+                    }
+                    foreach(var name in meal.SelectMany(m=>m.Stored!.Menus).Where(n=>n.Length>0).DistinctBy(CookingMethods.Key))
+                    {
+                    if(!cooking.TryGetValue(CookingMethods.Key(name),out string? method) || string.IsNullOrWhiteSpace(method))
+                    {
+                        var missing=Text(name+" · 조리방법 미등록",14);missing.Margin=new Thickness(12,6,0,6);Add(missing,true);continue;
+                    }
                     // Split long methods by measured character ranges, preserving every character.
                     bool continued=false;
                     while(method.Length>0)
@@ -110,10 +126,6 @@ public static class MealPlanPdf
                         Add(Block(best),true);method=method[best..];continued=true;
                     }
                 }
-                var missing=age.SelectMany(m=>m.Stored!.Menus).Where(n=>n.Length>0 && (!cooking.TryGetValue(CookingMethods.Key(n),out var method)||string.IsNullOrWhiteSpace(method))).DistinctBy(CookingMethods.Key).ToArray();
-                if(missing.Length>0)
-                {
-                    var note=Text("조리방법 미등록\n"+string.Join(" · ",missing),14);note.Margin=new Thickness(0,20,0,0);Add(note,true);
                 }
             }
         }
@@ -125,10 +137,10 @@ public static class MealPlanPdf
         return string.Join(",",Regex.Matches(raw,@"(?<!\d)\d{1,2}(?!\d)").Select(m=>int.Parse(m.Value)).Where(n=>n>=1&&n<=19).Distinct().OrderBy(n=>n));
     }
     static string N(double? value,string unit)=>value.HasValue?value.Value.ToString("0.#",CultureInfo.InvariantCulture)+" "+unit:"미확인";
-    public static void Save(string path,string facility,DateTime week,IReadOnlyList<MealDisplayColumn> meals, IReadOnlyDictionary<string,string>? cooking=null, IReadOnlyDictionary<string,string>? allergens=null)
+    public static void Save(string path,string facility,DateTime week,IReadOnlyList<MealDisplayColumn> meals, IReadOnlyDictionary<string,string>? cooking=null, IReadOnlyDictionary<string,string>? allergens=null,bool sundayFirst=false,IReadOnlyList<WeekDayNotice>? schedule=null)
     {
         var images=new List<byte[]>();
-        foreach(var page in CreatePages(facility,week,meals,cooking,allergens))
+        foreach(var page in CreatePages(facility,week,meals,cooking,allergens,sundayFirst,schedule))
         {
             page.Measure(new Size(Width,Height));page.Arrange(new Rect(0,0,Width,Height));page.UpdateLayout();
             var bitmap=new RenderTargetBitmap((int)Width*2,(int)Height*2,192,192,PixelFormats.Pbgra32);bitmap.Render(page);
