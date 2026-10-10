@@ -12,6 +12,7 @@ public partial class Menu_table : Page
     private bool _ready;
     private bool _busy;
     private bool _editing;
+    private bool _deleting;
     private int _loadVersion;
     private IReadOnlyList<WeekDayNotice> _days=[];
     private readonly Dictionary<int,bool> _choicesBeforeClosure=[];
@@ -322,25 +323,26 @@ public partial class Menu_table : Page
     }
     private async void TableClick(object sender,System.Windows.Input.MouseButtonEventArgs e)
     {
-        if(!_editing || _busy)return;
+        if((!_editing && !_deleting) || _busy)return;
         var header=WeekMealTable.Ancestor<System.Windows.Controls.Primitives.DataGridColumnHeader>(e.OriginalSource as DependencyObject);
-        if(header?.Column!=null && header.Column.DisplayIndex>0 && GridDietResult.Tag is WeekMealTableState state)
+        if(_editing && header?.Column!=null && header.Column.DisplayIndex>0 && GridDietResult.Tag is WeekMealTableState state)
         {
             e.Handled=true;await EditDayAsync(state.Days[header.Column.DisplayIndex-1].Date);return;
         }
         var cell=WeekMealTable.Ancestor<DataGridCell>(e.OriginalSource as DependencyObject);
-        if(cell!=null && cell.Column.DisplayIndex>0 && cell.DataContext is WeekMealRow row && row.MenuIndex<6)
+        if(cell!=null && cell.Column.DisplayIndex>0 && cell.DataContext is WeekMealRow row && (row.MenuIndex<6 || _deleting))
         {
             GridDietResult.SelectedCells.Clear();GridDietResult.SelectedCells.Add(new DataGridCellInfo(row,cell.Column));
-            e.Handled=true;await EditMenuAsync();
+            e.Handled=true;
+            if(_deleting)await DeleteSelectedMealAsync();else await EditMenuAsync();
         }
     }
     private void EditMeal_Click(object sender,RoutedEventArgs e)
     {
         if(_busy)return;
+        SetDeleteMode(false);
         _editing=!_editing;
         MealTableEditing.SetIsEditing(GridDietResult,_editing);
-        DeleteMealButton.IsEnabled=_editing;DeleteWeekButton.IsEnabled=_editing;
         EditModeButton.Content=_editing?"수정종료":"수정하기";
         SelectedMealSummary.Text=_editing?"수정 중 · 메뉴 칸은 해당 메뉴만, 요일 제목은 그날의 전체 식단을 수정합니다.":"조회 중 · 수정하기를 누르면 식단을 수정할 수 있습니다.";
     }
@@ -375,30 +377,49 @@ public partial class Menu_table : Page
         finally{_busy=false;SettingsPanel.IsEnabled=true;}
     }
 
-    private async void DeleteMeal_Click(object sender,RoutedEventArgs e)
+    private void SetDeleteMode(bool active)
     {
-        if(_busy || !_editing)return;
+        _deleting=active;
+        MealTableEditing.SetIsDeleting(GridDietResult,active);
+        DeleteMealButton.Content=active?"삭제종료":"삭제하기";
+        DeleteWeekButton.IsEnabled=active;
+    }
+    private void DeleteMeal_Click(object sender,RoutedEventArgs e)
+    {
+        if(_busy)return;
+        _editing=false;MealTableEditing.SetIsEditing(GridDietResult,false);EditModeButton.Content="수정하기";
+        SetDeleteMode(!_deleting);
+        SelectedMealSummary.Text=_deleting?"삭제 중 · 표에서 삭제할 끼니의 칸을 누르세요. 확인 후 해당 끼니 전체가 삭제됩니다.":"조회 중 · 수정하기 또는 삭제하기를 선택해 주세요.";
+    }
+    private async Task DeleteSelectedMealAsync()
+    {
+        if(_busy || !_deleting)return;
         if(MealPresentation.Selected(GridDietResult) is not StoredMeal meal){SaveStatus.Text="표에서 삭제할 끼니를 선택해 주세요.";return;}
-        if(MessageBox.Show($"{meal} 식단을 삭제할까요?", "식단 삭제",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
-        _busy=true;SettingsPanel.IsEnabled=false;
-        try{using var activity=AppActivity.Begin("식단을 삭제하는 중입니다…");await _service.ChangeStoredMealAsync(meal,null);await LoadWeekAsync();SaveStatus.Text="선택한 끼니를 삭제했습니다.";}
+        _busy=true;SettingsPanel.IsEnabled=false;MealTableEditing.SetIsDeleting(GridDietResult,true);
+        try
+        {
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+            if(MessageBox.Show($"{meal} 식단을 삭제할까요?", "식단 삭제",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            using var activity=AppActivity.Begin("식단을 삭제하는 중입니다…");
+            await _service.ChangeStoredMealAsync(meal,null);await LoadWeekAsync();SaveStatus.Text="선택한 끼니를 삭제했습니다.";
+        }
         catch(Exception ex){SaveStatus.Text="삭제 실패: "+ex.Message;}
-        finally{_busy=false;SettingsPanel.IsEnabled=true;}
+        finally{MealTableEditing.SetIsDeleting(GridDietResult,_deleting);_busy=false;SettingsPanel.IsEnabled=true;}
     }
     private async void DeleteWeekMeals_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy || !_editing) return;
-        var week = WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate ?? DateTime.Today);
-        if (MessageBox.Show($"{week:M월 d일} ~ {week.AddDays(6):M월 d일}에 화면에 표시된 식단을 모두 삭제할까요?", "이번 주 식단 전체 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        _busy = true; SettingsPanel.IsEnabled = false;
+        if(_busy || !_deleting)return;
+        var week=WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate??DateTime.Today);
+        _busy=true;SettingsPanel.IsEnabled=false;MealTableEditing.SetIsDeleting(GridDietResult,true);
         try
         {
-            using var activity = AppActivity.Begin("이번 주 식단을 삭제하는 중입니다…");
-            int count = await _service.DeleteStoredMealsForWeekAsync(week, Age,sundayFirst:true);
-            await LoadWeekAsync();
-            SaveStatus.Text = count == 0 ? "삭제할 식단이 없습니다." : $"이번 주 식단 {count}끼를 삭제했습니다.";
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+            if(MessageBox.Show($"{week:M월 d일} ~ {week.AddDays(6):M월 d일}에 화면에 표시된 식단을 모두 삭제할까요?", "이번 주 식단 전체 삭제",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+            using var activity=AppActivity.Begin("이번 주 식단을 삭제하는 중입니다…");
+            int count=await _service.DeleteStoredMealsForWeekAsync(week,Age,sundayFirst:true);
+            await LoadWeekAsync();SaveStatus.Text=count==0?"삭제할 식단이 없습니다.":$"이번 주 식단 {count}끼를 삭제했습니다.";
         }
-        catch (Exception ex) { SaveStatus.Text = "이번 주 식단 삭제 실패: " + ex.Message; }
-        finally { _busy = false; SettingsPanel.IsEnabled = true; }
+        catch(Exception ex){SaveStatus.Text="이번 주 식단 삭제 실패: "+ex.Message;}
+        finally{MealTableEditing.SetIsDeleting(GridDietResult,_deleting);_busy=false;SettingsPanel.IsEnabled=true;}
     }
 }

@@ -11,7 +11,7 @@
         <Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
             <StackPanel><TextBlock Text="{Binding Title}" Foreground="{Binding Color}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding Detail}" FontSize="11" Foreground="#6C8773" Margin="0,7,0,0" TextWrapping="Wrap"/></StackPanel>
         </DataTemplate></Setter.Value></Setter>
-        <Style.Triggers><DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsEditing), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter Property="Background" Value="#FBE6B5"/><Setter Property="Foreground" Value="#795216"/><Setter Property="BorderBrush" Value="#E1BC73"/></DataTrigger></Style.Triggers>
+        <Style.Triggers><DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsEditing), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter Property="Background" Value="#FBE6B5"/><Setter Property="Foreground" Value="#795216"/><Setter Property="BorderBrush" Value="#E1BC73"/></DataTrigger><DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsDeleting), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter Property="Background" Value="#F8DADA"/><Setter Property="BorderBrush" Value="#DDAAAA"/></DataTrigger></Style.Triggers>
     </Style>
     <Style x:Key="MealTableRow" TargetType="DataGridRow">
         <Setter Property="Background" Value="White"/>
@@ -20,6 +20,7 @@
             <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#F0F6F1"/></Trigger>
             <DataTrigger Binding="{Binding Category}" Value="총 열량"><Setter Property="Background" Value="#EAF3ED"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger>
             <DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsEditing), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter Property="Background" Value="#FFF8E9"/></DataTrigger>
+            <DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsDeleting), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter Property="Background" Value="#FFF0F0"/></DataTrigger>
         </Style.Triggers>
     </Style>
     <Style x:Key="MealTableCell" TargetType="DataGridCell">
@@ -35,6 +36,7 @@
                 <Trigger Property="IsSelected" Value="True"><Setter TargetName="Outline" Property="Background" Value="#DFEEE2"/><Setter TargetName="Outline" Property="BorderBrush" Value="#4D8961"/></Trigger>
                 <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Outline" Property="BorderBrush" Value="#286A47"/></Trigger>
                 <DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsEditing), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter TargetName="Outline" Property="Background" Value="Transparent"/><Setter TargetName="Outline" Property="BorderBrush" Value="Transparent"/></DataTrigger>
+                <DataTrigger Binding="{Binding Path=(local:MealTableEditing.IsDeleting), RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"><Setter TargetName="Outline" Property="Background" Value="Transparent"/><Setter TargetName="Outline" Property="BorderBrush" Value="Transparent"/></DataTrigger>
             </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
     </Style>

@@ -1,7 +1,10 @@
-using System.Windows;
+﻿using System.Windows;
 namespace wpf;
 public static class MealTableEditing
 {
+    public static readonly DependencyProperty IsDeletingProperty=DependencyProperty.RegisterAttached("IsDeleting",typeof(bool),typeof(MealTableEditing),new FrameworkPropertyMetadata(false));
+    public static bool GetIsDeleting(DependencyObject element)=>(bool)element.GetValue(IsDeletingProperty);
+    public static void SetIsDeleting(DependencyObject element,bool value)=>element.SetValue(IsDeletingProperty,value);
     public static readonly DependencyProperty IsEditingProperty=DependencyProperty.RegisterAttached("IsEditing",typeof(bool),typeof(MealTableEditing),new FrameworkPropertyMetadata(false));
     public static bool GetIsEditing(DependencyObject element)=>(bool)element.GetValue(IsEditingProperty);
     public static void SetIsEditing(DependencyObject element,bool value)=>element.SetValue(IsEditingProperty,value);

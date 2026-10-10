@@ -11,6 +11,10 @@ namespace wpf
     public partial class AllergyManagementPage : Page
     {
         private readonly GoogleSheetsService _service;
+        private readonly System.Windows.Threading.DispatcherTimer _monitorTimer=new(){Interval=TimeSpan.FromSeconds(30)};
+        private int _monitorVersion;
+        private bool _monitorBusy;
+
 
         // 💡 메모리 DB 대신, 프로그램 내부에서 구글 시트 데이터를 담고 있을 실시간 리스트입니다.
         private List<PatientModel> _patientList = new List<PatientModel>();
@@ -30,6 +34,10 @@ namespace wpf
             _service = AppServices.Require();
 
             Loaded += AllergyManagementPage_Loaded;
+            Unloaded += (_,_)=>{_monitorTimer.Stop();++_monitorVersion;_monitorBusy=false;};
+            DpMonitorDate.SelectedDate=DateTime.Today;
+            DpMonitorDate.SelectedDateChanged+=async (_,_)=>{if(IsLoaded)await RefreshMonitorAsync();};
+            _monitorTimer.Tick+=async (_,_)=>{if(IsLoaded&&!_monitorBusy)await RefreshMonitorAsync();};
 
             // 버튼 이벤트 연결
             BtnSavePatient.Click += BtnSavePatient_Click;
@@ -46,14 +54,64 @@ namespace wpf
 
         private async void AllergyManagementPage_Loaded(object sender, RoutedEventArgs e)
         {
-            DpMonitorDate.SelectedDate = DateTime.Today;
+            await RefreshMonitorAsync();
+            if(IsLoaded)_monitorTimer.Start();
+        }
 
-            await LoadMenuCatalogAsync();
-            await LoadSavedDailyMenusAsync();
-            DpMonitorDate.SelectedDateChanged += async (_, _) => await LoadSavedDailyMenusAsync();
-
-            // 💡 프로그램이 켜지자마자 구글 시트 DB 서버에서 데이터를 원격으로 긁어옵니다!
-            await LoadPatientsFromGoogleSheetAsync();
+        private async Task RefreshMonitorAsync()
+        {
+            int version=++_monitorVersion;_monitorBusy=true;
+            var date=(DpMonitorDate.SelectedDate??DateTime.Today).Date;
+            BtnScanAllergy.IsEnabled=false;BtnConfirmAlternativeMenu.IsEnabled=false;
+            MonitorStatus.Text="식단·알레르기를 대조하고 대체식단을 만드는 중입니다…";
+            DgAllergicMatches.ItemsSource=null;
+            try
+            {
+                var patients=await _service.GetPatientsAsync();
+                var stored=(await _service.GetStoredMealsAsync(date)).Where(m=>m.Date.Date==date).ToList();
+                var catalogs=new Dictionary<string,IReadOnlyList<TrackMenu>>();
+                foreach(var age in stored.Select(m=>m.AgeGroup.Length==0?"3-5":m.AgeGroup).Distinct())
+                    catalogs[age]=(await _service.GetTrackCatalogAsync(age,true)).Menus;
+                var alternatives=(await Task.Run(()=>AllergyAlternatives.Build(stored,patients,catalogs))).ToList();
+                if(version!=_monitorVersion)return;
+                _patientList=patients;UpdatePatientGrid(patients);
+                var labels=new List<object>();
+                _menuCatalog.Clear();
+                foreach(var item in catalogs.Values.SelectMany(c=>c))
+                {
+                    _menuCatalog.TryGetValue(item.Name,out var prior);
+                    _menuCatalog[item.Name]=string.Join(", ",new[]{prior,item.Allergens}.Where(x=>!string.IsNullOrWhiteSpace(x)).Distinct());
+                }
+                foreach(var meal in stored)
+                {
+                    var catalog=catalogs[meal.AgeGroup.Length==0?"3-5":meal.AgeGroup];
+                    var keys=meal.Value(25).Split(" / ");
+                    for(int i=0;i<6;i++)
+                    {
+                        var matches=catalog.Where(m=>m.Name==meal.Menus[i]&&m.Category==WeeklyMealPlanner.Categories[i]).ToList();
+                        var menu=matches.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(matches.Count==1?matches[0]:null);
+                        labels.Add(new{DisplayName=$"{meal.Meal} · {meal.AgeGroup}세 · "+MealPresentation.Label(meal.Menus[i],menu?.DisplayCalories),Ingredients=string.IsNullOrWhiteSpace(menu?.Allergens)?"정보 미확인":menu.Allergens});
+                        if(menu!=null)_menuCatalog.TryAdd(menu.Name,menu.Allergens);
+                    }
+                }
+                foreach(var manual in _menuList.Where(m=>m.ServingDate.Date==date))
+                {
+                    labels.Add(new{DisplayName="직접 입력 · "+manual.DisplayName,Ingredients=string.Join(", ",manual.Ingredients)});
+                    alternatives.Add(new AllergyAlternative("직접 입력 메뉴","확인 필요",manual.MenuName+": 연령·끼니·분류를 확인할 수 없어 자동 대체하지 않았습니다. 저장된 식단에 등록해 주세요."));
+                }
+                DgDailyMenu.ItemsSource=labels;DgAllergicMatches.ItemsSource=alternatives;
+                MonitorStatus.Text=$"{date:yyyy-MM-dd} · {DateTime.Now:HH:mm:ss} 갱신 · "+(stored.Count==0?"저장된 식단이 없습니다.":$"{stored.Count}끼 대조 · 대상자별 대체·확인 항목 {alternatives.Count}건")+"\n30초마다 자동 갱신 · 원본 식단을 유지한 대상자별 제안입니다. 배식 전 실제 재료를 확인해 주세요.";
+            }
+            catch(Exception ex)
+            {
+                if(version!=_monitorVersion)return;
+                DgDailyMenu.ItemsSource=null;DgAllergicMatches.ItemsSource=null;
+                MonitorStatus.Text="자동 확인 실패: "+ex.Message+" · 다음 갱신 때 다시 확인합니다.";
+            }
+            finally
+            {
+                if(version==_monitorVersion){_monitorBusy=false;BtnScanAllergy.IsEnabled=true;BtnConfirmAlternativeMenu.IsEnabled=true;}
+            }
         }
 
         // ========================================================
@@ -94,6 +152,7 @@ namespace wpf
             try
             {
                 await _service.SavePatientsAsync(_patientList);
+                await RefreshMonitorAsync();
 
                 return true;
             }
@@ -325,54 +384,7 @@ namespace wpf
         /// 예전에는 patientAllergySet.Contains(재료명)으로 완전 일치만 잡아
         /// "땅콩" 알러지가 "땅콩분태" 같은 표기를 놓쳤습니다. 부분 일치로 바꿉니다.
         /// </summary>
-        private async void BtnScanAllergy_Click(object sender, RoutedEventArgs e)
-        {
-            using var activity = AppActivity.Begin("알레르기 성분을 비교하는 중입니다…");
-            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
-            DateTime selectedDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
-            var dailyMenus = _menuList.Where(m => m.ServingDate.Date == selectedDate.Date).ToList();
-
-            if (dailyMenus.Count == 0)
-            {
-                MessageBox.Show(
-                    "해당 날짜에 등록된 제공 메뉴가 없습니다.\n" +
-                    "[식단 만들기]에서 식단을 작성한 뒤 다시 확인해 주세요.",
-                    "안내", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var conflictMatches = new List<object>();
-
-            foreach (var patient in _patientList)
-            {
-                var allergens = GoogleSheetsService.SplitAllergens(patient.Allergies).ToList();
-                if (allergens.Count == 0) continue;
-
-                foreach (var menu in dailyMenus)
-                {
-                    string haystack = string.Join(", ", menu.Ingredients);
-
-                    var matchedRisks = allergens
-                        .Where(a => GoogleSheetsService.MatchesRegisteredAllergen(new TrackMenu("", menu.MenuName, "", haystack, null, null, null, null, ""), new[] { a }))
-                        .ToList();
-
-                    if (matchedRisks.Count > 0)
-                    {
-                        conflictMatches.Add(new
-                        {
-                            PatientName = patient.Name,
-                            RiskIngredients = string.Join(", ", matchedRisks),
-                            SuggestedAlternative = $"💡 [{menu.MenuName}] 제한 -> 대체 식단 교체 권장"
-                        });
-                    }
-                }
-            }
-
-            DgAllergicMatches.ItemsSource = conflictMatches;
-            int unknown = dailyMenus.Count(m => m.Ingredients.Count == 0);
-            MessageBox.Show($"확인 완료: 알레르기 주의 항목 {conflictMatches.Count}건." +
-                (unknown > 0 ? $"\n알레르기 정보가 없는 메뉴 {unknown}개는 확인하지 못했습니다. 원본 레시피를 확인해 주세요." : "\n등록된 알레르기 정보를 기준으로 한 결과입니다."));
-        }
+        private async void BtnScanAllergy_Click(object sender, RoutedEventArgs e)=>await RefreshMonitorAsync();
 
         /// <summary>
         /// 메뉴 DB를 읽어 캐시합니다.
@@ -446,7 +458,7 @@ namespace wpf
         /// 그날 제공할 메뉴를 추가합니다.
         /// 메뉴 DB에 있는 이름을 고르면 재료·알러지 정보가 자동으로 붙습니다.
         /// </summary>
-        private void BtnManualMenuInput_Click(object sender, RoutedEventArgs e)
+        private async void BtnManualMenuInput_Click(object sender, RoutedEventArgs e)
         {
             DateTime targetDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
 
@@ -484,13 +496,10 @@ namespace wpf
                 Ingredients = ingredients
             });
 
-            RefreshDailyMenuGrid();
+            await RefreshMonitorAsync();
         }
 
-        private void BtnConfirmAlternativeMenu_Click(object sender, RoutedEventArgs e)
-        {
-            if (Window.GetWindow(this) is Main main) main.OpenMealBuilder(DpMonitorDate.SelectedDate);
-        }
+        private async void BtnConfirmAlternativeMenu_Click(object sender, RoutedEventArgs e)=>await RefreshMonitorAsync();
 
         private static IEnumerable<T> FindVisualChildren<T>(DependencyObject? depObj) where T : DependencyObject
         {

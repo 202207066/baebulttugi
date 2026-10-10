@@ -326,6 +326,36 @@ namespace wpf
                     empty.Visibility = chosen.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
                     summary.Text = $"{chosen.Select(m=>m.Stored!.Date).Distinct().Count()}일 · {chosen.Count}끼 작성됨 · 메뉴별 1인분 기준";
                 }
+                var exportPdf=new Button{Content="PDF 만들기",HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,12),Padding=new Thickness(20,10,20,10)};
+                exportPdf.Click+=async (_,_)=>
+                {
+                    exportPdf.IsEnabled=false;
+                    try
+                    {
+                        string age=(ageTabs.SelectedItem as TabItem)?.Tag?.ToString()??"3-5";
+                        var saved=(await _sheetsService.GetStoredMealsAsync(monday,sundayFirst:true)).Where(m=>DashboardAgeFilter.Matches(m.AgeGroup,age)).ToList();
+                        if(saved.Count==0){summary.Text="선택한 연령에 출력할 식단이 없습니다.";return;}
+                        var printable=await _sheetsService.DisplayMealsAsync(saved);
+                        var cooking=await _sheetsService.GetCookingMethodsAsync();
+                        var codes=new Dictionary<string,string>();
+                        foreach(var group in saved.Select(m=>m.AgeGroup.Length==0?"3-5":m.AgeGroup).Distinct())
+                            foreach(var menu in (await _sheetsService.GetTrackCatalogAsync(group)).Menus)
+                            {
+                                string key=CookingMethods.Key(menu.Name);
+                                codes[key]=string.Join(",",new[]{codes.GetValueOrDefault(key,""),menu.Allergens}.Where(x=>x.Length>0));
+                            }
+                        var schedule=await WeekSchedule.LoadAsync(_sheetsService,monday);
+                        var dialog=new Microsoft.Win32.SaveFileDialog{Filter="PDF 문서 (*.pdf)|*.pdf",DefaultExt=".pdf",FileName=$"식단표_{monday:yyyy-MM-dd}_{age}세.pdf"};
+                        if(dialog.ShowDialog(this)!=true)return;
+                        MealPlanPdf.Save(dialog.FileName,_sheetsService.CurrentFacility?.Name??"우리 급식소",monday,printable,cooking,codes,sundayFirst:true,schedule:schedule);
+                        summary.Text="PDF 저장 완료: "+dialog.FileName;
+                        try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dialog.FileName){UseShellExecute=true});}
+                        catch(Exception ex){summary.Text+="\n자동 열기 실패: "+ex.Message;}
+                    }
+                    catch(Exception ex){summary.Text="PDF 생성 실패: "+ex.Message;}
+                    finally{exportPdf.IsEnabled=true;}
+                };
+                weekPanel.Children.Add(exportPdf);
                 ageTabs.SelectionChanged += (_,e) => { if(ReferenceEquals(e.Source,ageTabs)) FilterWeek(); };
                 weekPanel.Children.Add(ageTabs); weekPanel.Children.Add(summary); weekPanel.Children.Add(new Viewbox {Child=table,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,HorizontalAlignment=HorizontalAlignment.Stretch}); weekPanel.Children.Add(empty);
                 ageTabs.SelectedIndex = 0;
