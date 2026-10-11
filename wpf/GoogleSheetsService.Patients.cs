@@ -1,4 +1,4 @@
-using Google.Apis.Sheets.v4.Data;
+﻿using Google.Apis.Sheets.v4.Data;
 using System.Text.Json;
 
 namespace wpf;
@@ -6,13 +6,21 @@ namespace wpf;
 public static class PatientSheetCodec
 {
     private static string Cell(IList<object> r, int c) => c >= 0 && c < r.Count ? r[c]?.ToString()?.Trim() ?? "" : "";
-    private static readonly string[][] Aliases = [["ID"], ["성명", "이름"], ["구분"], ["특이 알러지 성분", "특이사항", "알레르기", "알러지", "알레르기 코드"], ["비고(메모)", "비고"]];
-    private static int[] Columns(IList<object> header) => Aliases.Select(a => header.ToList().FindIndex(h => a.Contains(h?.ToString()?.Trim() ?? ""))).ToArray();
+    private static readonly string[][] Aliases = [["ID"], ["성명", "이름"], ["구분"], ["특이 알러지 성분", "특이사항", "알레르기", "알러지", "알레르기 코드", "알러지 코드", "특이 알레르기 성분", "알레르기 정보", "알러지 정보", "알레르기(코드)", "알러지(코드)", "알레르기 유발 물질"], ["비고(메모)", "비고"]];
+    private static string HeaderKey(string text) => System.Text.RegularExpressions.Regex.Replace(text.TrimStart('\uFEFF').Normalize(System.Text.NormalizationForm.FormKC), @"\s+", "");
+    public static int AllergyColumn(IList<object> header)
+    {
+        var columns=header.Select((h,i)=>(h,i)).Where(x=>Aliases[3].Any(a=>HeaderKey(a)==HeaderKey(x.h?.ToString()??""))).Select(x=>x.i).ToArray();
+        if(columns.Length!=1) throw new InvalidOperationException("알레르기 열을 하나로 확인할 수 없습니다. 명단의 헤더를 '알레르기 코드'로 확인해 주세요.");
+        return columns[0];
+    }
+    private static int[] Columns(IList<object> header) => Aliases.Select(a => header.ToList().FindIndex(h => a.Any(alias=>HeaderKey(alias)==HeaderKey(h?.ToString()??"")))).ToArray();
     public static bool IsManagedColumn(IList<object> header, int index) => Columns(header).Contains(index);
     public static List<PatientModel> Parse(IList<IList<object>> rows)
     {
         if (rows.Count == 0) return new();
         var c = Columns(rows[0]);
+        c[3] = AllergyColumn(rows[0]);
         if (c[1] < 0 || c[3] < 0) throw new InvalidOperationException("알레르기 명단에 이름과 알레르기 열이 필요합니다. 기존 자료는 변경하지 않았습니다.");
         var result = new List<PatientModel>();
         for (int i = 1; i < rows.Count; i++)

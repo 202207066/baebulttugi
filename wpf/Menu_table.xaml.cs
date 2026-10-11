@@ -151,6 +151,11 @@ public partial class Menu_table : Page
         return new(c.Value, p.Value, f.Value, t.Value, calories);
     }
 
+    private DayOfWeek[] SelectedOpenDays() => DayPanel.Children.OfType<CheckBox>()
+        .Where(c => c.IsChecked == true)
+        .Select(c => (DayOfWeek)int.Parse(c.Tag.ToString()!))
+        .Where(day => _days.Any(d => d.Date.DayOfWeek == day && !d.IsClosed)).ToArray();
+
     private async void Execute_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
@@ -163,7 +168,7 @@ public partial class Menu_table : Page
             var week = WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate??throw new InvalidOperationException("날짜를 선택해 주세요."));
             ApplyDays(await WeekSchedule.LoadAsync(_service,week));
             var targets = ReadTargets();
-            var days = DayPanel.Children.OfType<CheckBox>().Where(c => c.IsEnabled && c.IsChecked == true).Select(c => (DayOfWeek)int.Parse(c.Tag.ToString()!)).ToArray();
+            var days = SelectedOpenDays();
             var meals = MealPanel.Children.OfType<CheckBox>().Where(c => c.IsChecked == true).Select(c => c.Tag.ToString()!).ToArray();
             if (days.Length == 0 || meals.Length == 0) throw new InvalidOperationException("급식 요일과 끼니를 한 개 이상 선택해 주세요.");
             if (!WeekPicker.SelectedDate.HasValue) throw new InvalidOperationException("대상 주의 날짜를 선택해 주세요.");
@@ -306,13 +311,15 @@ public partial class Menu_table : Page
     }
     private void ApplyDays(IReadOnlyList<WeekDayNotice> days)
     {
+        var previousDays=_days;
         _days=days;
         foreach(var box in DayPanel.Children.OfType<CheckBox>())
         {
             var day=days.Single(d=>(int)d.Date.DayOfWeek==int.Parse(box.Tag.ToString()!));
             int key=(int)day.Date.DayOfWeek;
-            if(day.IsClosed && box.IsEnabled)_choicesBeforeClosure[key]=box.IsChecked==true;
-            if(!day.IsClosed && !box.IsEnabled && _choicesBeforeClosure.Remove(key,out bool previous))box.IsChecked=previous;
+            bool wasClosed=previousDays.Any(d=>(int)d.Date.DayOfWeek==key && d.IsClosed);
+            if(day.IsClosed && !wasClosed)_choicesBeforeClosure[key]=box.IsChecked==true;
+            if(!day.IsClosed && wasClosed && _choicesBeforeClosure.Remove(key,out bool previous))box.IsChecked=previous;
             box.IsEnabled=!day.IsClosed;
             if(day.IsClosed)box.IsChecked=false;
             box.Content=$"{"일월화수목금토"[(int)day.Date.DayOfWeek]} {day.Date:M/d}";

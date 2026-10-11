@@ -194,6 +194,7 @@ namespace wpf
         /// <summary>범위 끝에 행을 덧붙입니다.</summary>
         public async Task AppendRowAsync(string range, IList<object> row)
         {
+            RequirePersonalWrite();
             var valueRange = new ValueRange { Values = new List<IList<object>> { row } };
             var request = _sheetsService.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
             request.ValueInputOption =
@@ -204,6 +205,7 @@ namespace wpf
         /// <summary>범위를 주어진 값으로 덮어씁니다.</summary>
         public async Task UpdateValuesAsync(string range, IList<IList<object>> values)
         {
+            RequirePersonalWrite();
             var valueRange = new ValueRange { Values = values };
             var request = _sheetsService.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
             request.ValueInputOption =
@@ -214,6 +216,7 @@ namespace wpf
         /// <summary>범위의 값을 비웁니다(행 자체는 남습니다).</summary>
         public async Task ClearValuesAsync(string range)
         {
+            RequirePersonalWrite();
             var request = _sheetsService.Spreadsheets.Values.Clear(
                 new ClearValuesRequest(), SpreadsheetId, range);
             await request.ExecuteAsync();
@@ -244,6 +247,7 @@ namespace wpf
         /// <param name="rowIndexOneBased">시트 화면에 보이는 행 번호(1부터)</param>
         public async Task<bool> DeleteRowAsync(string sheetTitle, int rowIndexOneBased)
         {
+            RequirePersonalWrite();
             int? sheetId = await GetSheetIdByTitleAsync(sheetTitle);
             if (sheetId == null) return false;
 
@@ -275,6 +279,7 @@ namespace wpf
         /// <summary>새 시트(탭)를 추가합니다.</summary>
         public async Task AddSheetAsync(string title)
         {
+            RequirePersonalWrite();
             var request = new BatchUpdateSpreadsheetRequest
             {
                 Requests = new List<Request>

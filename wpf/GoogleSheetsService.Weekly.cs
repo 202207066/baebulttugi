@@ -125,9 +125,7 @@ public partial class GoogleSheetsService
         if (title == null) return new(StringComparer.OrdinalIgnoreCase);
         var rows = await GetValuesAsync(QuoteTitle(title) + "!A:Z");
         if (rows.Count == 0) return new(StringComparer.OrdinalIgnoreCase);
-        var headers = rows[0].Select(x => x?.ToString()?.Trim() ?? "").ToList();
-        int col = headers.FindIndex(h => h is "특이 알러지 성분" or "알레르기" or "알러지" or "특이사항" or "알레르기 코드");
-        if (col < 0) throw new InvalidOperationException("알러지 명단에서 알레르기 열을 찾지 못했습니다.");
+        int col = PatientSheetCodec.AllergyColumn(rows[0]);
         return rows.Skip(1).SelectMany(r => SplitAllergens(Cell(r, col))).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 

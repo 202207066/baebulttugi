@@ -121,6 +121,20 @@ internal static class Program
         Reject(() => service.SaveWeeklyMealsAsync(Generate()).GetAwaiter().GetResult(), "Unknown output schema cannot overwrite data");
         service.SetUserSpreadsheetId("");
         Reject(() => service.SaveWeeklyMealsAsync(week).GetAwaiter().GetResult(), "No personal DB cannot write original template");
+        foreach (var id in new[] { "", AppConfig.SpreadsheetId, AppConfig.TemplateSpreadsheetId }) {
+            service.SetUserSpreadsheetId(id);
+            Reject(() => service.AppendRowAsync("A1", new List<object> { "blocked" }).GetAwaiter().GetResult(), "Original DB append blocked");
+            Reject(() => service.UpdateValuesAsync("A1", new List<IList<object>>()).GetAwaiter().GetResult(), "Original DB update blocked");
+            Reject(() => service.ClearValuesAsync("A1").GetAwaiter().GetResult(), "Original DB clear blocked");
+            Reject(() => service.DeleteRowAsync("Menu", 2).GetAwaiter().GetResult(), "Original DB row deletion blocked");
+            Reject(() => service.AddSheetAsync("blocked").GetAwaiter().GetResult(), "Original DB sheet creation blocked");
+        }
+        foreach(var header in new[]{"특이 알러지 성분","특이알레르기성분","알러지 코드","알레르기\n코드","\uFEFF알레르기 정보"}) {
+            Check(PatientSheetCodec.AllergyColumn(new List<object>{"이름",header})==1,"Planner recognizes allergy header: "+header.Replace("\n"," "));
+            Check(PatientSheetCodec.Parse(new List<IList<object>>{new List<object>{"이름",header},new List<object>{"검증","5,6"}})[0].Allergies=="5,6","Patient and planner share header interpretation");
+        }
+        Reject(()=>PatientSheetCodec.AllergyColumn(new List<object>{"이름","알레르기 코드","알러지"}),"Ambiguous allergy headers fail closed");
+        Reject(()=>PatientSheetCodec.AllergyColumn(new List<object>{"이름","알 수 없는 항목"}),"Unknown allergy headers fail closed");
         Check(week[0].Id == "260914L", "Meal ID uses yyMMdd and lunch L");
         var three = Generate(days: [DayOfWeek.Monday], meals: ["조식","중식","석식"]);
         Check(three.Select(m=>m.Id).SequenceEqual(new[]{"260914M","260914L","260914N"}), "Breakfast M and dinner N IDs");

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -17,8 +17,8 @@
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" Condition="Exists('appsettings.json')" />
     <None Update="credentials.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" Condition="Exists('credentials.json')" />
-    <EmbeddedResource Include="appsettings.json" LogicalName="wpf.DeploymentSettings" Condition="Exists('appsettings.json')" />
-    <EmbeddedResource Include="credentials.json" LogicalName="wpf.DesktopOAuth" Condition="Exists('credentials.json')" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)deployment/appsettings.json" LogicalName="wpf.DeploymentSettings" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)deployment/credentials.json" LogicalName="wpf.DesktopOAuth" />
     <None Update="appsettings.sample.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
@@ -33,4 +33,10 @@
   </ItemGroup>
 
   <ItemGroup><EmbeddedResource Include="RecipePortions.json" LogicalName="wpf.RecipePortions"/></ItemGroup>
+  <Target Name="PrepareDeploymentSettings" BeforeTargets="PrepareResourceNames">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/Deployment/Prepare-Settings.ps1&quot; -SourceDirectory &quot;$(MSBuildProjectDirectory)&quot; -OutputDirectory &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)deployment&quot;" />
+  </Target>
+  <ItemGroup>
+    <None Update="token.json/**;GoogleSignIn/**;user_sheet_id.txt;userprefs.json;Deployment/**" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+  </ItemGroup>
 </Project>
