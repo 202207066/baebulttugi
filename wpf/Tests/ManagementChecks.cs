@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -80,8 +80,9 @@ internal static class ManagementChecks
         FeedbackChecks.Render(calendarPage,System.IO.Path.Combine(folder,"calendar-specials.png"),1200,850);
         var bok=Descendants<CalendarDayButton>(calendar).Single(b=>b.DataContext is DateTime date&&date==new DateTime(2026,7,15));
         check(bok.Tag is CalendarDateMark{HasSpecial:true}&&((FrameworkElement)bok.Template.FindName("SpecialDot",bok)).Visibility==Visibility.Visible,"Boknal special-meal date renders its marker");
-        var page=new Menu_table("3-5");((DataGrid)page.FindName("GridDietResult")).ItemsSource=week;
-        FeedbackChecks.Render(page,System.IO.Path.Combine(folder,"weekly-saved.png"),1250,1550); check(((DataGrid)page.FindName("GridDietResult")).Columns.Skip(3).Count(c=>c.ActualWidth>=88)==6,"All six menu columns retain visible widths");
+        var page=new Menu_table("3-5");var weekGrid=(DataGrid)page.FindName("GridDietResult");
+        WeekMealTable.Show(weekGrid,week.Select(m=>new MealDisplayColumn("",m.Menus,m.Calories,m)).ToList(),WeekSchedule.Build(WeeklyMealPlanner.Sunday(week[0].Date),new List<IList<object>>(),new Dictionary<DateTime,string>()));
+        FeedbackChecks.Render(page,System.IO.Path.Combine(folder,"weekly-saved.png"),1250,1550); check(((DataGrid)page.FindName("GridDietResult")).Columns.Skip(1).Count(c=>c.ActualWidth>=130)==7,"일요일부터 토요일까지 일곱 열이 읽을 수 있는 너비를 유지합니다");
         var costPage=new CalculatePage();((ComboBox)costPage.FindName("cbTargetMenu")).ItemsSource=new[]{meal};((ComboBox)costPage.FindName("cbTargetMenu")).SelectedIndex=0;
         FeedbackChecks.Render(costPage,System.IO.Path.Combine(folder,"cost-connected.png"),1250,1000);
         check(((DataGrid)costPage.FindName("CostInputs")).Items.Count>0,"Saved meal selection populates cost editor");

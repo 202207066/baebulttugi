@@ -3,7 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-      xmlns:local="clr-namespace:wpf"
+      xmlns:local="clr-namespace:wpf" xmlns:data="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
       mc:Ignorable="d" 
       Title="Ingredients"
       Background="#F4F7F3">
@@ -32,14 +32,8 @@
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="btnSelectFile" Grid.Column="0" Content="📁 CSV 파일 선택" Click="btnSelectFile_Click"
-                        Height="Auto" Padding="15,0" Background="#EAF2EB" BorderThickness="0" 
-                        Foreground="#416449" FontWeight="SemiBold" Margin="0,0,15,0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Height="Auto" Padding="15,0" 
+                        Margin="0,0,15,0"/>
 
                 <TextBox x:Name="txtFilePath" Grid.Column="1" Text="선택된 파일이 없습니다." IsReadOnly="True" 
                          VerticalContentAlignment="Center" Padding="15,0" FontSize="13" Foreground="#718096"
@@ -52,14 +46,8 @@
                 </TextBox>
 
                 <Button x:Name="btnUpload" Grid.Column="2" Content="📤 시트에 업로드" Click="btnUpload_Click"
-                        Height="Auto" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
-                        Foreground="White" FontWeight="Bold">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Height="Auto" Padding="20,0" 
+                       />
             </Grid>
         </Border>
 
@@ -84,14 +72,8 @@
                     </TextBox.Resources>
                 </TextBox>
                 <Button x:Name="btnCreateSheet" Content="➕ 시트 추가" Click="btnCreateSheet_Click"
-                        Height="Auto" Padding="12,0" Background="#416449" BorderThickness="0" 
-                        Foreground="White" FontWeight="Bold" Margin="0,0,25,0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Height="Auto" Padding="12,0" 
+                        Margin="0,0,25,0"/>
 
                 <TextBlock Text="🔍 필터 검색:" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="#416449" Margin="0,0,8,0"/>
                 <TextBox x:Name="txtFilterKeyword" Width="260" Height="40" VerticalContentAlignment="Center" Padding="10,0" FontSize="13" Foreground="#294334"
@@ -109,34 +91,16 @@
         <Grid Grid.Row="3" Margin="0,0,0,20">
             <WrapPanel VerticalAlignment="Center">
                 <Button x:Name="btnAddRow" Content="➕ 행 추가" Click="btnAddRow_Click"
-                        Height="Auto" Padding="18,0" Background="#416449" BorderThickness="0" 
-                        Foreground="White" FontWeight="Bold" Margin="0,0,10,0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Height="Auto" Padding="18,0" 
+                        Margin="0,0,10,0"/>
 
                 <Button x:Name="btnDeleteRow" Content="➖ 선택행 삭제" Click="btnDeleteRow_Click"
-                        Height="Auto" Padding="18,0" Background="#E53E3E" BorderThickness="0" 
-                        Foreground="White" FontWeight="Bold" Margin="0,0,15,0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Height="Auto" Padding="18,0" 
+                        Style="{StaticResource DangerButton}" Margin="24,0,0,0"/>
 
                 <Button x:Name="btnSaveChanges" Content="💾 변경사항 저장" Click="btnSaveChanges_Click"
-                        Height="Auto" Padding="20,0" Background="#2E7D32" BorderThickness="0" 
-                        Foreground="White" FontWeight="Bold">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="6"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Height="Auto" Padding="20,0" 
+                        Style="{StaticResource PrimaryButton}" Margin="24,0,0,0"/>
             </WrapPanel>
         </Grid>
 
@@ -155,7 +119,7 @@
                     </Border>
                 </StackPanel>
 
-                <DataGrid Grid.Row="1" x:Name="dataGridIngredients" AutoGenerateColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                <Grid Grid.Row="1"><DataGrid x:Name="dataGridIngredients" AutoGenerateColumns="True" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                           Background="White" RowHeight="38" IsReadOnly="False" CanUserAddRows="True" CanUserDeleteRows="True" 
                           GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EAF2EB" AlternatingRowBackground="#F6F9F5" 
                           FontSize="13" Foreground="#294334" BorderBrush="#DCE7DE" BorderThickness="1"
@@ -188,7 +152,7 @@
                             </Style.Triggers>
                         </Style>
                     </DataGrid.Resources>
-                </DataGrid>
+                </DataGrid><TextBlock Text="위에서 CSV 파일을 선택하거나 시트를 골라 주세요." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#8A9B8D" IsHitTestVisible="False" TextWrapping="Wrap" TextAlignment="Center" Margin="20,45,20,20"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Items.Count,ElementName=dataGridIngredients}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Items.Count,ElementName=dataGridIngredients}" Value="1"/><Condition Binding="{Binding Items[0],ElementName=dataGridIngredients}" Value="{x:Static data:CollectionView.NewItemPlaceholder}"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
             </Grid>
         </Border>
     </Grid>

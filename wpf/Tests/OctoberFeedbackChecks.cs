@@ -80,7 +80,7 @@ internal static class OctoberFeedbackChecks
         var mid=Descendants<System.Windows.Controls.Primitives.CalendarDayButton>(eventCal).First(d=>d.DataContext is DateTime dt && dt==new DateTime(2026,10,6));
         Check(mid.Tag is CalendarDateMark {HasMeal:true,ConnectPrevious:true,ConnectNext:true}, "Consecutive meals connect pill segments");
         var pill=(FrameworkElement)mid.Template.FindName("MealPill",mid);
-        Check(pill.Visibility==Visibility.Visible && pill.ActualWidth>40,"Meal pill spans the date cell");
+        Check(pill.Visibility==Visibility.Visible && pill.ActualWidth==6,"식단 작성 표시는 날짜별 점으로 표시됩니다");
         var planner=new Menu_table();
         var guide=(Expander)planner.FindName("NutritionGuide"); guide.IsExpanded=true;
         ((Panel)guide.Parent).Children.Remove(guide);

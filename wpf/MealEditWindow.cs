@@ -1,9 +1,11 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 namespace wpf;
+public enum MealEditResult { Cancel, Save, Delete }
 public sealed class MealEditWindow : Window
 {
     private readonly List<TrackMenu> selections=[];
+    public MealEditResult Result { get; private set; } = MealEditResult.Cancel;
     public TrackMenu[] Selection => selections.ToArray();
     public MealEditWindow(StoredMeal meal,IReadOnlyList<TrackMenu> catalog,int? menuIndex=null,bool showSave=true)
     {
@@ -49,6 +51,18 @@ public sealed class MealEditWindow : Window
         }
         if(menuIndex.HasValue)root.Children.OfType<Expander>().Single().IsExpanded=true;
         var save=new Button{Content="변경한 식단 저장",Style=(Style)FindResource("PrimaryButton"),Margin=new Thickness(0,22,0,0)};
-        save.Click+=(_,_)=>{if(selections.All(m=>m.Name.Length>0))DialogResult=true;};if(showSave)root.Children.Add(save);
+        save.Click+=(_,_)=>{if(selections.All(m=>m.Name.Length>0)){Result=MealEditResult.Save;DialogResult=true;}};if(showSave)root.Children.Add(save);
+        if(showSave)
+        {
+            var actions = new WrapPanel { Margin = new Thickness(0,16,0,0) };
+            var delete = new Button { Content = "이 끼니 전체 삭제", Style = (Style)FindResource("DangerButton"), Margin = new Thickness(0,0,16,0) };
+            delete.Click += (_,_) =>
+            {
+                if(MessageBox.Show(this, $"{meal} 식단의 메뉴 6개를 모두 삭제할까요? 삭제 후 되돌릴 수 없습니다.", "식단 삭제", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+                Result = MealEditResult.Delete; DialogResult = true;
+            };
+            var cancel = new Button { Content = "취소", IsCancel = true };
+            actions.Children.Add(delete); actions.Children.Add(cancel); root.Children.Add(actions);
+        }
     }
 }

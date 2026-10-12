@@ -3,12 +3,15 @@
   <Setter Property="Height" Value="52"/><Setter Property="MinWidth" Value="24"/><Setter Property="Margin" Value="0,2"/><Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#293D35"/>
   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CalendarDayButton">
    <Grid Background="Transparent">
-    <Border x:Name="MealPill" Height="28" VerticalAlignment="Center" Background="#D6EBDE" CornerRadius="{Binding Tag.MealCorners,RelativeSource={RelativeSource TemplatedParent}}" Visibility="Collapsed"/>
+    <Border x:Name="MealPill" Width="6" Height="6" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,3" Background="#3E8055" CornerRadius="3" Visibility="Collapsed"/>
     <Border x:Name="SelectionOutline" CornerRadius="14" BorderThickness="1" Margin="2,8" BorderBrush="Transparent"/>
     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-    <emoji:TextBlock Text="{Binding Tag.EventIcon,RelativeSource={RelativeSource TemplatedParent}}" FontFamily="Segoe UI Emoji" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,0" IsHitTestVisible="False"/>
+    <emoji:TextBlock x:Name="EventDot" Visibility="Collapsed" Text="{Binding Tag.EventIcon,RelativeSource={RelativeSource TemplatedParent}}" FontFamily="Segoe UI Emoji" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,0" IsHitTestVisible="False"/>
+    <Rectangle x:Name="SpecialDot" Width="5" Height="5" Fill="#CA7B19" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4,0,0,3" Visibility="Collapsed"/>
    </Grid>
    <ControlTemplate.Triggers>
+    <DataTrigger Binding="{Binding Tag.HasEvent,RelativeSource={RelativeSource Self}}" Value="True"><Setter TargetName="EventDot" Property="Visibility" Value="Visible"/></DataTrigger>
+    <DataTrigger Binding="{Binding Tag.HasSpecial,RelativeSource={RelativeSource Self}}" Value="True"><Setter TargetName="SpecialDot" Property="Visibility" Value="Visible"/></DataTrigger>
     <DataTrigger Binding="{Binding Tag.HasMeal,RelativeSource={RelativeSource Self}}" Value="True"><Setter TargetName="MealPill" Property="Visibility" Value="Visible"/></DataTrigger>
     <Trigger Property="IsToday" Value="True"><Setter TargetName="SelectionOutline" Property="BorderBrush" Value="#75A986"/></Trigger>
     <Trigger Property="IsSelected" Value="True"><Setter TargetName="SelectionOutline" Property="BorderBrush" Value="#286A47"/><Setter TargetName="SelectionOutline" Property="BorderThickness" Value="2"/><Setter Property="FontWeight" Value="Bold"/></Trigger>

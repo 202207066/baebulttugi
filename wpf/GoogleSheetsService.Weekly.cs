@@ -5,7 +5,11 @@ using System.Text.RegularExpressions;
 
 namespace wpf;
 
-public record TrackCatalog(string Title, string SpreadsheetId, List<TrackMenu> Menus, bool FromTemplate);
+public record TrackCatalog(string Title, string SpreadsheetId, List<TrackMenu> Menus, bool FromTemplate)
+{
+    // Keep ingredients and menu overrides from the same read, including cached loads.
+    public IReadOnlyList<PersonalRecipe> PersonalRecipes { get; init; } = Array.Empty<PersonalRecipe>();
+}
 
 public partial class GoogleSheetsService
 {
@@ -26,7 +30,7 @@ public partial class GoogleSheetsService
             var catalog = await LoadTrackCatalogAsync(age).ConfigureAwait(false);
             var own = await ReadPersonalRecipesAsync(age).ConfigureAwait(false);
             var overrides = own.Select(x => x.Menu.Key).ToHashSet();
-            catalog = catalog with { Menus = catalog.Menus.Where(m => !overrides.Contains(m.Key)).Concat(own.Select(x => x.Menu)).ToList() };
+            catalog = catalog with { Menus = catalog.Menus.Where(m => !overrides.Contains(m.Key)).Concat(own.Select(x => x.Menu)).ToList(), PersonalRecipes = own.AsReadOnly() };
             _catalogCache[key] = (DateTime.UtcNow, catalog);
             return catalog;
         } finally { _catalogGate.Release(); }
@@ -122,19 +126,39 @@ public partial class GoogleSheetsService
         var titles = await GetSheetTitlesAsync();
         var title = titles.FirstOrDefault(t => Normalize(t) == "알러지인원" || Normalize(t) == "알레르기인원")
             ?? titles.FirstOrDefault(t => t == AppConfig.PatientSheetName);
-        if (title == null) return new(StringComparer.OrdinalIgnoreCase);
+        if (title == null) throw new InvalidOperationException("알레르기 명단이 없습니다. 피급식자 화면에서 정보를 확인해 주세요.");
         var rows = await GetValuesAsync(QuoteTitle(title) + "!A:Z");
-        if (rows.Count == 0) return new(StringComparer.OrdinalIgnoreCase);
-        int col = PatientSheetCodec.AllergyColumn(rows[0]);
-        return rows.Skip(1).SelectMany(r => SplitAllergens(Cell(r, col))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (rows.Count == 0 || PatientSheetCodec.AllergyColumns(rows[0]).Length==0)
+            throw new InvalidOperationException("알레르기 열이 누락되어 제외 기준을 확인할 수 없습니다. 명단의 알레르기 정보를 확인해 주세요.");
+        var patients=PatientSheetCodec.Parse(rows);
+        var review=patients.Where(p=>p.NeedsAllergyReview).ToArray();
+        if(review.Length>0)throw new InvalidOperationException("알레르기 확인 필요: "+string.Join(", ",review.Take(5).Select(p=>p.Name))+". 피급식자 화면에서 누락·충돌 정보를 확인해 주세요.");
+        return patients.SelectMany(p=>SplitAllergens(p.Allergies)).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private static readonly string[] AllergenNames = ["난류", "우유", "메밀", "땅콩", "대두", "밀", "고등어", "게", "새우", "돼지고기", "복숭아", "토마토", "아황산류", "호두", "닭고기", "쇠고기", "오징어", "조개류", "잣"];
+    /// <summary>분해를 추측하지 않고 검수 범위 밖 숫자를 반환합니다.</summary>
+    public static IReadOnlyList<string> InvalidAllergenCodes(string text)
+    {
+        string expanded = Regex.Replace(text, "[①-⑳]", m => ((int)m.Value[0] - '①' + 1).ToString() + ",");
+        return Regex.Matches(expanded.Normalize(NormalizationForm.FormKC), @"\d+")
+            .Select(m => m.Value).Where(n => !int.TryParse(n, out int code) || code < 1 || code > 19).Distinct().ToArray();
+    }
+
+    public static bool NeedsAllergenReview(TrackMenu menu)
+    {
+        var invalid = InvalidAllergenCodes(menu.Allergens);
+        if (invalid.Count > 0) System.Diagnostics.Debug.WriteLine($"알레르기 확인 필요: {menu.Name} · 코드 {string.Join(", ", invalid)}");
+        return invalid.Count > 0;
+    }
+
     private static HashSet<string> AllergenTokens(string text)
     {
         text = text.Normalize(NormalizationForm.FormKC).Replace("계란", "난류").Replace("달걀", "난류")
             .Replace("소고기", "쇠고기").Replace("대두콩", "대두");
-        var tokens = Regex.Matches(text, @"\d+").Select(m => m.Value).ToHashSet();
+        var invalid = InvalidAllergenCodes(text);
+        if (invalid.Count > 0) System.Diagnostics.Debug.WriteLine("알레르기 확인 필요: 유효하지 않은 코드 " + string.Join(", ", invalid));
+        var tokens = Regex.Matches(text, @"\d+").Select(m => m.Value).Where(n => !invalid.Contains(n)).ToHashSet();
         for (int i = 0; i < AllergenNames.Length; i++) if (text.Contains(AllergenNames[i])) tokens.Add((i + 1).ToString());
         if (text.Contains("땅콩") == false && (text == "콩" || text.Contains("콩류"))) tokens.Add("5");
         foreach (var token in Regex.Split(text, @"[,;/\s]+")) if (token.Length > 0) tokens.Add(token);
@@ -146,7 +170,8 @@ public partial class GoogleSheetsService
         // Keep circled numbers separate before compatibility normalization (⑤⑥ must not become 56).
         string Expand(string s) => Regex.Replace(s, "[①-⑳]", m => ((int)m.Value[0] - '①' + 1).ToString() + ",");
         var actual = AllergenTokens(Expand(menu.Allergens));
-        return registered.Any(r => actual.Overlaps(AllergenTokens(Expand(r))) || menu.Name.Contains(r, StringComparison.OrdinalIgnoreCase));
+        return registered.Any(r => actual.Overlaps(AllergenTokens(Expand(r))) ||
+            (r.Trim().Length >= 2 && !Regex.IsMatch(Expand(r).Normalize(NormalizationForm.FormKC), @"^[\d,;\s/]+$") && menu.Name.Contains(r.Trim(), StringComparison.OrdinalIgnoreCase)));
     }
 
     private static CellData TextCell(string text) => new() { UserEnteredValue = new ExtendedValue { StringValue = text } };

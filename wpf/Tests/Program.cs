@@ -27,6 +27,7 @@ internal static class Program
 
     private static void Run(string[] args)
     {
+        if(args.Length > 1 && args[0] == "fix-visual") { FixVisualChecks.Run(args[1]); return; }
         if(args.Length > 1 && args[0] == "week-feedback") { WeekFeedbackChecks.Run(args[1]); return; }
         if(args.Length > 1 && args[0] == "october-feedback") { OctoberFeedbackChecks.Run(args[1]); return; }
         if (args.Length > 1 && args[0] == "sidebar-preview")
@@ -130,11 +131,11 @@ internal static class Program
             Reject(() => service.AddSheetAsync("blocked").GetAwaiter().GetResult(), "Original DB sheet creation blocked");
         }
         foreach(var header in new[]{"특이 알러지 성분","특이알레르기성분","알러지 코드","알레르기\n코드","\uFEFF알레르기 정보"}) {
-            Check(PatientSheetCodec.AllergyColumn(new List<object>{"이름",header})==1,"Planner recognizes allergy header: "+header.Replace("\n"," "));
+            Check(PatientSheetCodec.AllergyColumns(new List<object>{"이름",header}).SequenceEqual(new[]{1}),"Planner recognizes allergy header: "+header.Replace("\n"," "));
             Check(PatientSheetCodec.Parse(new List<IList<object>>{new List<object>{"이름",header},new List<object>{"검증","5,6"}})[0].Allergies=="5,6","Patient and planner share header interpretation");
         }
-        Reject(()=>PatientSheetCodec.AllergyColumn(new List<object>{"이름","알레르기 코드","알러지"}),"Ambiguous allergy headers fail closed");
-        Reject(()=>PatientSheetCodec.AllergyColumn(new List<object>{"이름","알 수 없는 항목"}),"Unknown allergy headers fail closed");
+        Check(PatientSheetCodec.AllergyColumns(new List<object>{"이름","알레르기 코드","알러지"}).SequenceEqual(new[]{1,2}),"여러 알레르기 열을 모두 찾습니다");
+        Check(PatientSheetCodec.Parse(new List<IList<object>>{new List<object>{"이름","알 수 없는 항목"},new List<object>{"대상",""}})[0].NeedsAllergyReview,"알레르기 열 누락은 확인 필요로 표시합니다");
         Check(week[0].Id == "260914L", "Meal ID uses yyMMdd and lunch L");
         var three = Generate(days: [DayOfWeek.Monday], meals: ["조식","중식","석식"]);
         Check(three.Select(m=>m.Id).SequenceEqual(new[]{"260914M","260914L","260914N"}), "Breakfast M and dinner N IDs");
@@ -151,11 +152,26 @@ internal static class Program
         Reject(() => IngredientCsv.Parse(new StringReader("가격\n3000\n"), "bad.csv"), "Ingredient CSV rejects missing ingredient-name header");
         Reject(()=>DinerCsv.Parse(new StringReader("이름,나이\n아이,-1")),"Invalid ages rejected before any upload");
         Reject(()=>DinerCsv.Parse(new StringReader("나이\n5")),"Missing CSV name header rejected");
+        AnnualEventChecks.Run(Check);
         EntryChecks.Run(Check, args.Length > 2 ? args[2] : null);
         FeedbackChecks.Run(Check, Reject);
         var app = new wpf.App();
         app.InitializeComponent();
         AppServices.Sheets = new GoogleSheetsService(null!);
+        var recipePage = new MenuInputPage();
+        var recipeGrid = (System.Windows.Controls.DataGrid)recipePage.FindName("MenuGrid");
+        recipeGrid.ItemsSource = Enumerable.Range(0, 2000).Select(i => new TrackMenu("load-"+i, "메뉴 "+i, "밥류", "", 10, 3, 2, 70, "test")).ToList();
+        recipePage.Measure(new Size(1140, 960));
+        recipePage.Arrange(new Rect(0, 0, 1140, 960));
+        recipePage.UpdateLayout();
+        int renderedRows = Enumerable.Range(0, 2000).Count(i => recipeGrid.ItemContainerGenerator.ContainerFromIndex(i) != null);
+        Check(renderedRows > 0 && renderedRows < 100, $"Recipe grid virtualizes 2000 menus ({renderedRows} row containers)");
+        recipeGrid.ScrollIntoView(recipeGrid.Items[1999]);
+        recipeGrid.UpdateLayout();
+        Check(recipeGrid.ItemContainerGenerator.ContainerFromIndex(1999) != null, "Virtualized recipe grid can reach the last menu");
+        AnnualEventChecks.RunUi(Check, args.Contains("annual-preview") ? "outputs/annual-event-preview.png" : null);
+        FixChecks.Run(Check);
+        PolicyChecks.Run(Check,Reject);
         var page = new Menu_table("6-18");
         Check(((System.Windows.Controls.ComboBoxItem)((System.Windows.Controls.ComboBox)page.FindName("CboAgeGroup")).SelectedItem).Tag.ToString() == "6-18", "WPF page constructs and selects track B");
         if (args.Length > 1)
@@ -184,7 +200,7 @@ internal static class Program
             next.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             Check(calendar.DisplayDate.Month==initialMonth.AddMonths(1).Month,"Custom calendar next-month button works");
             previous.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-            Check(calendar.DisplayDate.Month==initialMonth.Month && calendar.FirstDayOfWeek==DayOfWeek.Monday && calendar.Language.IetfLanguageTag.Equals("ko-KR",StringComparison.OrdinalIgnoreCase),"Custom calendar previous month and Korean Monday-first layout work");
+            Check(calendar.DisplayDate.Month==initialMonth.Month && calendar.FirstDayOfWeek==DayOfWeek.Sunday && calendar.Language.IetfLanguageTag.Equals("ko-KR",StringComparison.OrdinalIgnoreCase),"Custom calendar previous month and Korean Sunday-first layout work");
             var heading=(System.Windows.Controls.Button)calendarItem.Template.FindName("PART_HeaderButton",calendarItem);
             heading.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             Check(calendar.DisplayMode==System.Windows.Controls.CalendarMode.Year,"Custom calendar retains month picker navigation");

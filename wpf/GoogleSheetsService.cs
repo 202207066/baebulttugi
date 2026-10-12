@@ -155,6 +155,7 @@ namespace wpf
         {
             _userSpreadsheetId = string.IsNullOrWhiteSpace(id) ? null : id.Trim();
             _resolvedSheets.Clear();
+            InvalidateSheetTitles();
         }
 
         /// <summary>
@@ -280,6 +281,7 @@ namespace wpf
         public async Task AddSheetAsync(string title)
         {
             RequirePersonalWrite();
+            string spreadsheetId = SpreadsheetId;
             var request = new BatchUpdateSpreadsheetRequest
             {
                 Requests = new List<Request>
@@ -293,7 +295,8 @@ namespace wpf
                     }
                 }
             };
-            await _sheetsService.Spreadsheets.BatchUpdate(request, SpreadsheetId).ExecuteAsync();
+            await _sheetsService.Spreadsheets.BatchUpdate(request, spreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            InvalidateSheetTitles(spreadsheetId);
         }
 
         // ── 시트(탭) 자동 준비 ──────────────────────────────────────────
@@ -381,22 +384,56 @@ namespace wpf
             EnsureSheetAsync(AppConfig.DietSheetName,
                              "구분", "밥", "국", "주찬", "부찬", "칼로리");
 
-        /// <summary>스프레드시트에 있는 모든 탭 이름.</summary>
-        public async Task<List<string>> GetSheetTitlesAsync()
+        private readonly System.Threading.SemaphoreSlim _sheetTitlesGate = new(1, 1);
+        private readonly object _sheetTitlesSync = new();
+        private readonly Dictionary<string, (DateTime Time, string[] Titles)> _sheetTitlesCache = new(StringComparer.Ordinal);
+        private long _sheetTitlesVersion;
+
+        private void InvalidateSheetTitles(string? id = null)
         {
-            var titles = new List<string>();
-            var metadata = _sheetsService.Spreadsheets.Get(SpreadsheetId);
-            metadata.Fields = "sheets(properties)";
-            var spreadsheet = await metadata.ExecuteAsync();
-            if (spreadsheet.Sheets != null)
+            var owner = FacilityRegistry;
+            lock (owner._sheetTitlesSync)
             {
-                foreach (var sheet in spreadsheet.Sheets)
-                {
-                    string? title = sheet.Properties?.Title;
-                    if (!string.IsNullOrEmpty(title)) titles.Add(title!);
-                }
+                owner._sheetTitlesVersion++;
+                if (id == null) owner._sheetTitlesCache.Clear();
+                else owner._sheetTitlesCache.Remove(id);
             }
-            return titles;
+        }
+
+        /// <summary>급식소별 탭 목록을 45초간 공유하고 동시 요청을 합칩니다.</summary>
+        public async Task<List<string>> GetSheetTitlesAsync(bool forceRefresh = false)
+        {
+            string id = SpreadsheetId;
+            var owner = FacilityRegistry;
+            await owner._sheetTitlesGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                long version;
+                lock (owner._sheetTitlesSync)
+                {
+                    if (!forceRefresh && owner._sheetTitlesCache.TryGetValue(id, out var cached) && DateTime.UtcNow - cached.Time < TimeSpan.FromSeconds(45))
+                        return cached.Titles.ToList();
+                    version = owner._sheetTitlesVersion;
+                }
+                var metadata = _sheetsService.Spreadsheets.Get(id);
+                metadata.Fields = "sheets(properties)";
+                Spreadsheet spreadsheet;
+                try { spreadsheet = await metadata.ExecuteAsync().ConfigureAwait(false); }
+                catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1.5)).ConfigureAwait(false);
+                    spreadsheet = await metadata.ExecuteAsync().ConfigureAwait(false);
+                }
+                var titles = spreadsheet.Sheets?.Select(sheet => sheet.Properties?.Title)
+                    .Where(title => !string.IsNullOrEmpty(title)).Select(title => title!).ToArray() ?? [];
+                lock (owner._sheetTitlesSync)
+                {
+                    // 탭 생성·책 전환 중 시작했던 응답으로 무효화된 캐시를 되살리지 않습니다.
+                    if (version == owner._sheetTitlesVersion) owner._sheetTitlesCache[id] = (DateTime.UtcNow, titles);
+                }
+                return titles.ToList();
+            }
+            finally { owner._sheetTitlesGate.Release(); }
         }
 
         // ── 대시보드 ────────────────────────────────────────────────────
@@ -441,7 +478,7 @@ namespace wpf
                 string token = part.Trim();
                 if (token.Length == 0) continue;
                 // "없음"과 헤더 문구는 알러지원이 아닙니다.
-                if (token == "없음" || token == "특이 알러지 성분") continue;
+                if (PatientAllergyInfo.IsNone(token) || token == "특이 알러지 성분") continue;
                 yield return token;
             }
         }

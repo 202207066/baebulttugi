@@ -24,9 +24,8 @@
 
         <!-- 머리말 -->
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="식단과 일정" Style="{StaticResource PageTitle}"/>
-            <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="{StaticResource InkSubtle}"
-                       TextWrapping="Wrap" Text="빨강: 일요일·공휴일 / 파랑: 토요일 / 녹색 가로 바: 식단 작성됨 / 아이콘: 내 일정 / 주황 표시: 특식 행사 (2026년 기본 자료)"/>
+            <TextBlock Text="식단과 일정" Style="{StaticResource PageTitle}"/><TextBlock x:Name="HolidayStatus" Text="공휴일 정보 확인 중" TextWrapping="Wrap" FontSize="12" Foreground="#60766A" Margin="0,6,0,0"/>
+            
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -54,19 +53,10 @@
                       <TextBlock x:Name="txtBadgeHoliday" Foreground="#A46831" FontSize="12" FontWeight="SemiBold"/>
                      </Border>
                     </Grid>
-                    <Calendar Grid.Row="1" Height="420" x:Name="MainCalendar" Style="{StaticResource CleanCalendar}" FirstDayOfWeek="Sunday" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
+                    <Calendar Grid.Row="1" MinHeight="420" x:Name="MainCalendar" Style="{StaticResource CleanCalendar}" FirstDayOfWeek="Sunday" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
 
                     <!-- 범례 -->
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,14,0,0">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource Brand}"
-                                 VerticalAlignment="Center" Margin="0,0,7,0"/>
-                        <TextBlock Text="선택한 날" Style="{StaticResource Caption}" Margin="0,0,18,0"/>
-
-                        <Border Width="9" Height="9" CornerRadius="2" Background="#EDF5EE"
-                                BorderBrush="{StaticResource Brand}" BorderThickness="1"
-                                VerticalAlignment="Center" Margin="0,0,7,0"/>
-                        <TextBlock Text="오늘" Style="{StaticResource Caption}"/><TextBlock Text="  이모지: 내 일정  ▪ 특식 행사" Foreground="#3176B5" FontSize="12" Margin="8,0,0,0"/>
-                    </StackPanel>
+                    <TextBlock Grid.Row="2" Margin="4,14,0,0" TextWrapping="Wrap" FontSize="12" Foreground="#60766A" Text="테두리: 선택한 날 · 연한 테두리: 오늘&#10;빨강: 일요일·공휴일 · 파랑: 토요일&#10;초록 점: 식단 작성 · 이모지: 내 일정 · 주황 점: 특식 행사"/>
                 </Grid>
             </Border>
 
@@ -183,8 +173,13 @@
                         <StackPanel>
                             <TextBlock Text="일정 내용" Style="{StaticResource Caption}" Margin="2,0,0,7"/>
 
+                            <WrapPanel Margin="0,0,0,8">
+                                <RadioButton x:Name="EventOnce" GroupName="EventRepeat" Content="반복 안 함" IsChecked="True" Margin="0,0,18,4"/>
+                                <RadioButton x:Name="EventYearly" GroupName="EventRepeat" Content="반복 이벤트 · 매년" Margin="0,0,0,4"/>
+                            </WrapPanel>
+                            <TextBlock Text="매년 같은 월·일에 반복됩니다. 2월 29일은 윤년에만 표시됩니다." TextWrapping="Wrap" FontSize="11" Foreground="#718276" Margin="0,0,0,8"/>
                             <CheckBox x:Name="EventClosed" Content="휴무일 · 자동 식단 생성에서 제외" Margin="0,0,0,10"/><StackPanel Orientation="Horizontal" Margin="0,0,0,8"><TextBlock Text="이벤트 아이콘" VerticalAlignment="Center" Margin="0,0,12,0"/><emoji:RichTextBox x:Name="EventIconPicker" Width="110" Height="46" FontSize="20" ToolTip="Win + . 키로 이모지를 입력하세요"/></StackPanel>
-                            <TextBlock Text="아이콘 입력란에서 Win + . 키로 이모지를 선택하세요." FontSize="11" Foreground="#718276" TextWrapping="Wrap" Margin="0,0,0,8"/><emoji:RichTextBox x:Name="txtEventInput" Height="72"
+                            <WrapPanel x:Name="QuickEventIcons" Margin="0,0,0,8"/><TextBlock Text="다른 아이콘은 위 입력란에서 직접 입력할 수 있습니다." FontSize="11" Foreground="#718276" TextWrapping="Wrap" Margin="0,0,0,8"/><emoji:RichTextBox x:Name="txtEventInput" Height="72"
 
                                      VerticalContentAlignment="Top" Padding="10,8"
                                      VerticalScrollBarVisibility="Auto"/>

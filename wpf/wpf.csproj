@@ -39,4 +39,5 @@
   <ItemGroup>
     <None Update="token.json/**;GoogleSignIn/**;user_sheet_id.txt;userprefs.json;Deployment/**" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
+  <ItemGroup><None Update="Deployment/Set-HolidayApiKey.ps1" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
 </Project>

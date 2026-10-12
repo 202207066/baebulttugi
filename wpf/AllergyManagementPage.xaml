@@ -72,11 +72,11 @@
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0" Style="{StaticResource ModernCardStyle}">
-                        <Grid>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -90,8 +90,8 @@
 
                             <StackPanel Grid.Row="1" Margin="0,0,0,15">
                                 <TextBlock Text="대상 분류" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,0,6" FontSize="13"/>
-                                <ComboBox x:Name="CmbPatientCategory" Height="36" Background="White" BorderBrush="#CBD5E0" Padding="8,0" VerticalContentAlignment="Center">
-                                    <ComboBoxItem IsSelected="True">일반</ComboBoxItem>
+                                <ComboBox Style="{DynamicResource {x:Type ComboBox}}" x:Name="CmbPatientCategory" Height="36" Background="White" BorderBrush="#CBD5E0" Padding="8,0" VerticalContentAlignment="Center">
+                                    <ComboBox.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="PlannerStyles.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary></ComboBox.Resources><ComboBoxItem IsSelected="True">일반</ComboBoxItem>
                                     <ComboBoxItem>영유아</ComboBoxItem>
                                     <ComboBoxItem>고령자</ComboBoxItem>
                                     <ComboBoxItem>특별관리</ComboBoxItem>
@@ -101,34 +101,41 @@
                             <Grid Grid.Row="2" Margin="0,0,0,15">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Text="🛡️ 식약처 지정 알레르기 유발 물질" FontWeight="SemiBold" Foreground="#4A5568" Margin="0,0,8,6" FontSize="13"/>
                                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                    <WrapPanel Orientation="Horizontal" ItemWidth="110" ItemHeight="30" Margin="0,5,0,0">
-                                        <CheckBox Tag="달걀" Content="1. 난류" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="우유" Content="2. 우유" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="메밀" Content="3. 메밀" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="땅콩" Content="4. 땅콩" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="대두" Content="5. 대두" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="밀" Content="6. 밀" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="고등어" Content="7. 고등어" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="게" Content="8. 게" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="새우" Content="9. 새우" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="돼지고기" Content="10. 돼지고기" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="복숭아" Content="11. 복숭아" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="토마토" Content="12. 토마토" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="아황산류" Content="13. 아황산류" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="호두" Content="14. 호두" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="닭고기" Content="15. 닭고기" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="소고기" Content="16. 쇠고기" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="오징어" Content="17. 오징어" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="조개류" Content="18. 조개류" ToolTip="굴·전복·홍합을 포함합니다." Margin="0,2" Foreground="#2D3748"/>
+                                    <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
+<WrapPanel.Resources>
+<Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+<Setter Property="MinWidth" Value="118"/>
+<Setter Property="Margin" Value="0,5,14,5"/>
+<Setter Property="Foreground" Value="#2D3748"/>
+</Style>
+</WrapPanel.Resources>
+                                        <CheckBox Tag="달걀" Content="1. 난류"/>
+                                        <CheckBox Tag="우유" Content="2. 우유"/>
+                                        <CheckBox Tag="메밀" Content="3. 메밀"/>
+                                        <CheckBox Tag="땅콩" Content="4. 땅콩"/>
+                                        <CheckBox Tag="대두" Content="5. 대두"/>
+                                        <CheckBox Tag="밀" Content="6. 밀"/>
+                                        <CheckBox Tag="고등어" Content="7. 고등어"/>
+                                        <CheckBox Tag="게" Content="8. 게"/>
+                                        <CheckBox Tag="새우" Content="9. 새우"/>
+                                        <CheckBox Tag="돼지고기" Content="10. 돼지고기"/>
+                                        <CheckBox Tag="복숭아" Content="11. 복숭아"/>
+                                        <CheckBox Tag="토마토" Content="12. 토마토"/>
+                                        <CheckBox Tag="아황산류" Content="13. 아황산류"/>
+                                        <CheckBox Tag="호두" Content="14. 호두"/>
+                                        <CheckBox Tag="닭고기" Content="15. 닭고기"/>
+                                        <CheckBox Tag="소고기" Content="16. 쇠고기"/>
+                                        <CheckBox Tag="오징어" Content="17. 오징어"/>
+                                        <CheckBox Tag="조개류" Content="18. 조개류" ToolTip="굴·전복·홍합을 포함합니다."/>
                                         
-                                        <CheckBox Tag="잣" Content="19. 잣" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="아몬드" Content="기타 · 아몬드" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="참깨" Content="기타 · 참깨" Margin="0,2" Foreground="#2D3748"/>
-                                        <CheckBox Tag="콩류(기타)" Content="기타 · 콩류(기타)" Margin="0,2" Foreground="#2D3748"/>
+                                        <CheckBox Tag="잣" Content="19. 잣"/>
+                                        <CheckBox Tag="아몬드" Content="기타 · 아몬드"/>
+                                        <CheckBox Tag="참깨" Content="기타 · 참깨"/>
+                                        <CheckBox Tag="콩류(기타)" Content="기타 · 콩류(기타)"/>
                                     </WrapPanel>
                                 </ScrollViewer>
                             </Grid>
@@ -141,13 +148,13 @@
                             </StackPanel>
 
                             <Button x:Name="BtnSavePatient" Grid.Row="4" Style="{StaticResource PrimaryButton}" Height="Auto" MinHeight="46" Padding="18,10" HorizontalAlignment="Stretch" Content="신규 피급식자 등록"/>
-                        </Grid>
+                        </Grid></ScrollViewer>
                     </Border>
 
                     <Grid Grid.Column="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*" MaxHeight="420"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
@@ -171,7 +178,7 @@
                         </Border>
 
                         <Border Grid.Row="1" Style="{StaticResource ModernCardStyle}" Padding="0" Margin="0,0,0,15" ClipToBounds="True">
-                            <DataGrid IsReadOnly="True" CanUserDeleteRows="False" x:Name="DgPatients" AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" BorderThickness="0" Background="White" RowHeight="40" ColumnHeaderHeight="40">
+                            <Grid><DataGrid IsReadOnly="True" CanUserDeleteRows="False" x:Name="DgPatients" MinHeight="200" MaxHeight="420" AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF2F7" BorderThickness="0" Background="White" RowHeight="NaN" MinRowHeight="40" ColumnHeaderHeight="40">
                                 <DataGrid.Resources>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="Background" Value="#F7FAFC"/>
@@ -198,10 +205,10 @@
                                     <DataGridTextColumn Header="ID" Binding="{Binding Id, Mode=OneWay}" Width="60"/>
                                     <DataGridTextColumn Header="이름" Binding="{Binding Name, Mode=OneWay}" Width="100"/>
                                     <DataGridTextColumn Header="분류" Binding="{Binding Category, Mode=OneWay}" Width="100"/>
-                                    <DataGridTextColumn Header="특이 알러지 성분" Binding="{Binding Allergies, Mode=OneWay}" Width="160"/>
+                                    <DataGridTextColumn Header="알레르기 · 확인 상태" Binding="{Binding AllergyDisplay, Mode=OneWay}" Width="220"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,8"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn>
                                     <DataGridTextColumn Header="메모" Binding="{Binding Note, Mode=OneWay}" Width="*"/>
                                 </DataGrid.Columns>
-                            </DataGrid>
+                            </DataGrid><TextBlock Text="아직 등록된 피급식자가 없습니다. 왼쪽에서 등록해 주세요." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#8A9B8D" IsHitTestVisible="False" TextWrapping="Wrap" TextAlignment="Center" Margin="20,45,20,20"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Items.Count,ElementName=DgPatients}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
                         </Border>
 
                         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

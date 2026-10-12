@@ -17,36 +17,42 @@ public record WeekDayNotice(DateTime Date,string Holiday,string Events)
 
 public static class WeekSchedule
 {
+    public static string HolidayStatus { get; private set; } = "공휴일 기본 자료 사용";
     private static readonly HttpClient Client=new(){Timeout=TimeSpan.FromSeconds(8)};
     public static async Task<Dictionary<DateTime,string>> HolidaysAsync(int year,int month)
     {
         var result=CalendarDates.Holidays(year).Where(p=>p.Key.Month==month).ToDictionary(p=>p.Key,p=>p.Value);
-        if(!AppConfig.HasHolidayApiKey)return result;
+        string apiKey=AppConfig.HolidayApiKey;
+        if(string.IsNullOrWhiteSpace(apiKey))
+        {
+            HolidayStatus=HolidayApiKeyStore.ReadError??"공휴일 기본 자료 사용 · 실시간 조회는 공휴일 키 등록 후 이용할 수 있습니다.";
+            return result;
+        }
         try
         {
             var json=await Client.GetStringAsync("https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo"+
-                $"?serviceKey={Uri.EscapeDataString(AppConfig.HolidayApiKey)}&solYear={year}&solMonth={month:D2}&_type=json&numOfRows=100");
-            var item=JObject.Parse(json)["response"]?["body"]?["items"]?["item"];
+                $"?serviceKey={Uri.EscapeDataString(apiKey)}&solYear={year}&solMonth={month:D2}&_type=json&numOfRows=100");
+            var response=JObject.Parse(json)["response"];
+            string? code=response?["header"]?["resultCode"]?.ToString();
+            if(code!=null && code!="00" && code!="0")throw new Newtonsoft.Json.JsonException("공휴일 API 오류 응답");
+            if(response?["body"]==null)throw new Newtonsoft.Json.JsonException("공휴일 응답 형식 오류");
+            var item=response?["body"]?["items"]?["item"];
             IEnumerable<JToken> items=item is JArray array?array:item is JObject one?new[]{one}:Array.Empty<JToken>();
             foreach(var row in items)
                 if(row["isHoliday"]?.ToString()=="Y" && DateTime.TryParseExact(row["locdate"]?.ToString(),"yyyyMMdd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))
                     result[date]=row["dateName"]?.ToString()??"공휴일";
+            HolidayStatus="공휴일 API 조회 완료";
         }
         catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException or Newtonsoft.Json.JsonException)
-        { System.Diagnostics.Debug.WriteLine("공휴일 기본 자료 사용: "+ex.Message); }
+        { HolidayStatus="공휴일 API 조회 실패 · 기본 자료를 표시합니다. 키 등록 상태와 연결을 확인해 주세요."; System.Diagnostics.Debug.WriteLine("공휴일 기본 자료 사용: "+ex.GetType().Name); }
         return result;
     }
     public static IReadOnlyList<WeekDayNotice> Build(DateTime selected,IList<IList<object>> rows,IReadOnlyDictionary<DateTime,string> holidays)
     {
         var start=WeeklyMealPlanner.Sunday(selected);
-        var events=new Dictionary<DateTime,List<string>>();
-        foreach(var row in rows)
-            if(row.Count>1 && DateTime.TryParse(row[0]?.ToString(),out var date) && !string.IsNullOrWhiteSpace(row[1]?.ToString()))
-            {
-                if(!events.TryGetValue(date.Date,out var list))events[date.Date]=list=[];
-                list.Add(row[1].ToString()!);
-            }
-        return Enumerable.Range(0,7).Select(i=>start.AddDays(i)).Select(d=>new WeekDayNotice(d,holidays.GetValueOrDefault(d,""),string.Join("\n",events.GetValueOrDefault(d,[])))).ToArray();
+        var events=AnnualEvent.Parse(rows);
+        return Enumerable.Range(0,7).Select(i=>start.AddDays(i)).Select(d=>new WeekDayNotice(d,holidays.GetValueOrDefault(d,""),
+            string.Join("\n",events.Where(item=>item.OccursOn(d)).Select(item=>item.Content)))).ToArray();
     }
     public static async Task<IReadOnlyList<WeekDayNotice>> LoadAsync(GoogleSheetsService service,DateTime selected)
     {

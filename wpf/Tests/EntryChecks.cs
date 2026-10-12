@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
@@ -29,12 +29,24 @@ internal static class EntryChecks
         var menu=first.Menus[0] with { Carb=30,Protein=5,Fat=2,Calories=null,Source="test recipe" };
         service.SavePersonalRecipeAsync("3-5",menu,"쌀 40g").GetAwaiter().GetResult();
         var merged=service.GetTrackCatalogAsync("3-5").GetAwaiter().GetResult();
+        check(merged.PersonalRecipes.Single().Ingredients=="쌀 40g", "Catalog snapshot includes saved recipe ingredients");
+        reads=handler.Calls;
+        var reopened=service.GetTrackCatalogAsync("3-5").GetAwaiter().GetResult();
+        check(handler.Calls==reads && reopened.PersonalRecipes.Single().Ingredients=="쌀 40g", "Reopening recipe management uses menus and ingredients with zero API calls");
+        handler.OwnA[1][21]="외부 수정";
+        var refreshed=service.GetTrackCatalogAsync("3-5",true).GetAwaiter().GetResult();
+        check(refreshed.PersonalRecipes.Single().Ingredients=="외부 수정", "Explicit refresh also refreshes recipe ingredients");
+        check(reopened.PersonalRecipes.Single().Ingredients=="쌀 40g", "Existing recipe snapshot remains consistent after refresh");
         check(merged.Menus.Count==first.Menus.Count && merged.Menus[0].Carb==30 && merged.Menus[0].Calories==158,"Personal recipe overrides shared key and derives missing kcal");
         menu=menu with { Carb=31 };
         service.SavePersonalRecipeAsync("3-5",menu,"쌀 41g").GetAwaiter().GetResult();
         check(handler.OwnA.Count==2 && handler.OwnA[1][11].ToString()=="31","Editing same recipe updates its row");
+        var saved=service.GetTrackCatalogAsync("3-5").GetAwaiter().GetResult();
+        check(saved.PersonalRecipes.Single().Ingredients=="쌀 41g" && saved.Menus[0].Carb==31, "Save invalidates both cached menu and ingredients");
         service.SavePersonalRecipeAsync("6-18",menu,"다른 연령 레시피").GetAwaiter().GetResult();
         check(handler.OwnA.Count==2 && handler.OwnB.Count==2,"Tracks A and B retain separate personal recipe tables");
+        check(service.GetTrackCatalogAsync("6-18").GetAwaiter().GetResult().PersonalRecipes.Single().Ingredients=="다른 연령 레시피"
+            && service.GetTrackCatalogAsync("3-5").GetAwaiter().GetResult().PersonalRecipes.Single().Ingredients=="쌀 41g", "Recipe snapshots are isolated by track");
         check(handler.WriteBooks.All(x=>x=="personal-test"),"Entry writes never target shared source database");
         if(fixture!=null && File.Exists(fixture)) {
             var tracks=JsonSerializer.Deserialize<List<List<List<JsonElement>>>>(File.ReadAllText(fixture))!;

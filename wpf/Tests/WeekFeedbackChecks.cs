@@ -80,13 +80,8 @@ internal static class WeekFeedbackChecks
         Check(rejected&&http.BatchCount==1,"Conflicting day edits block all writes without partial changes");
         AppServices.Sheets=new GoogleSheetsService(null!);
         var planner=new Menu_table();
-        var toggle=typeof(Menu_table).GetMethod("EditMeal_Click",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
-        var editButton=(Button)planner.FindName("EditModeButton");var plannerGrid=(DataGrid)planner.FindName("GridDietResult");
-        Check(!MealTableEditing.GetIsEditing(plannerGrid)&&editButton.Content.ToString()=="수정하기","Editor initially requires explicit edit mode");
-        toggle.Invoke(planner,new object[]{editButton,new RoutedEventArgs()});
-        Check(MealTableEditing.GetIsEditing(plannerGrid)&&editButton.Content.ToString()=="수정종료","Edit toggle enables editing and changes button label");
-        toggle.Invoke(planner,new object[]{editButton,new RoutedEventArgs()});
-        Check(!MealTableEditing.GetIsEditing(plannerGrid)&&editButton.Content.ToString()=="수정하기","Finish editing returns to read-only mode");
+        var plannerGrid=(DataGrid)planner.FindName("GridDietResult");
+        Check(MealTableEditing.GetIsInteractive(plannerGrid) && planner.FindName("EditModeButton")==null, "더블클릭 편집에는 모드 버튼이 필요하지 않습니다");
         Check(((DatePicker)planner.FindName("WeekPicker")).FirstDayOfWeek==DayOfWeek.Sunday,"Date picker begins on Sunday");
         var apply=typeof(Menu_table).GetMethod("ApplyDays",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
         apply.Invoke(planner,new object[]{days});
@@ -113,7 +108,7 @@ internal static class WeekFeedbackChecks
         var dateButton=Children<System.Windows.Controls.Primitives.CalendarDayButton>(calendar).First(b=>b.DataContext is DateTime d&&d==new DateTime(2026,7,15));
         dateButton.Tag=new CalendarDateMark(false,true,true,"검증"){EventIcon="📌"};dateButton.ApplyTemplate();calendar.UpdateLayout();
         var highlight=(Border)dateButton.Template.FindName("SelectionOutline",dateButton);
-        Check(dateButton.Template.FindName("SpecialDot",dateButton)==null && highlight.Background is SolidColorBrush tint && tint.Color==Color.FromRgb(255,240,217),"Special day uses pale orange background without corner marker");
+        Check(dateButton.Template.FindName("SpecialDot",dateButton) is FrameworkElement marker && marker.Visibility==Visibility.Visible && highlight.Background is SolidColorBrush tint && tint.Color==Color.FromRgb(255,240,217),"특식 행사 배경과 날짜별 점을 함께 표시합니다");
         System.IO.Directory.CreateDirectory(folder);
         var calendarPreview=new Page{Content=calendar};
         FeedbackChecks.Render(calendarPreview,System.IO.Path.Combine(folder,"calendar-marker.png"),650,480);
@@ -129,14 +124,11 @@ internal static class WeekFeedbackChecks
         System.IO.Directory.CreateDirectory(folder);
         var page=new Page{Content=outer,Background=Brushes.White};
         FeedbackChecks.Render(page,System.IO.Path.Combine(folder,"fixed-week-table.png"),1200,700);
-        MealTableEditing.SetIsEditing(grid,true);grid.UpdateLayout();
-        Check(Children<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid).Any(h=>h.Background is SolidColorBrush b&&b.Color==Color.FromRgb(251,230,181)),"Edit mode paints actual table headers amber");
-        FeedbackChecks.Render(page,System.IO.Path.Combine(folder,"editing-week-table.png"),1200,700);
-        MealTableEditing.SetIsEditing(grid,false);grid.UpdateLayout();
-        Check(Children<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid).Any(h=>h.Background is SolidColorBrush b&&b.Color==Color.FromRgb(234,243,237)),"Leaving edit mode restores green headers");
+        MealTableEditing.SetIsInteractive(grid,true);grid.UpdateLayout();
+        Check(Children<DataGridCell>(grid).Any(MealTableEditing.GetIsEditable),"저장된 메뉴 셀만 편집 가능한 상태를 가집니다");
         var dashboardGrid=new DataGrid{IsReadOnly=true,AutoGenerateColumns=false,CanUserAddRows=false};
         WeekMealTable.ShowDashboard(dashboardGrid,meals,days);
-        var dashboard=new Page{Background=Brushes.White,Content=new Viewbox{Child=dashboardGrid,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly}};
+        var dashboard=new Page{Background=Brushes.White,Content=dashboardGrid};
         FeedbackChecks.Render(dashboard,System.IO.Path.Combine(folder,"dashboard-week.png"),1120,850);
         Check(dashboardGrid.Columns.Count==8&&Children<ScrollViewer>(dashboardGrid).All(v=>v.ScrollableHeight==0&&v.ScrollableWidth==0),"Dashboard exposes all seven days without internal scrolling");
         var dashboardContent=(UIElement)dashboard.Content;dashboard.Content=null;
@@ -157,8 +149,7 @@ internal static class WeekFeedbackChecks
         allergyCard.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice,0,-120){RoutedEvent=UIElement.PreviewMouseWheelEvent});dashboardScroll.UpdateLayout();
         Check(dashboardScroll.VerticalOffset==300,"Wheel over an allergy card scrolls the dashboard downward");
         Check(((MealTableHeading)grid.Columns[2].Header).Color=="#C43F3F"&&((MealTableHeading)grid.Columns[7].Header).Color=="#2867B2","Screen uses holiday red and Saturday blue");
-        MealTableEditing.SetIsEditing(grid,true);grid.UpdateLayout();
-        Check(Children<Border>(grid).Where(b=>b.Name=="Outline").All(b=>b.BorderBrush==Brushes.Transparent),"Amber mode preserves flat table cells without outlined cards");
+        Check(!MealTableEditing.GetIsInteractive(dashboardGrid),"대시보드 표는 편집 반응을 활성화하지 않습니다");
         var schedulePdf=MealPlanPdf.CreatePages("검증",start,meals,sundayFirst:true,schedule:days);
         var pdfPage=new Page{Content=schedulePdf[0],Background=Brushes.White};
         FeedbackChecks.Render(pdfPage,System.IO.Path.Combine(folder,"pdf-schedule-preview.png"),1120,1584);
@@ -189,20 +180,7 @@ internal static class WeekFeedbackChecks
         ((DataGrid)monitor.FindName("DgDailyMenu")).ItemsSource=catalog.Select(m=>new{DisplayName=m.DisplayName,Ingredients=m.Allergens}).ToArray();
         FeedbackChecks.Render(monitor,System.IO.Path.Combine(folder,"allergy-alternative-monitor.png"),1500,900);
         Check(Children<TextBlock>((DataGrid)monitor.FindName("DgAllergicMatches")).Any(t=>t.Text.Contains("대두밥 → 찰밥")),"Automatic alternative and nutrient comparison are visible in monitoring table");
-        var deleteButton=(Button)planner.FindName("DeleteMealButton");var deleteAll=(Button)planner.FindName("DeleteWeekButton");
-        var deleteToggle=typeof(Menu_table).GetMethod("DeleteMeal_Click",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
-        Check(deleteButton.IsEnabled&&!deleteAll.IsEnabled&&deleteButton.Content.ToString()=="삭제하기","Only delete-mode button is enabled initially");
-        deleteToggle.Invoke(planner,new object[]{deleteButton,new RoutedEventArgs()});
-        Check(deleteAll.IsEnabled&&MealTableEditing.GetIsDeleting(plannerGrid)&&!MealTableEditing.GetIsEditing(plannerGrid)&&deleteButton.Content.ToString()=="삭제종료","Delete mode enables full deletion and the red state without editing");
-        deleteToggle.Invoke(planner,new object[]{deleteButton,new RoutedEventArgs()});
-        Check(!deleteAll.IsEnabled&&!MealTableEditing.GetIsDeleting(plannerGrid),"Ending delete mode disables full deletion");
-        deleteToggle.Invoke(planner,new object[]{deleteButton,new RoutedEventArgs()});
-        toggle.Invoke(planner,new object[]{editButton,new RoutedEventArgs()});
-        Check(!deleteAll.IsEnabled&&!MealTableEditing.GetIsDeleting(plannerGrid)&&MealTableEditing.GetIsEditing(plannerGrid),"Edit and delete modes are mutually exclusive");
-        MealTableEditing.SetIsDeleting(grid,true);grid.UpdateLayout();
-        Check(Children<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid).Any(h=>h.Background is SolidColorBrush b&&b.Color==Color.FromRgb(248,218,218)),"Delete state overrides amber with red table headers");
-        MealTableEditing.SetIsDeleting(grid,false);grid.UpdateLayout();
-        Check(Children<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid).Any(h=>h.Background is SolidColorBrush b&&b.Color==Color.FromRgb(251,230,181)),"Ending deletion restores the previous edit state");
+        Check(planner.FindName("DeleteMealButton")==null && ((Button)planner.FindName("DeleteWeekButton")).IsEnabled,"끼니 삭제는 편집 창에 있고 주 전체 삭제는 바로 사용할 수 있습니다");
         app.Dispatcher.InvokeShutdown();
     }
 }

@@ -2,7 +2,7 @@
  <Page.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="PlannerStyles.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary></Page.Resources>
  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
   <StackPanel Margin="30,26"  HorizontalAlignment="Stretch">
-   <Grid Margin="0,0,0,24"><StackPanel><TextBlock Text="우리 급식소의 한 주 식단" FontSize="26" FontWeight="Bold"/><TextBlock Text="제공일과 한 끼 영양 목표를 정해 주세요. 설정에 맞는 식단을 만들어 내 시트에 저장합니다." Foreground="#718276" Margin="0,8,0,0" TextWrapping="Wrap"/></StackPanel></Grid>
+   <Grid Margin="0,0,0,24"><StackPanel><TextBlock Text="제공일과 한 끼 영양 목표를 정해 주세요. 설정에 맞는 식단을 만들어 내 시트에 저장합니다." Foreground="#718276" Margin="0,8,0,0" TextWrapping="Wrap"/></StackPanel></Grid>
    <StackPanel x:Name="SettingsPanel">
     <Border Style="{StaticResource PlannerCard}"><StackPanel>
      <TextBlock Text="01   언제, 누구에게 제공하나요?" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,20"/>
@@ -45,14 +45,14 @@
    <Border Style="{StaticResource PlannerCard}"><StackPanel>
     <TextBlock x:Name="WeekTitle" Text="이번 주 식단" FontSize="23" FontWeight="SemiBold"/>
     <TextBlock Text="수정하기를 누른 뒤 메뉴 칸 또는 요일 제목을 선택하세요. 황색 표시는 수정 중입니다." Foreground="#718276" Margin="0,6,0,16"/>
-    <WrapPanel Margin="0,0,0,12"><Button Content="새로고침" Click="LoadWeek_Click" Margin="0,0,10,8"/><Button x:Name="EditModeButton" Content="수정하기" Click="EditMeal_Click" Margin="0,0,10,8"/><Button x:Name="DeleteMealButton" Content="삭제하기" Click="DeleteMeal_Click" Margin="0,0,10,8"/><Button Content="PDF 만들기" Click="ExportPdf_Click" Margin="0,0,10,8"/><Button x:Name="DeleteWeekButton" IsEnabled="False" Content="이번 주 전체 삭제" Click="DeleteWeekMeals_Click" Style="{StaticResource DangerButton}" Margin="0,0,10,8"/></WrapPanel>
+    <WrapPanel Margin="0,0,0,12"><Button Content="새로고침" Click="LoadWeek_Click" Margin="0,0,10,8"/><Button Content="PDF 만들기" Click="ExportPdf_Click" Margin="0,0,10,8"/><Button x:Name="DeleteWeekButton" Content="이번 주 전체 삭제" Click="DeleteWeekMeals_Click" Style="{StaticResource DangerButton}" Margin="0,0,10,8"/></WrapPanel>
     <Grid><DataGrid x:Name="GridDietResult" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MinHeight="220" MaxHeight="700" HorizontalScrollBarVisibility="Disabled" HeadersVisibility="Column" RowHeight="NaN" MinRowHeight="52" EnableRowVirtualization="True">
     <DataGrid.Resources><Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="VerticalAlignment" Value="Center"/></Style></DataGrid.Resources><DataGrid.Columns>
      <DataGridTextColumn Header="날짜" Binding="{Binding DateText, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="요일" Binding="{Binding Day, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="끼니" Binding="{Binding Meal, Mode=OneWay}" Width="*"/>
      <DataGridTextColumn Header="밥류" Binding="{Binding Rice, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="국류" Binding="{Binding Soup, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="주찬" Binding="{Binding Main, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="부찬" Binding="{Binding Side, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="김치류" Binding="{Binding Kimchi, Mode=OneWay}" Width="*"/><DataGridTextColumn Header="후식류" Binding="{Binding Dessert, Mode=OneWay}" Width="*"/>
     </DataGrid.Columns>
     </DataGrid><TextBlock Text="선택한 주·연령에 저장된 식단이 없습니다." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#8A9B8D" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Items.Count,ElementName=GridDietResult}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
-    <TextBlock x:Name="SelectedMealSummary" Margin="0,14,0,0" TextWrapping="Wrap" Foreground="#56745F" Text="수정하기를 누르면 메뉴와 요일별 식단을 수정할 수 있습니다."/>
+    <TextBlock x:Name="SelectedMealSummary" Margin="0,14,0,0" TextWrapping="Wrap" Foreground="#56745F" Text="메뉴 칸을 더블클릭하면 수정·끼니 삭제, 요일 제목을 더블클릭하면 하루 식단을 수정합니다."/>
    </StackPanel></Border>
   </StackPanel>
  </ScrollViewer>

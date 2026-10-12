@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Newtonsoft.Json.Linq;
 
@@ -8,7 +8,7 @@ namespace wpf
     /// 애플리케이션 설정을 한 곳에서 관리합니다.
     ///
     /// 설정 값은 실행 파일과 같은 폴더의 appsettings.json에서 읽습니다.
-    /// 이 파일에는 스프레드시트 ID와 API 키가 들어가므로 절대 git에 커밋하지 마세요.
+    /// 이 파일의 공개 연결 설정만 배포에 포함합니다. 공휴일 키는 Windows 자격 증명 관리자에 별도로 보관합니다.
     /// (.gitignore에 등록되어 있습니다. appsettings.sample.json을 복사해서 만드세요.)
     /// </summary>
     public static class AppConfig
@@ -112,8 +112,8 @@ namespace wpf
 
         // ── 공공데이터포털 특일 정보 API ─────────────────────────────────
 
-        /// <summary>공공데이터포털 서비스 키. 비어 있으면 공휴일 조회를 건너뜁니다.</summary>
-        public static string HolidayApiKey => GetString("HolidayApiKey");
+        /// <summary>Windows 자격 증명 관리자에 등록한 공공데이터포털 서비스 키입니다. 배포 JSON에서는 읽지 않습니다.</summary>
+        public static string HolidayApiKey => HolidayApiKeyStore.Read();
 
         public static bool HasHolidayApiKey => !string.IsNullOrWhiteSpace(HolidayApiKey);
 

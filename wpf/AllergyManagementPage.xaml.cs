@@ -90,7 +90,7 @@ namespace wpf
                     {
                         var matches=catalog.Where(m=>m.Name==meal.Menus[i]&&m.Category==WeeklyMealPlanner.Categories[i]).ToList();
                         var menu=matches.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(matches.Count==1?matches[0]:null);
-                        labels.Add(new{DisplayName=$"{meal.Meal} · {meal.AgeGroup}세 · "+MealPresentation.Label(meal.Menus[i],menu?.DisplayCalories),Ingredients=string.IsNullOrWhiteSpace(menu?.Allergens)?"정보 미확인":menu.Allergens});
+                        labels.Add(new{DisplayName=$"{meal.Meal} · {meal.AgeGroup}세 · "+MealPresentation.Label(meal.Menus[i],menu?.DisplayCalories),Ingredients=string.IsNullOrWhiteSpace(menu?.Allergens)?"정보 미확인":GoogleSheetsService.NeedsAllergenReview(menu)?"알레르기 확인 필요 · "+menu.Allergens:menu.Allergens});
                         if(menu!=null)_menuCatalog.TryAdd(menu.Name,menu.Allergens);
                     }
                 }
@@ -179,6 +179,8 @@ namespace wpf
                 p.Name,
                 p.Category,
                 Allergies = p.Allergies,
+                AllergyDisplay = p.Allergies + (p.NeedsAllergyReview ? "\n확인 필요: "+p.AllergyReview : ""),
+                p.AllergyReview,
                 p.Note
             }).ToList();
         }
@@ -208,7 +210,7 @@ namespace wpf
                 }
             }
 
-            var allergyList = allergiesText.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToHashSet();
+            var allergyList = GoogleSheetsService.SplitAllergens(allergiesText).Select(PatientAllergyInfo.Key).ToHashSet();
             var currentContent = this.Content as DependencyObject;
             if (currentContent != null)
             {
@@ -217,7 +219,7 @@ namespace wpf
                     if (child != null && child.Content != null)
                     {
                         string checkBoxName = (child.Tag ?? child.Content).ToString()!;
-                        child.IsChecked = allergyList.Contains(checkBoxName)
+                        child.IsChecked = allergyList.Contains(PatientAllergyInfo.Key(checkBoxName))
                             || (checkBoxName == "달걀" && allergyList.Overlaps(new[] { "난류", "계란" }))
                             || (checkBoxName == "소고기" && allergyList.Contains("쇠고기"))
                             || (checkBoxName == "조개류" && allergyList.Overlaps(new[] { "굴", "전복", "홍합" }));
@@ -251,6 +253,12 @@ namespace wpf
                 }
             }
 
+            if(selectedAllergies.Count==0)
+            {
+                var answer=MessageBox.Show("알레르기가 없는 것으로 확인했나요? '예'는 없음, '아니요'는 정보 미입력으로 등록합니다.","알레르기 정보 확인",MessageBoxButton.YesNoCancel,MessageBoxImage.Question,MessageBoxResult.Cancel);
+                if(answer==MessageBoxResult.Cancel)return;
+                if(answer==MessageBoxResult.Yes)selectedAllergies.Add("없음");
+            }
             string category = CmbPatientCategory?.SelectedItem is ComboBoxItem item ? (item.Content?.ToString() ?? "일반") : "일반";
 
             // 고유 ID 부여 (가장 큰 ID + 1)
@@ -309,10 +317,26 @@ namespace wpf
                     }
                 }
 
+                string updated = string.Join(",",updatedAllergies);
+                var previousKeys=GoogleSheetsService.SplitAllergens(target.Allergies).Select(PatientAllergyInfo.Key).ToHashSet();
+                var selectedKeys=updatedAllergies.Select(PatientAllergyInfo.Key).ToHashSet();
+                if(target.NeedsAllergyReview)
+                {
+                    MessageBox.Show("알레르기 정보 확인 필요: "+target.AllergyReview+"\n원본 시트의 관련 열을 확인해 주세요. 이번 저장에서는 알레르기 원문을 보존하고 이름·분류·메모만 변경합니다.","알레르기 정보 확인");
+                    updated=target.Allergies;
+                }
+                else if(previousKeys.SetEquals(selectedKeys)) updated=target.Allergies;
+                else
+                {
+                    if(updated.Length==0 && MessageBox.Show("선택한 알레르기를 모두 제거하고 '알레르기 없음'으로 확인할까요?","알레르기 정보 확인",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes)return;
+                    if(updated.Length==0)updated="없음";
+                    if(MessageBox.Show($"알레르기 정보를 다음과 같이 통합 저장할까요?\n기존: {target.Allergies}\n변경: {updated}\n관련 열의 이전 값은 이 통합 정보로 대체됩니다.","알레르기 정보 변경",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes)return;
+                    target.AllergyChangeConfirmed=true;
+                }
                 // 값 업데이트
                 target.Name = TxtPatientName.Text.Trim();
                 target.Category = CmbPatientCategory.SelectedItem is ComboBoxItem item ? (item.Content?.ToString() ?? "일반") : "일반";
-                target.Allergies = string.Join(", ", updatedAllergies);
+                target.Allergies = updated;
                 target.Note = TxtPatientNote?.Text?.Trim() ?? string.Empty;
 
                 // 구글 시트 전면 동기화
@@ -542,6 +566,9 @@ namespace wpf
         public string Name { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
         public string Allergies { get; set; } = string.Empty;
+        public string AllergyReview { get; set; } = string.Empty;
+        public bool NeedsAllergyReview => AllergyReview.Length>0;
+        public bool AllergyChangeConfirmed { get; set; }
         public string Note { get; set; } = string.Empty;
     }
 

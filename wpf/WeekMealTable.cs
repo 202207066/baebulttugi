@@ -13,10 +13,11 @@ public static class WeekMealTable
     public static void ShowDashboard(DataGrid grid,IReadOnlyList<MealDisplayColumn> meals,IReadOnlyList<WeekDayNotice> days)
     {
         Show(grid,meals,days);
-        grid.Width=1120;grid.MaxHeight=double.PositiveInfinity;
+        grid.Width=double.NaN;grid.HorizontalAlignment=HorizontalAlignment.Stretch;grid.MaxHeight=double.PositiveInfinity;
         grid.EnableRowVirtualization=false;
         ScrollViewer.SetVerticalScrollBarVisibility(grid,ScrollBarVisibility.Disabled);
         ScrollViewer.SetHorizontalScrollBarVisibility(grid,ScrollBarVisibility.Disabled);
+        foreach(var column in grid.Columns.Skip(1)){column.MinWidth=0;column.Width=grid.ActualWidth>134?(grid.ActualWidth-134)/7:130;}
         grid.PreviewMouseWheel-=Wheel;
         grid.PreviewMouseWheel-=ScrollDashboard;grid.PreviewMouseWheel+=ScrollDashboard;
     }
@@ -27,7 +28,7 @@ public static class WeekMealTable
         grid.Tag=new WeekMealTableState(days,meals);
         grid.ColumnHeaderHeight=double.NaN;
         grid.Columns[0].Width=130;
-        foreach(var column in grid.Columns.Skip(1)){column.MinWidth=130;column.Width=Math.Max(130,(grid.ActualWidth-150)/7);}
+        foreach(var column in grid.Columns.Skip(1)){column.MinWidth=150;column.Width=Math.Max(150,(grid.ActualWidth-150)/7);}
         for(int i=0;i<7;i++)grid.Columns[i+1].Header=new MealTableHeading($"{"일월화수목금토"[i]}요일 · {days[i].Date:M/d}",days[i].Description,days[i].DateColor);
         var rows=new List<WeekMealRow>();
         var kinds=new[]{"조식","중식","석식"}.Where(k=>meals.Any(m=>m.Stored?.Meal==k)).ToArray();

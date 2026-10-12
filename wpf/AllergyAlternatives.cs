@@ -4,6 +4,7 @@ public static class AllergyAlternatives
 {
     public static bool KnownAllergens(string raw)
     {
+        if (GoogleSheetsService.InvalidAllergenCodes(raw).Count > 0) return false;
         var text=raw.Trim(' ', ',');
         if(text.Length==0 || text.Contains("미확인") || text.Contains("확인 필요"))return false;
         if(text is "없음" or "해당 없음" or "알레르기 없음")return true;
@@ -24,6 +25,11 @@ public static class AllergyAlternatives
         var result=new List<AllergyAlternative>();
         foreach(var patient in patients)
         {
+            if(patient.NeedsAllergyReview)
+            {
+                result.Add(new AllergyAlternative(patient.Name,"알레르기 확인 필요",patient.AllergyReview+" · 기록: "+patient.Allergies+". 원본 정보를 확인하기 전에는 안전한 대체식으로 판단하지 않습니다."));
+                continue;
+            }
             var allergies=GoogleSheetsService.SplitAllergens(patient.Allergies).ToArray();
             if(allergies.Length==0)continue;
             foreach(var meal in meals)

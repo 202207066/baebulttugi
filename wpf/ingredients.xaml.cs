@@ -58,7 +58,9 @@ namespace wpf
                 cmbSheets.Items.Clear();
                 foreach (var title in titles) cmbSheets.Items.Add(title);
 
-                if (cmbSheets.Items.Count > 0) cmbSheets.SelectedIndex = 0;
+                var preferred = new[] { AppConfig.MenuSheetName, AppConfig.TrackASheetName, AppConfig.TrackBSheetName };
+                cmbSheets.SelectedItem = preferred.FirstOrDefault(titles.Contains);
+                if (cmbSheets.SelectedItem == null && cmbSheets.Items.Count > 0) cmbSheets.SelectedIndex = 0;
             }
             catch (Exception ex)
             {

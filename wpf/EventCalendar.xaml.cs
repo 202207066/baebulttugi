@@ -24,7 +24,8 @@ namespace wpf
         /// <summary>실제 일정 탭 이름(없으면 처음 접근할 때 자동 생성).</summary>
         private string SheetName = AppConfig.EventSheetName;
 
-        private List<GoogleSheetRow> currentDayEvents = new List<GoogleSheetRow>();
+        private List<AnnualEvent> currentDayEvents = new();
+        private List<AnnualEvent> _allEvents = new();
 
         // 💡 공공데이터포털 특일 정보 API 설정 (키는 appsettings.json에서 읽습니다)
         private static string OpenApiKey => AppConfig.HolidayApiKey;
@@ -35,9 +36,8 @@ namespace wpf
         private int _viewVersion;
         private DateTime? _requestedDate;
         private bool _calendarReady;
-        private readonly HashSet<DateTime> _eventDates = new();
+        private int _wheelDelta;
         private readonly HashSet<DateTime> _mealDates = new();
-        private readonly Dictionary<DateTime,string> _eventIcons = new();
         private static readonly string[] EventIcons = ["📌", "🎉", "🎂", "🍁", "🎄", "⭐"];
 
         public EventCalendar()
@@ -45,6 +45,12 @@ namespace wpf
             InitializeComponent();
 
             EventIconPicker.Text = "📌";
+            foreach(var icon in EventIcons)
+            {
+                var button = new Button { Content = new Emoji.Wpf.TextBlock { Text = icon, FontSize = 18 }, ToolTip = icon + " 아이콘 선택", Margin = new Thickness(0,0,6,6), Padding = new Thickness(8,4,8,4) };
+                button.Click += (_,_) => EventIconPicker.Text = icon;
+                QuickEventIcons.Children.Add(button);
+            }
             // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
             _service = AppServices.Require();
             sheetsService = _service.Sheets;
@@ -52,8 +58,37 @@ namespace wpf
             MainCalendar.LayoutUpdated += (_,_) => PaintDates();
             MainCalendar.DisplayDateChanged += async (_,_) => { if(_calendarReady){ await FetchHolidaysForMonthAsync(MainCalendar.DisplayDate.Year,MainCalendar.DisplayDate.Month); PaintDates(); } };
             MainCalendar.SelectedDatesChanged += MainCalendar_SelectedDatesChanged;
+            MainCalendar.PreviewMouseWheel += CalendarWheel;
+            MainCalendar.MouseLeave += (_,_) => _wheelDelta = 0;
+            MainCalendar.DisplayModeChanged += (_,_) => _wheelDelta = 0;
             MainCalendar.SelectedDate = DateTime.Today; // 오늘 날짜 기본 선택
             Loaded += async (_, _) => { _calendarReady = true; await UpdateUI(); };
+        }
+
+        private void CalendarWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            e.Handled = true;
+            if (e.Delta == 0) return;
+            if (Math.Sign(_wheelDelta) != Math.Sign(e.Delta)) _wheelDelta = 0;
+            _wheelDelta += e.Delta;
+            int steps = _wheelDelta / 120;
+            _wheelDelta %= 120;
+            if (steps == 0) return;
+            var current = MainCalendar.DisplayDate;
+            DateTime next;
+            try
+            {
+                next = MainCalendar.DisplayMode switch
+                {
+                    CalendarMode.Year => current.AddYears(-steps),
+                    CalendarMode.Decade => current.AddYears(-10 * steps),
+                    _ => current.AddMonths(-steps)
+                };
+            }
+            catch (ArgumentOutOfRangeException) { next = steps > 0 ? DateTime.MinValue : DateTime.MaxValue; }
+            var start = MainCalendar.DisplayDateStart ?? DateTime.MinValue;
+            var end = MainCalendar.DisplayDateEnd ?? DateTime.MaxValue;
+            MainCalendar.DisplayDate = next < start ? start : next > end ? end : next;
         }
 
         // 📅 달력에서 날짜를 클릭했을 때 (async 비동기로 변경)
@@ -70,6 +105,7 @@ namespace wpf
         private async Task FetchHolidaysForMonthAsync(int year, int month)
         {
             foreach(var item in await WeekSchedule.HolidaysAsync(year,month))holidayCache[item.Key.ToString("yyyyMMdd")]=item.Value;
+            HolidayStatus.Text=WeekSchedule.HolidayStatus;
         }
 
         // 🔄 화면 갱신 (API 통신을 위해 async Task로 변경됨)
@@ -80,6 +116,7 @@ namespace wpf
             using var activity = AppActivity.Begin("선택한 날짜의 식단과 일정을 확인하는 중입니다…");
             txtEventInput.Text = "";
             EventClosed.IsChecked=false;
+            EventOnce.IsChecked=true;
 
             if (!MainCalendar.SelectedDate.HasValue)
             {
@@ -137,46 +174,12 @@ namespace wpf
                 var request = sheetsService.Spreadsheets.Values.Get(SpreadsheetId, range);
                 var response = await request.ExecuteAsync(); // 동기식에서 비동기식으로 변경
                 if (version != _viewVersion || (_requestedDate.HasValue && _requestedDate.Value != selectedDate)) return;
-                IList<IList<object>> values = response.Values;
-                var eventDates = new HashSet<DateTime>();
-                if(values!=null)foreach(var eventRow in values)if(eventRow.Count>1 && !string.IsNullOrWhiteSpace(eventRow[1]?.ToString()) && DateTime.TryParse(eventRow[0]?.ToString(),out var eventDate))eventDates.Add(eventDate.Date);
-                _eventDates.Clear();_eventDates.UnionWith(eventDates);
-                _eventIcons.Clear();
-                if(values != null) foreach(var row in values) if(row.Count > 1 && DateTime.TryParse(row[0]?.ToString(), out var day) && !string.IsNullOrWhiteSpace(row[1]?.ToString())) {
-                    var content = row[1]?.ToString() ?? "";
-                    var icon = EventIconText.LeadingIcon(content) is string parsed && parsed.Length > 0 ? parsed : "📌";
-                    if(!_eventIcons.ContainsKey(day.Date)) _eventIcons[day.Date] = icon;
-                    else if(!_eventIcons[day.Date].Contains(icon)) _eventIcons[day.Date] += icon;
-                }
+                _allEvents = AnnualEvent.Parse(response.Values ?? new List<IList<object>>());
                 PaintDates();
-                var foundEvents = new List<GoogleSheetRow>();
-
-                if (values != null && values.Count > 0)
-                {
-                    string targetDateStr = selectedDate.ToString("yyyy-MM-dd");
-
-                    for (int i = 0; i < values.Count; i++)
-                    {
-                        if (values[i].Count > 0 && values[i][0]?.ToString() == targetDateStr)
-                        {
-                            string content = values[i].Count > 1 ? values[i][1]?.ToString() ?? "" : "";
-
-                            if (!string.IsNullOrWhiteSpace(content))
-                            {
-                                foundEvents.Add(new GoogleSheetRow
-                                {
-                                    RowIndex = i + 1,
-                                    Content = content
-                                });
-                            }
-                        }
-                    }
-                }
-
-                currentDayEvents = foundEvents;
+                currentDayEvents = _allEvents.Where(item => item.OccursOn(selectedDate)).ToList();
                 lstEvents.SelectedIndex = -1;
                 lstEvents.ItemsSource = null;
-                lstEvents.ItemsSource = currentDayEvents.Select(e => e.Content).ToList();
+                lstEvents.ItemsSource = currentDayEvents.Select(e => e.DisplayContent).ToList();
 
                 RefreshEventListState();
             }
@@ -193,7 +196,9 @@ namespace wpf
             foreach(var day in Descendants<System.Windows.Controls.Primitives.CalendarDayButton>(MainCalendar)) {
                 if(day.DataContext is not DateTime date)continue;
                 string? holiday=holidayCache.GetValueOrDefault(date.ToString("yyyyMMdd")) ?? CalendarDates.Holidays(date.Year).GetValueOrDefault(date.Date);
-                var mark=CalendarDates.Mark(date,holiday,_eventDates.Contains(date.Date)) with { HasMeal = _mealDates.Contains(date.Date), ConnectPrevious = date.DayOfWeek != DayOfWeek.Sunday && _mealDates.Contains(date.Date.AddDays(-1)), ConnectNext = date.DayOfWeek != DayOfWeek.Saturday && _mealDates.Contains(date.Date.AddDays(1)), EventIcon = _eventIcons.GetValueOrDefault(date.Date, "") };
+                var events = _allEvents.Where(item => item.OccursOn(date)).ToList();
+                string icons = string.Concat(events.Select(item => EventIconText.LeadingIcon(item.Content) is string icon && icon.Length > 0 ? icon : "📌").Distinct());
+                var mark=CalendarDates.Mark(date,holiday,events.Count > 0) with { HasMeal = _mealDates.Contains(date.Date), ConnectPrevious = date.DayOfWeek != DayOfWeek.Sunday && _mealDates.Contains(date.Date.AddDays(-1)), ConnectNext = date.DayOfWeek != DayOfWeek.Saturday && _mealDates.Contains(date.Date.AddDays(1)), EventIcon = icons };
                 if(mark.HasMeal) mark = mark with { Label = mark.Label + " · 식단 작성됨" };
                 if(Equals(day.Tag,mark))continue;
                 day.Tag=mark;day.ToolTip=mark.Label;
@@ -225,9 +230,12 @@ namespace wpf
         // 🖱️ 리스트박스 선택 이벤트
         private void lstEvents_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (lstEvents.SelectedItem != null)
+            if (lstEvents.SelectedIndex >= 0 && lstEvents.SelectedIndex < currentDayEvents.Count)
             {
-                var text = lstEvents.SelectedItem.ToString() ?? "";
+                var selected = currentDayEvents[lstEvents.SelectedIndex];
+                var text = selected.Content;
+                EventYearly.IsChecked = selected.RepeatsYearly;
+                EventOnce.IsChecked = !selected.RepeatsYearly;
                 var icon = EventIconText.LeadingIcon(text);
                 EventIconPicker.Text = icon.Length > 0 ? icon : "📌";
                 EventClosed.IsChecked=WeekDayNotice.IsClosure(text);
@@ -253,11 +261,11 @@ namespace wpf
                 string range = $"'{SheetName}'!A:B";
 
                 var valueRange = new ValueRange();
-                var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), EventIconText.Compose(EventIconPicker.Text, (EventClosed.IsChecked==true?"[휴무] ":"")+newEvent) };
+                var objectList = new List<object>() { date.ToString("yyyy-MM-dd"), AnnualEvent.Encode(EventIconText.Compose(EventIconPicker.Text, (EventClosed.IsChecked==true?"[휴무] ":"")+newEvent), EventYearly.IsChecked==true) };
                 valueRange.Values = new List<IList<object>> { objectList };
 
                 var appendRequest = sheetsService.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
-                appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
+                appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.RAW;
                 await appendRequest.ExecuteAsync();
 
                 await UpdateUI();
@@ -283,14 +291,20 @@ namespace wpf
             try
             {
                 int selectedIndex = lstEvents.SelectedIndex;
-                int targetRowIndex = currentDayEvents[selectedIndex].RowIndex;
-
-                string range = $"'{SheetName}'!B{targetRowIndex}";
+                var original = currentDayEvents[selectedIndex];
+                int targetRowIndex = original.RowIndex;
+                bool yearly = EventYearly.IsChecked == true;
+                if (original.RepeatsYearly && MessageBox.Show(yearly
+                    ? "매년 반복되는 일정 전체를 수정합니다. 계속하시겠습니까?"
+                    : "매년 반복을 해제하고 현재 선택한 날짜의 한 번짜리 일정으로 변경합니다. 계속하시겠습니까?",
+                    "반복 일정 수정", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                var date = AnnualEvent.EditedDate(original, MainCalendar.SelectedDate.Value, yearly);
+                string range = $"'{SheetName}'!A{targetRowIndex}:B{targetRowIndex}";
                 var valueRange = new ValueRange();
-                valueRange.Values = new List<IList<object>> { new List<object> { EventIconText.Compose(EventIconPicker.Text, (EventClosed.IsChecked==true?"[휴무] ":"")+updatedEvent) } };
+                valueRange.Values = new List<IList<object>> { new List<object> { date.ToString("yyyy-MM-dd"), AnnualEvent.Encode(EventIconText.Compose(EventIconPicker.Text, (EventClosed.IsChecked==true?"[휴무] ":"")+updatedEvent), yearly) } };
 
                 var updateRequest = sheetsService.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
-                updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
+                updateRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
                 await updateRequest.ExecuteAsync();
 
                 await UpdateUI();
@@ -306,7 +320,7 @@ namespace wpf
         {
             if (sheetsService == null || !MainCalendar.SelectedDate.HasValue || lstEvents.SelectedIndex == -1) return;
 
-            if (MessageBox.Show("선택한 일정을 정말 삭제하시겠습니까?", "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            if (MessageBox.Show(currentDayEvents[lstEvents.SelectedIndex].RepeatsYearly ? "매년 반복되는 일정 전체를 삭제합니다. 계속하시겠습니까?" : "선택한 일정을 정말 삭제하시겠습니까?", "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
                 try
                 {

@@ -6,22 +6,18 @@ namespace wpf;
 public static class PatientSheetCodec
 {
     private static string Cell(IList<object> r, int c) => c >= 0 && c < r.Count ? r[c]?.ToString()?.Trim() ?? "" : "";
-    private static readonly string[][] Aliases = [["ID"], ["성명", "이름"], ["구분"], ["특이 알러지 성분", "특이사항", "알레르기", "알러지", "알레르기 코드", "알러지 코드", "특이 알레르기 성분", "알레르기 정보", "알러지 정보", "알레르기(코드)", "알러지(코드)", "알레르기 유발 물질"], ["비고(메모)", "비고"]];
+    private static readonly string[][] Aliases = [["ID"], ["성명", "이름"], ["구분"], ["특이 알러지 성분", "특이사항", "알레르기", "알러지", "알레르기 코드", "알러지 코드", "특이 알레르기 성분", "알레르기 정보", "알러지 정보", "알레르기(코드)", "알러지(코드)", "알레르기 유발 물질", "추가 알레르기 코드", "추가 알러지 코드"], ["비고(메모)", "비고"]];
     private static string HeaderKey(string text) => System.Text.RegularExpressions.Regex.Replace(text.TrimStart('\uFEFF').Normalize(System.Text.NormalizationForm.FormKC), @"\s+", "");
-    public static int AllergyColumn(IList<object> header)
-    {
-        var columns=header.Select((h,i)=>(h,i)).Where(x=>Aliases[3].Any(a=>HeaderKey(a)==HeaderKey(x.h?.ToString()??""))).Select(x=>x.i).ToArray();
-        if(columns.Length!=1) throw new InvalidOperationException("알레르기 열을 하나로 확인할 수 없습니다. 명단의 헤더를 '알레르기 코드'로 확인해 주세요.");
-        return columns[0];
-    }
+    public static int[] AllergyColumns(IList<object> header) => header.Select((h,i)=>(h,i))
+        .Where(x=>Aliases[3].Any(a=>HeaderKey(a)==HeaderKey(x.h?.ToString()??""))).Select(x=>x.i).ToArray();
     private static int[] Columns(IList<object> header) => Aliases.Select(a => header.ToList().FindIndex(h => a.Any(alias=>HeaderKey(alias)==HeaderKey(h?.ToString()??"")))).ToArray();
     public static bool IsManagedColumn(IList<object> header, int index) => Columns(header).Contains(index);
     public static List<PatientModel> Parse(IList<IList<object>> rows)
     {
         if (rows.Count == 0) return new();
         var c = Columns(rows[0]);
-        c[3] = AllergyColumn(rows[0]);
-        if (c[1] < 0 || c[3] < 0) throw new InvalidOperationException("알레르기 명단에 이름과 알레르기 열이 필요합니다. 기존 자료는 변경하지 않았습니다.");
+        var allergyColumns = AllergyColumns(rows[0]);
+        if (c[1] < 0) throw new InvalidOperationException("알레르기 명단에 이름 열이 필요합니다. 기존 자료는 변경하지 않았습니다.");
         var result = new List<PatientModel>();
         for (int i = 1; i < rows.Count; i++)
         {
@@ -30,7 +26,8 @@ public static class PatientSheetCodec
             if (name.Length == 0) throw new InvalidOperationException($"알레르기 명단 {i+1}행의 이름을 확인해 주세요.");
             int id = c[0] < 0 ? i : int.TryParse(Cell(rows[i], c[0]), out int n) && n > 0 ? n : throw new InvalidOperationException($"알레르기 명단 {i+1}행의 ID를 확인해 주세요.");
             if (result.Any(p => p.Id == id)) throw new InvalidOperationException("알레르기 명단의 ID가 중복됩니다.");
-            result.Add(new PatientModel { Id = id, Name = name, Category = c[2] < 0 ? "일반" : Cell(rows[i], c[2]), Allergies = Cell(rows[i], c[3]), Note = Cell(rows[i], c[4]) });
+            var allergy = PatientAllergyInfo.Merge(allergyColumns.Select(column=>Cell(rows[i],column)),allergyColumns.Length>0);
+            result.Add(new PatientModel { Id = id, Name = name, Category = c[2] < 0 ? "일반" : Cell(rows[i], c[2]), Allergies = allergy.Value, AllergyReview = allergy.Review, Note = Cell(rows[i], c[4]) });
         }
         return result;
     }
@@ -53,7 +50,16 @@ public static class PatientSheetCodec
             var row = oldRows.TryGetValue(p.Id, out var prior) ? prior.ToList() : new List<object>();
             while (row.Count < header.Count) row.Add("");
             object[] values = [p.Id, p.Name, p.Category, p.Allergies, p.Note];
-            for(int i=0;i<c.Length;i++) row[c[i]]=values[i];
+            for(int i=0;i<c.Length;i++) if(i!=3) row[c[i]]=values[i];
+            var previous = existing.FirstOrDefault(item=>item.Id==p.Id);
+            if(previous==null || previous.Allergies!=p.Allergies)
+            {
+                // 확인이 필요한 원본은 일반 정보 수정만으로 덮어쓰지 않습니다.
+                if(previous?.NeedsAllergyReview==true && !p.AllergyChangeConfirmed)
+                    throw new InvalidOperationException($"{p.Name}: 알레르기 정보 확인 후 변경 내용을 승인해 주세요.");
+                foreach(int column in AllergyColumns(header)) row[column]="";
+                row[c[3]]=p.Allergies;
+            }
             result.Add(row);
         }
         return result;

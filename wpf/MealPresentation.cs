@@ -42,6 +42,7 @@ public static class MealPresentation
             var name = new FrameworkElementFactory(typeof(TextBlock));
             name.SetBinding(TextBlock.TextProperty, new Binding($"Values[{i}].Name"));
             name.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+            name.SetValue(TextBlock.FontSizeProperty, 13d);
             name.SetValue(TextBlock.FontWeightProperty, FontWeights.Medium);
             panel.AppendChild(name);
             var energy = new FrameworkElementFactory(typeof(TextBlock));
@@ -67,7 +68,12 @@ public static class MealPresentation
     private static void FitColumns(DataGrid grid)
     {
         if(grid.Columns.Count < 2 || grid.ActualWidth <= 0) return;
-        double width = grid.Tag is WeekMealTableState ? Math.Max(130,(grid.ActualWidth-150)/7) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
+        if (ScrollViewer.GetHorizontalScrollBarVisibility(grid) == ScrollBarVisibility.Disabled && grid.Tag is WeekMealTableState)
+        {
+            foreach(var column in grid.Columns.Skip(1)) column.Width = Math.Max(0,(grid.ActualWidth-134)/7);
+            return;
+        }
+        double width = grid.Tag is WeekMealTableState ? Math.Max(150,(grid.ActualWidth-150)/7) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
         foreach(var column in grid.Columns.Skip(1)) column.Width = new DataGridLength(width);
     }
     public static StoredMeal? Selected(DataGrid grid) => grid.Tag is WeekMealTableState ? WeekMealTable.Selected(grid).Meal : grid.SelectedCells.Count > 0 && grid.Tag is IReadOnlyList<MealDisplayColumn> meals && grid.SelectedCells[0].Column?.DisplayIndex is int i && i > 0 && i <= meals.Count ? meals[i - 1].Stored : null;
