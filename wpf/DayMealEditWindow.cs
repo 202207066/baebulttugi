@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using Google.Apis.Sheets.v4.Data;
 
@@ -13,14 +13,21 @@ public sealed class DayMealEditWindow:Window
     public DayMealEditWindow(DateTime date,IReadOnlyList<StoredMeal> meals,IReadOnlyList<TrackMenu> catalog)
     {
         Title=$"{date:M월 d일} ({"일월화수목금토"[(int)date.DayOfWeek]}) 식단 수정";
-        Width=680;Height=760;MaxHeight=SystemParameters.WorkArea.Height;WindowStartupLocation=WindowStartupLocation.CenterOwner;
+        EditorWindowSizing.Apply(this,560,620);MaxHeight=SystemParameters.WorkArea.Height;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         var dock=new DockPanel{Margin=new Thickness(16)};Content=dock;
         var save=new Button{Content="이 날짜의 변경사항 저장",Padding=new Thickness(16,12,16,12),Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(save,Dock.Bottom);dock.Children.Add(save);save.Click+=(_,_)=>DialogResult=true;
         var tabs=new TabControl();dock.Children.Add(tabs);
+        void ResizeEditor()
+        {
+            bool expanded=tabs.SelectedIndex>=0 && tabs.SelectedIndex<editors.Count && editors[tabs.SelectedIndex].Editor.IsMenuExpanded;
+            EditorWindowSizing.Apply(this,expanded?680:560,expanded?800:620);
+        }
+        tabs.SelectionChanged+=(_,e)=>{if(ReferenceEquals(e.Source,tabs))ResizeEditor();};
         foreach(var meal in meals)
         {
             var editor=new MealEditWindow(meal,catalog,showSave:false);
+            editor.ExpansionChanged+=_=>ResizeEditor();
             var content=editor.Content;editor.Content=null;
             editors.Add((meal,editor,editor.Selection.Select(m=>m.Key).ToArray()));
             tabs.Items.Add(new TabItem{Header=meal.Meal,Content=content});

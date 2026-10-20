@@ -519,7 +519,12 @@ namespace wpf
             NavigateTo(BtnMenuTable, () => new Menu_table(_ageGroup, date), "식단 만들기", "한 주의 급식 요일과 끼니를 정해 주세요");
         }
 
-        private void OpenPublicData_Click(object sender, RoutedEventArgs e) => OpenSheet(AppConfig.TemplateSpreadsheetId);
+        private void OpenPublicData_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog=new PublicSheetWindow(_sheetsService.GetPublicSheetsAsync, sheet=>
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(PublicSheet.Url(AppConfig.TemplateSpreadsheetId,sheet.Id)){UseShellExecute=true})){Owner=this};
+            dialog.ShowDialog();
+        }
         private void OpenMyData_Click(object sender, RoutedEventArgs e) => OpenSheet(_sheetsService.SpreadsheetId);
         private void OpenSheet(string id)
         {

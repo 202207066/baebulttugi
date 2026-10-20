@@ -196,7 +196,7 @@
                         </RadioButton>
 
                         <TextBlock Text="구글 시트 열기" Style="{StaticResource NavGroup}"/>
-                        <Button Content="공공 메뉴 자료 보기" Click="OpenPublicData_Click" Margin="18,4" Padding="10,8" ToolTip="기준 메뉴·영양정보와 사용 설명을 브라우저에서 엽니다"/>
+                        <Button Content="공공 메뉴 자료 보기" Click="OpenPublicData_Click" Margin="18,4" Padding="10,8" ToolTip="앱에서 시트를 선택한 뒤 해당 자료를 브라우저에서 엽니다"/>
                         <Button Content="내 식단 자료 보기" Click="OpenMyData_Click" Margin="18,4" Padding="10,8" ToolTip="내 구글 드라이브에 저장된 자료를 엽니다"/>
                         <Border Margin="18,12,18,14" Padding="12" CornerRadius="12" Background="#17421B" BorderBrush="#527958" BorderThickness="1">
                             <StackPanel>

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
@@ -170,6 +170,7 @@ internal static class Program
         recipeGrid.UpdateLayout();
         Check(recipeGrid.ItemContainerGenerator.ContainerFromIndex(1999) != null, "Virtualized recipe grid can reach the last menu");
         AnnualEventChecks.RunUi(Check, args.Contains("annual-preview") ? "outputs/annual-event-preview.png" : null);
+        UiSelectionChecks.Run(Check,args.Contains("ui-selection-preview"));
         FixChecks.Run(Check);
         PolicyChecks.Run(Check,Reject);
         var page = new Menu_table("6-18");
@@ -286,3 +287,4 @@ internal sealed class FakeSheets : HttpMessageHandler
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json,Encoding.UTF8,"application/json") };
     }
 }
+

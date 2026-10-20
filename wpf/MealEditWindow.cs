@@ -1,19 +1,27 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 namespace wpf;
 public enum MealEditResult { Cancel, Save, Delete }
 public sealed class MealEditWindow : Window
 {
     private readonly List<TrackMenu> selections=[];
+    public event Action<bool>? ExpansionChanged;
+    public bool IsMenuExpanded { get; private set; }
     public MealEditResult Result { get; private set; } = MealEditResult.Cancel;
     public TrackMenu[] Selection => selections.ToArray();
     public MealEditWindow(StoredMeal meal,IReadOnlyList<TrackMenu> catalog,int? menuIndex=null,bool showSave=true)
     {
-        Title="끼니 수정 · "+meal;Width=620;Height=720;MaxHeight=SystemParameters.WorkArea.Height;WindowStartupLocation=WindowStartupLocation.CenterOwner;
+        Title="끼니 수정 · "+meal;EditorWindowSizing.Apply(this,520,menuIndex.HasValue?380:580);MaxHeight=SystemParameters.WorkArea.Height;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         Resources.MergedDictionaries.Add(new ResourceDictionary{Source=new Uri("/wpf;component/PlannerStyles.xaml",UriKind.Relative)});
-        var root=new StackPanel{Margin=new Thickness(28)};Content=new ScrollViewer{Content=root,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+        var root=new StackPanel{Margin=new Thickness(20)};Content=new ScrollViewer{Content=root,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         root.Children.Add(new TextBlock{Text=meal.ToString(),FontSize=22,FontWeight=FontWeights.Bold,TextWrapping=TextWrapping.Wrap});
         root.Children.Add(new TextBlock{Text="메뉴를 바꾸면 해당 끼니의 영양 합계를 다시 계산합니다. 영양정보가 없는 메뉴를 유지하면 합계는 미완성으로 표시됩니다.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,12,0,16)});
+        void ResizeEditor()
+        {
+            IsMenuExpanded=root.Children.OfType<Expander>().Any(section=>section.IsExpanded);
+            if(showSave)EditorWindowSizing.Apply(this,IsMenuExpanded?640:520,IsMenuExpanded?(menuIndex.HasValue?620:740):menuIndex.HasValue?380:580);
+            ExpansionChanged?.Invoke(IsMenuExpanded);
+        }
         var keys=meal.Value(25).Split(" / ");
         for(int i=0;i<6;i++) {
             string category=WeeklyMealPlanner.Categories[i];var list=catalog.Where(m=>m.Category==category).OrderBy(m=>m.Name).ToList();
@@ -37,7 +45,8 @@ public sealed class MealEditWindow : Window
             box.PreviewMouseLeftButtonUp += (_,e)=> { if(ItemsControl.ContainerFromElement(box,e.OriginalSource as DependencyObject) is ListBoxItem) Choose(); };
             box.KeyDown += (_,e)=> { if(e.Key==System.Windows.Input.Key.Enter) {Choose();e.Handled=true;} };
             search.PreviewKeyDown += (_,e)=> {if(e.Key==System.Windows.Input.Key.Down && box.Items.Count>0) {box.SelectedIndex=0;box.Focus();e.Handled=true;}};
-            section.Expanded += (_,_)=>{foreach(var other in root.Children.OfType<Expander>().Where(x=>x!=section))other.IsExpanded=false;search.Focus();};
+            section.Expanded += (_,_)=>{foreach(var other in root.Children.OfType<Expander>().Where(x=>x!=section))other.IsExpanded=false;ResizeEditor();search.Focus();};
+            section.Collapsed += (_,_)=>ResizeEditor();
             var hint = new TextBlock { FontSize = 12, Text = "메뉴명 검색 · 일부 단어로도 찾을 수 있습니다", Margin = new Thickness(0,4,0,0) };
             panel.Children.Add(hint);
             search.TextChanged += (_,_) => {
@@ -49,7 +58,7 @@ public sealed class MealEditWindow : Window
 
             };
         }
-        if(menuIndex.HasValue)root.Children.OfType<Expander>().Single().IsExpanded=true;
+        // The existing + control expands the menu list and window together.
         var save=new Button{Content="변경한 식단 저장",Style=(Style)FindResource("PrimaryButton"),Margin=new Thickness(0,22,0,0)};
         save.Click+=(_,_)=>{if(selections.All(m=>m.Name.Length>0)){Result=MealEditResult.Save;DialogResult=true;}};if(showSave)root.Children.Add(save);
         if(showSave)
@@ -66,3 +75,4 @@ public sealed class MealEditWindow : Window
         }
     }
 }
+
