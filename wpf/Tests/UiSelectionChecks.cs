@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Net;
 using System.Net.Http;
@@ -17,18 +17,23 @@ internal static class UiSelectionChecks
         double compactWidth=editor.Width,compactHeight=editor.Height;
         check(!section.IsExpanded && compactWidth<=520 && compactHeight<=380,"Single-menu editor starts compact with all six selections preserved");
         if(preview)Render(editor,"editor-compact.png",false);
+        editor.Left=SystemParameters.WorkArea.Left+10;editor.Top=SystemParameters.WorkArea.Top+10;
+        double left=editor.Left,top=editor.Top;
         section.IsExpanded=true;
-        check(editor.IsMenuExpanded && editor.Width>=compactWidth && editor.Height>compactHeight && editor.Height<=SystemParameters.WorkArea.Height,"Plus expands editor within screen work area");
+        check(editor.IsMenuExpanded && editor.Width==compactWidth && editor.Left==left && editor.Top==top && editor.Height>compactHeight && editor.Height<=SystemParameters.WorkArea.Height,"Plus expands only downward while preserving width and position");
         if(preview)Render(editor,"editor-expanded.png",false);
         section.IsExpanded=false;
         check(editor.Width==compactWidth&&editor.Height==compactHeight&&editor.Selection.Length==6,"Collapse restores compact size without changing meal selections");
         var day=new DayMealEditWindow(meal.Date,[meal],[]);
         var tabs=((DockPanel)day.Content).Children.OfType<TabControl>().Single();tabs.SelectedIndex=0;
         var dayRoot=(StackPanel)((ScrollViewer)((TabItem)tabs.Items[0]).Content).Content;
-        var daySection=dayRoot.Children.OfType<Expander>().First();double dayHeight=day.Height;
+        var daySection=dayRoot.Children.OfType<Expander>().First();double dayHeight=day.Height,dayWidth=day.Width;
         daySection.IsExpanded=true;
-        check(day.Height>dayHeight&&day.Changes.Count==0,"Day editor grows when its embedded menu expands without changing food data");
+        check(day.Height>dayHeight&&day.Width==dayWidth&&day.Changes.Count==0,"Day editor grows when its embedded menu expands without changing food data");
         daySection.IsExpanded=false;check(day.Height==dayHeight,"Day editor returns to compact size");
+        editor.Width=545;editor.Top=SystemParameters.WorkArea.Bottom-400;
+        top=editor.Top;section.IsExpanded=true;
+        check(editor.Width==545 && editor.Top==top && editor.Height<=400,"Expansion preserves manual width and uses only remaining space below");
         int opened=-1,loads=0;bool fail=false;
         var chooser=new PublicSheetWindow(()=>{
             loads++;if(fail)throw new InvalidOperationException("test offline");

@@ -21,7 +21,7 @@ public sealed class DayMealEditWindow:Window
         void ResizeEditor()
         {
             bool expanded=tabs.SelectedIndex>=0 && tabs.SelectedIndex<editors.Count && editors[tabs.SelectedIndex].Editor.IsMenuExpanded;
-            EditorWindowSizing.Apply(this,expanded?680:560,expanded?800:620);
+            EditorWindowSizing.SetHeight(this,expanded?800:620);
         }
         tabs.SelectionChanged+=(_,e)=>{if(ReferenceEquals(e.Source,tabs))ResizeEditor();};
         foreach(var meal in meals)

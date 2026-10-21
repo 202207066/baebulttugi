@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 namespace wpf;
 public enum MealEditResult { Cancel, Save, Delete }
@@ -19,7 +19,7 @@ public sealed class MealEditWindow : Window
         void ResizeEditor()
         {
             IsMenuExpanded=root.Children.OfType<Expander>().Any(section=>section.IsExpanded);
-            if(showSave)EditorWindowSizing.Apply(this,IsMenuExpanded?640:520,IsMenuExpanded?(menuIndex.HasValue?620:740):menuIndex.HasValue?380:580);
+            if(showSave)EditorWindowSizing.SetHeight(this,IsMenuExpanded?(menuIndex.HasValue?620:740):menuIndex.HasValue?380:580);
             ExpansionChanged?.Invoke(IsMenuExpanded);
         }
         var keys=meal.Value(25).Split(" / ");

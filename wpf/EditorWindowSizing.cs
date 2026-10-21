@@ -1,7 +1,14 @@
-using System.Windows;
+﻿using System.Windows;
 namespace wpf;
 internal static class EditorWindowSizing
 {
+    // Keep the left/top edges and the user's current width fixed while expanding.
+    public static void SetHeight(Window window, double height)
+    {
+        var area=SystemParameters.WorkArea;
+        double available=double.IsFinite(window.Top) ? Math.Max(1,area.Bottom-window.Top) : area.Height;
+        window.Height=Math.Min(height,Math.Min(area.Height,available));
+    }
     public static void Apply(Window window, double width, double height)
     {
         var area=SystemParameters.WorkArea;
