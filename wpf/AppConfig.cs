@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using Newtonsoft.Json.Linq;
 
@@ -87,7 +87,7 @@ namespace wpf
 
         /// <summary>OAuth 토큰 저장 폴더.</summary>
         public static string TokenStorePath =>
-            Path.Combine(UserDataDirectory, "GoogleSignIn");
+            Path.Combine(UserDataDirectory, "GoogleSignIn-PerFile");
 
         /// <summary>사용자 전용 스프레드시트 ID를 기억해 두는 파일 경로.</summary>
         public static string UserSheetIdFilePath =>

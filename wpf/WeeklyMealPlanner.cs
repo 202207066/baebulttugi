@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace wpf;
@@ -10,7 +10,18 @@ public record TrackMenu(string Id, string Name, string Category, string Allergen
     public override string ToString() => Name;
     public double? DisplayCalories => Calories ?? (HasNutrition ? Energy : null);
     public string DisplayName => Id.Length == 0 ? Name : MealPresentation.Label(Name, DisplayCalories);
-    public string Key => $"{Id}:{Category}:{Name}";
+    public string StableKey { get; init; } = "";
+    public double? ServingGrams { get; init; }
+    public string ServingBasis { get; init; } = "";
+    public bool ProteinReviewed { get; init; }
+    public string ProteinReview { get; init; } = "";
+    public string Almond { get; init; } = "검토 필요";
+    public string Sesame { get; init; } = "검토 필요";
+    public string OtherBeans { get; init; } = "검토 필요";
+    public string AllergyReview { get; init; } = "";
+    public double? ProteinPer100g => ServingGrams is > 0 && Protein is >= 0 ? Protein / ServingGrams * 100 : null;
+    public string ProteinGrade => MenuClassification.Grade(this);
+    public string Key => StableKey.Length > 0 ? StableKey : $"{Id}:{Category}:{Name}";
     public bool HasNutrition => Carb.HasValue && Protein.HasValue && Fat.HasValue;
     public double Energy => Calories ?? (Carb!.Value * 4 + Protein!.Value * 4 + Fat!.Value * 9);
 }
@@ -99,7 +110,11 @@ public static class WeeklyMealPlanner
             result.Add(new(id, name, Category(Get(row, "카테고리")),
                 Get(row, "알레르기 코드") + "," + Get(row, "추가 알레르기 코드"),
                 Number(Get(row, "탄수화물(g)")), Number(Get(row, "단백질(g)")), Number(Get(row, "지방(g)")),
-                Number(Get(row, "열량(kcal)")), Get(row, "영양정보 출처")));
+                Number(Get(row, "열량(kcal)")), Get(row, "영양정보 출처")) {
+                StableKey=Get(row,"메뉴고유키"), ServingGrams=Number(Get(row,"1인분중량(g)")), ServingBasis=Get(row,"제공량 근거"),
+                ProteinReviewed=Get(row,"단백질 검토")=="승인", ProteinReview=Get(row,"단백질 확인사항"),
+                Almond=Get(row,"아몬드"), Sesame=Get(row,"참깨"), OtherBeans=Get(row,"콩류(기타)"), AllergyReview=Get(row,"알레르기 확인사항")
+            });
         }
         return result;
     }
@@ -115,7 +130,7 @@ public static class WeeklyMealPlanner
             (targets.Calories.HasValue && (!double.IsFinite(targets.Calories.Value) || targets.Calories.Value <= 0)) ||
             !double.IsFinite(targets.TolerancePercent) || targets.TolerancePercent < 0 || targets.TolerancePercent > 100)
             throw new ArgumentException("한 끼 영양 목표는 0보다 큰 숫자, 허용 편차는 0~100%로 입력해 주세요.");
-        var pools = Categories.Select(c => menus.Where(m => m.Category == c && m.HasNutrition &&
+        var pools = Categories.Select(c => menus.Where(m => m.Category == c && MenuClassification.AutomaticCandidate(m) && m.HasNutrition &&
             new[] { m.Carb!.Value, m.Protein!.Value, m.Fat!.Value }.All(n => double.IsFinite(n) && n >= 0)).ToArray()).ToArray();
         for (int i = 0; i < pools.Length; i++)
         {

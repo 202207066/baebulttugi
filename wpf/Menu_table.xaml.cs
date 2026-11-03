@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 
 namespace wpf;
@@ -133,9 +133,11 @@ public partial class Menu_table : Page
     {
         int ready=catalog.Menus.Count(m=>m.HasNutrition);
         int review=catalog.Menus.Count(GoogleSheetsService.NeedsAllergenReview);
+        int proteinPending=catalog.Menus.Count(m=>MenuClassification.IsSide(m)&&!MenuClassification.AutomaticCandidate(m));
         DataStatus.Text = $"{catalog.Title} · 메뉴 {catalog.Menus.Count:N0}개 · 영양정보 등록 {ready:N0}개" +
             (ready==0 ? "\n아직 메뉴별 영양정보가 준비되지 않았습니다. 영양정보 등록 후 식단을 만들 수 있어요." : "\n등록된 1인분 영양정보로 조합하고, 완성된 식단은 내 구글 시트에 저장합니다.");
         if(review>0) DataStatus.Text += $"\n알레르기 확인 필요: {review}개 메뉴의 코드가 1~19 범위를 벗어나 생성 후보에서 제외됩니다.";
+        if(proteinPending>0)DataStatus.Text+=$" 단백질 분류 검토 대기 {proteinPending}개는 자동 생성에서 제외합니다.";
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await ReloadAsync(true);
@@ -182,9 +184,18 @@ public partial class Menu_table : Page
             var catalog = await _service.GetTrackCatalogAsync(age);
             _catalog = catalog;
             ShowCatalog(catalog);
+            if (ExcludeAllergens.IsChecked != true)
+            {
+                var patients = await _service.GetPatientsAsync();
+                string warning = patients.Count == 0 ? "등록된 대상자가 없어 알레르기 정보를 확인할 수 없습니다." :
+                    patients.Any(p => p.NeedsAllergyReview) ? $"알레르기 정보가 미확인인 대상자가 {patients.Count(p => p.NeedsAllergyReview)}명 있습니다." : "";
+                if (warning.Length > 0 && MessageBox.Show(warning + "\n알레르기 제외를 적용하지 않은 일반 식단을 생성합니다. 급식 전에 대상자 정보를 확인하고 대체식을 검토해 주세요.\n계속하시겠습니까?", "알레르기 정보 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                { SaveStatus.Text = "생성을 취소했습니다. 피급식자 화면에서 알레르기 상태를 확인해 주세요."; return; }
+            }
             var allergens = ExcludeAllergens.IsChecked == true ? await _service.GetPlannerAllergensAsync() : new HashSet<string>();
             int reviewCount = catalog.Menus.Count(GoogleSheetsService.NeedsAllergenReview);
-            var eligible = catalog.Menus.Where(m => !GoogleSheetsService.NeedsAllergenReview(m) && !GoogleSheetsService.MatchesRegisteredAllergen(m, allergens)).ToList();
+            var eligible = catalog.Menus.Where(m => MenuClassification.AutomaticCandidate(m) && !GoogleSheetsService.NeedsAllergenReview(m) && !GoogleSheetsService.MatchesRegisteredAllergen(m, allergens)).ToList();
+            if (!eligible.Any(m=>m.Category=="주찬")) throw new InvalidOperationException("검토 승인된 고단백 주찬 후보가 없습니다. 공공 메뉴 자료에서 제공량·단백질 등급과 검토 상태를 확인해 주세요. 검토 전 자료를 임의로 확정하지 않습니다.");
             SaveStatus.Text = "주간 식단을 조합하는 중입니다…";
             var generated = await Task.Run(() => WeeklyMealPlanner.Generate(eligible, week, days, meals, age, catalog.Title, targets, fixedIds, sundayFirst:true));
             _results = generated;
@@ -278,7 +289,7 @@ public partial class Menu_table : Page
             var display = await _service.DisplayMealsAsync(meals);
             var cooking = await _service.GetCookingMethodsAsync();
             var catalog = await _service.GetTrackCatalogAsync(age);
-            var allergens = catalog.Menus.GroupBy(m=>CookingMethods.Key(m.Name)).ToDictionary(g=>g.Key,g=>string.Join(", ",g.Select(m=>m.Allergens).Where(a=>a.Length>0).Distinct()));
+            var allergens = catalog.Menus.GroupBy(m=>CookingMethods.Key(m.Name)).ToDictionary(g=>g.Key,g=>string.Join(", ",g.Select(m=>MenuIngredientReview.EffectiveAllergens(m)).Where(a=>a.Length>0).Distinct()));
             var schedule=await WeekSchedule.LoadAsync(_service,week);
             var dialog = new Microsoft.Win32.SaveFileDialog { Filter="PDF 문서 (*.pdf)|*.pdf", DefaultExt=".pdf", FileName=$"식단표_{week:yyyy-MM-dd}_{age}세.pdf" };
             if(dialog.ShowDialog(Window.GetWindow(this)) != true) return;
@@ -350,12 +361,13 @@ public partial class Menu_table : Page
     {
         if(_busy)return;
         var (meal,index)=WeekMealTable.Selected(GridDietResult);
-        if(meal==null || index is <0 or >5){SaveStatus.Text="수정할 메뉴 칸을 선택해 주세요. 빈 날짜는 식단 생성 후 수정할 수 있습니다.";return;}
+        if(meal==null || index is <0 or >7){SaveStatus.Text="수정할 메뉴 칸을 선택해 주세요. 빈 날짜는 식단 생성 후 수정할 수 있습니다.";return;}
         _busy=true;SettingsPanel.IsEnabled=false;
         try {
             var catalog=await _service.GetTrackCatalogAsync(meal.AgeGroup.Length==0?Age:meal.AgeGroup);
-            var dialog=new MealEditWindow(meal,catalog.Menus,index){Owner=Window.GetWindow(this)};
+            var dialog=new MealEditWindow(meal,catalog.Menus,index,patients:await _service.GetMealReviewPatientsAsync()){Owner=Window.GetWindow(this)};
             if(dialog.ShowDialog()!=true)return;
+            if(dialog.Result!=MealEditResult.Delete && !ManualAllergyReview.Confirm(dialog.Selection,await _service.GetMealReviewPatientsAsync(),Window.GetWindow(this)))return;
             await _service.ChangeStoredMealAsync(meal,dialog.Result == MealEditResult.Delete ? null : dialog.Selection);
             await LoadWeekAsync();
             SaveStatus.Text = dialog.Result == MealEditResult.Delete ? "선택한 끼니를 삭제했습니다." : "선택한 메뉴를 수정했습니다.";
@@ -371,8 +383,9 @@ public partial class Menu_table : Page
         try
         {
             var catalog=await _service.GetTrackCatalogAsync(Age);
-            var dialog=new DayMealEditWindow(date,meals,catalog.Menus){Owner=Window.GetWindow(this)};
+            var dialog=new DayMealEditWindow(date,meals,catalog.Menus,await _service.GetMealReviewPatientsAsync()){Owner=Window.GetWindow(this)};
             if(dialog.ShowDialog()!=true)return;
+            if(!ManualAllergyReview.Confirm(dialog.Changes.SelectMany(c=>c.Items),await _service.GetMealReviewPatientsAsync(),Window.GetWindow(this)))return;
             await _service.ChangeStoredDayAsync(dialog.Changes);await LoadWeekAsync();SaveStatus.Text=$"{date:M/d}의 변경사항을 저장했습니다.";
         }
         catch(Exception ex){SaveStatus.Text="날짜별 수정 실패: "+ex.Message;}

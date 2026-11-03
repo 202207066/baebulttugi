@@ -20,10 +20,13 @@ public sealed class PublicSheetWindow : Window
         var root=new DockPanel{Margin=new Thickness(22)};Content=root;
         var heading=new StackPanel();DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
         heading.Children.Add(new TextBlock{Text="열어 볼 시트를 선택하세요",FontSize=22,FontWeight=FontWeights.Bold});
-        heading.Children.Add(new TextBlock{Text="시트를 선택하고 열기를 누르면 해당 시트가 브라우저에서 열립니다.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,4)});
+        heading.Children.Add(new TextBlock{Text="앱에 포함된 공식 자료를 이 프로그램 안에서 열어 봅니다. 내 자료는 변경되지 않습니다.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,4)});
         heading.Children.Add(search);
         var footer=new StackPanel();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);footer.Children.Add(status);
-        var buttons=new WrapPanel();buttons.Children.Add(openButton);buttons.Children.Add(refresh);footer.Children.Add(buttons);root.Children.Add(list);
+        var buttons=new WrapPanel();buttons.Children.Add(openButton);buttons.Children.Add(refresh);
+        var update=new Button{Content="공식 자료 업데이트",Padding=new Thickness(10,10,10,10),Margin=new Thickness(0,8,0,0)};footer.Children.Add(update);
+        update.Click+=async(_,_)=>{if(loading)return;loading=true;update.IsEnabled=false;refresh.IsEnabled=false;openButton.IsEnabled=false;status.Text="새 공식 자료가 있는지 확인하는 중입니다…";try{status.Text=await OfficialCatalog.UpdateAsync();}catch(Exception ex){status.Text="자료 업데이트를 완료하지 못했습니다. 현재 자료와 내 수정 내용은 유지됩니다. "+ex.Message;}finally{loading=false;update.IsEnabled=true;refresh.IsEnabled=true;openButton.IsEnabled=list.SelectedItem is PublicSheet;}};
+        footer.Children.Add(buttons);root.Children.Add(list);
         search.TextChanged+=(_,_)=>Filter();list.SelectionChanged+=(_,_)=>openButton.IsEnabled=!loading&&list.SelectedItem is PublicSheet;
         openButton.Click+=(_,_)=>OpenSelected();refresh.Click+=async(_,_)=>await ReloadAsync();
         list.MouseDoubleClick+=(_,e)=>{if(ItemsControl.ContainerFromElement(list,e.OriginalSource as DependencyObject) is ListBoxItem)OpenSelected();};
@@ -43,7 +46,7 @@ public sealed class PublicSheetWindow : Window
         var selected=list.SelectedItem as PublicSheet;
         var matches=sheets.Where(sheet=>sheet.Title.Contains(search.Text.Trim(),StringComparison.OrdinalIgnoreCase)).ToArray();
         list.ItemsSource=matches;list.SelectedItem=matches.FirstOrDefault(sheet=>sheet.Id==selected?.Id);
-        status.Text=sheets.Count==0?"열 수 있는 시트가 없습니다.":matches.Length==0?"검색 결과가 없습니다.":$"시트 {matches.Length}개 · 열려는 시트를 선택해 주세요.";
+        status.Text=sheets.Count==0?"열 수 있는 시트가 없습니다.":matches.Length==0?"검색 결과가 없습니다.":$"공식 자료 {OfficialCatalog.Current.Version} · 시트 {matches.Length}개 · 선택 후 열기를 눌러 주세요.";
     }
     private void OpenSelected()
     {

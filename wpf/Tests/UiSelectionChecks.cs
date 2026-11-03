@@ -56,8 +56,8 @@ internal static class UiSelectionChecks
         var handler=new PublicMetadataHttp();var service=new GoogleSheetsService(null!);
         typeof(GoogleSheetsService).GetField("_sheetsService",BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(service,new SheetsService(new BaseClientService.Initializer{HttpClientFactory=new MetadataFactory(handler)}));
         var sheets=service.GetPublicSheetsAsync().GetAwaiter().GetResult();
-        check(sheets.Count==2&&sheets[0].Id==0&&sheets[1].Id==42&&handler.Calls==1,"Metadata returns real visible sheet IDs including gid zero in one GET");
-        check(handler.Path.EndsWith("/"+AppConfig.TemplateSpreadsheetId),"Public sheet lookup targets shared template, not personal database");
+        check(sheets.Count==5&&handler.Calls==0,"Official table list loads locally without requesting source spreadsheet access");
+        check(handler.Path.Length==0,"Owner spreadsheet is never opened for catalog browsing");
     }
     private static void Render(Window window,string name,bool unused)
     {

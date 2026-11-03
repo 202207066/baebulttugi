@@ -5,7 +5,7 @@ using System.IO;
 
 namespace wpf;
 
-public record PersonalRecipe(TrackMenu Menu, string Ingredients);
+public record PersonalRecipe(TrackMenu Menu, string Ingredients, string OriginKey = "");
 public record Diner(string Name, string Age, string Gender, string Notes);
 public static class DinerCsv
 {
@@ -37,7 +37,7 @@ public static class DinerCsv
 public partial class GoogleSheetsService
 {
     private readonly System.Threading.SemaphoreSlim _entryGate = new(1, 1);
-    public static readonly string[] PersonalTrackHeaders = ["#", "메뉴ID", "메뉴명", "카테고리", "대표출처센터", "레시피파일유형", "전체출처", "레시피매칭", "알레르기 코드", "검수", "추가 알레르기 코드", "탄수화물(g)", "단백질(g)", "지방(g)", "열량(kcal)", "1인분중량(g)", "영양정보 출처", "레시피기준연령", "재료투입량합계(g)", "영양정보상태", "확인필요항목", "재료·분량·조리법"];
+    public static readonly string[] PersonalTrackHeaders = ["#", "메뉴ID", "메뉴명", "카테고리", "대표출처센터", "레시피파일유형", "전체출처", "레시피매칭", "알레르기 코드", "검수", "추가 알레르기 코드", "탄수화물(g)", "단백질(g)", "지방(g)", "열량(kcal)", "1인분중량(g)", "영양정보 출처", "레시피기준연령", "재료투입량합계(g)", "영양정보상태", "확인필요항목", "재료·분량·조리법", "원본메뉴키", "제공량 근거", "단백질 검토", "단백질 확인사항", "아몬드", "참깨", "콩류(기타)", "알레르기 확인사항", "메뉴고유키"];
     private static string PersonalTrackTitle(string age) => "내_트랙" + WeeklyMealPlanner.TrackForAge(age) + "_레시피";
     private void RequirePersonalWrite()
     {
@@ -50,26 +50,40 @@ public partial class GoogleSheetsService
         string title = PersonalTrackTitle(age);
         var titles = await GetSheetTitlesAsync().ConfigureAwait(false);
         if (!titles.Contains(title)) return [];
-        var rows = await GetValuesAsync(QuoteTitle(title) + "!A:V").ConfigureAwait(false);
+        var rows = await GetValuesAsync(QuoteTitle(title)).ConfigureAwait(false);
         if (rows.Count == 0) return [];
         var parsed = WeeklyMealPlanner.Parse(rows);
-        return parsed.Select(menu => new PersonalRecipe(menu, rows.Skip(1).Where(r => Cell(r, 1) == menu.Id && Cell(r, 2) == menu.Name && WeeklyMealPlanner.Category(Cell(r, 3)) == menu.Category).Select(r => Cell(r, 21)).FirstOrDefault() ?? "")).ToList();
+        return parsed.Select(menu => {
+            var row=rows.Skip(1).First(r=>Cell(r,1)==menu.Id&&Cell(r,2)==menu.Name&&WeeklyMealPlanner.Category(Cell(r,3))==menu.Category);
+            return new PersonalRecipe(MenuClassification.Official(menu),Cell(row,21),Cell(row,22));
+        }).ToList();
     }
-    public async Task SavePersonalRecipeAsync(string age, TrackMenu menu, string ingredients)
+    public async Task SavePersonalRecipeAsync(string age, TrackMenu menu, string ingredients, string originKey = "")
     {
         RequirePersonalWrite();
         if (string.IsNullOrWhiteSpace(menu.Name) || !WeeklyMealPlanner.Categories.Contains(menu.Category)) throw new InvalidOperationException("메뉴명과 분류를 확인해 주세요.");
         if (new[] { menu.Carb, menu.Protein, menu.Fat, menu.Calories }.Any(x => x.HasValue && (!double.IsFinite(x.Value) || x < 0))) throw new InvalidOperationException("영양량은 0 이상의 숫자로 입력해 주세요.");
         await _catalogGate.WaitAsync().ConfigureAwait(false);
         try {
-            var sheet = await EnsureSheetAsync(PersonalTrackTitle(age), PersonalTrackHeaders).ConfigureAwait(false);
-            var rows = await GetValuesAsync(QuoteTitle(sheet) + "!A:V").ConfigureAwait(false);
-            if (rows.Count > 0 && !rows[0].Select(x => x.ToString()).SequenceEqual(PersonalTrackHeaders)) throw new InvalidOperationException("개인 레시피 시트의 헤더가 변경되어 저장을 중단했습니다.");
+            var sheet = await EnsureSheetAsync(PersonalTrackTitle(age), PersonalTrackHeaders.Take(23).ToArray()).ConfigureAwait(false);
+            var rows = await GetValuesAsync(QuoteTitle(sheet)).ConfigureAwait(false);
+            if (rows.Count > 0 && !rows[0].Take(22).Select(x => x.ToString()).SequenceEqual(PersonalTrackHeaders.Take(22)) || (rows.Count > 0 && Cell(rows[0],22).Length>0 && Cell(rows[0],22)!="원본메뉴키")) throw new InvalidOperationException("개인 레시피 시트의 헤더가 변경되어 저장을 중단했습니다.");
+            if(rows.Count>0 && Cell(rows[0],22).Length==0 && rows.Skip(1).Any(r=>Cell(r,22).Length>0)) throw new InvalidOperationException("개인 레시피 W열에 다른 자료가 있어 저장을 중단했습니다.");
+            for(int c=23;c<PersonalTrackHeaders.Length;c++) if(rows.Count>0 && (Cell(rows[0],c).Length>0?Cell(rows[0],c)!=PersonalTrackHeaders[c]:rows.Skip(1).Any(r=>Cell(r,c).Length>0))) throw new InvalidOperationException("개인 레시피 추가 열에 다른 자료가 있어 저장을 중단했습니다.");
             int index = -1;
-            for (int i = 1; i < rows.Count; i++) if (Cell(rows[i], 1) == menu.Id && Cell(rows[i], 2) == menu.Name && WeeklyMealPlanner.Category(Cell(rows[i], 3)) == menu.Category) index = i;
+            for (int i = 1; i < rows.Count; i++) if ((Cell(rows[i], 1) == menu.Id && Cell(rows[i], 2) == menu.Name && WeeklyMealPlanner.Category(Cell(rows[i], 3)) == menu.Category) || (originKey.Length>0 && (Cell(rows[i],22)==originKey || (Cell(rows[i],22).Length==0 && $"{Cell(rows[i],1)}:{WeeklyMealPlanner.Category(Cell(rows[i],3))}:{Cell(rows[i],2)}"==originKey)))) index = i;
             object Num(double? value) => value.HasValue ? value.Value : "";
-            IList<object> row = new object[] { "", menu.Id, menu.Name, menu.Category, "사용자", "직접 입력", "", "", menu.Allergens, "", "", Num(menu.Carb), Num(menu.Protein), Num(menu.Fat), Num(menu.Calories ?? (menu.HasNutrition ? menu.Energy : null)), "", menu.Source, age, "", menu.HasNutrition ? "사용자 입력" : "영양정보 미완성", "", ingredients };
-            await WriteRawAsync(QuoteTitle(sheet) + "!A" + (index < 0 ? Math.Max(2, rows.Count + 1) : index + 1), [row]).ConfigureAwait(false);
+            IList<object> row = new object[] { "", menu.Id, menu.Name, menu.Category, "사용자", "직접 입력", "", "", menu.Allergens, "", "", Num(menu.Carb), Num(menu.Protein), Num(menu.Fat), Num(menu.Calories ?? (menu.HasNutrition ? menu.Energy : null)), Num(menu.ServingGrams), menu.Source, age, "", menu.HasNutrition ? "사용자 입력" : "영양정보 미완성", "", ingredients, originKey, menu.ServingBasis, menu.ProteinReviewed?"승인":"대기", menu.ProteinReview, menu.Almond, menu.Sesame, menu.OtherBeans, menu.AllergyReview, menu.Key };
+            var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
+            var book=await metadata.ExecuteAsync().ConfigureAwait(false);var props=book.Sheets.Single(s=>s.Properties.Title==sheet).Properties;
+            int targetRow=index<0?Math.Max(1,rows.Count):index;
+            var requests=new List<Request>();
+            int width=props.GridProperties?.ColumnCount??26,height=props.GridProperties?.RowCount??1000;
+            if(width<PersonalTrackHeaders.Length) requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=props.SheetId,Dimension="COLUMNS",Length=PersonalTrackHeaders.Length-width}});
+            if(height<=targetRow) requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=props.SheetId,Dimension="ROWS",Length=targetRow+1-height}});
+            requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=props.SheetId,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=PersonalTrackHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
+            requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=props.SheetId,RowIndex=targetRow,ColumnIndex=0},Rows=[new RowData{Values=row.Select(DataCell).ToList()}],Fields="userEnteredValue"}});
+            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
             _catalogCache.Clear();
         } finally { _catalogGate.Release(); }
     }

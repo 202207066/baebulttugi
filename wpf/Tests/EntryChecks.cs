@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
@@ -37,12 +37,12 @@ internal static class EntryChecks
         var refreshed=service.GetTrackCatalogAsync("3-5",true).GetAwaiter().GetResult();
         check(refreshed.PersonalRecipes.Single().Ingredients=="외부 수정", "Explicit refresh also refreshes recipe ingredients");
         check(reopened.PersonalRecipes.Single().Ingredients=="쌀 40g", "Existing recipe snapshot remains consistent after refresh");
-        check(merged.Menus.Count==first.Menus.Count && merged.Menus[0].Carb==30 && merged.Menus[0].Calories==158,"Personal recipe overrides shared key and derives missing kcal");
+        check(merged.Menus.Count==first.Menus.Count && merged.Menus.Single(m=>m.Key==menu.Key).Carb==30 && merged.Menus.Single(m=>m.Key==menu.Key).Calories==158,"Personal recipe overrides shared key and derives missing kcal");
         menu=menu with { Carb=31 };
         service.SavePersonalRecipeAsync("3-5",menu,"쌀 41g").GetAwaiter().GetResult();
         check(handler.OwnA.Count==2 && handler.OwnA[1][11].ToString()=="31","Editing same recipe updates its row");
         var saved=service.GetTrackCatalogAsync("3-5").GetAwaiter().GetResult();
-        check(saved.PersonalRecipes.Single().Ingredients=="쌀 41g" && saved.Menus[0].Carb==31, "Save invalidates both cached menu and ingredients");
+        check(saved.PersonalRecipes.Single().Ingredients=="쌀 41g" && saved.Menus.Single(m=>m.Key==menu.Key).Carb==31, "Save invalidates both cached menu and ingredients");
         service.SavePersonalRecipeAsync("6-18",menu,"다른 연령 레시피").GetAwaiter().GetResult();
         check(handler.OwnA.Count==2 && handler.OwnB.Count==2,"Tracks A and B retain separate personal recipe tables");
         check(service.GetTrackCatalogAsync("6-18").GetAwaiter().GetResult().PersonalRecipes.Single().Ingredients=="다른 연령 레시피"
@@ -73,17 +73,26 @@ internal sealed class EntryHttp:HttpMessageHandler
     public List<List<object>> OwnB=[GoogleSheetsService.PersonalTrackHeaders.Cast<object>().ToList()];
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellationToken)
     {
-        Calls++;string path=Uri.UnescapeDataString(request.RequestUri!.AbsolutePath);object body;
+        Calls++;if(!request.RequestUri!.AbsolutePath.StartsWith("/v4/spreadsheets/personal-test"))throw new Exception("Unexpected public DB access");string path=Uri.UnescapeDataString(request.RequestUri!.AbsolutePath);object body;
         var table=path.Contains("식수인원")?Diners:path.Contains("내_트랙A")?OwnA:OwnB;
-        if(request.Method==HttpMethod.Put) {
+        if(request.Method==HttpMethod.Post){
+            var bytes=await request.Content!.ReadAsByteArrayAsync(cancellationToken);string raw;
+            if(bytes.Length>1&&bytes[0]==0x1f&&bytes[1]==0x8b){using var zip=new System.IO.Compression.GZipStream(new MemoryStream(bytes),System.IO.Compression.CompressionMode.Decompress);using var reader=new StreamReader(zip);raw=await reader.ReadToEndAsync();}else raw=Encoding.UTF8.GetString(bytes);
+            using var doc=JsonDocument.Parse(raw);WriteBooks.Add("personal-test");
+            foreach(var req in doc.RootElement.GetProperty("requests").EnumerateArray())if(req.TryGetProperty("updateCells",out var update)){
+                var pos=update.GetProperty("start");var dest=pos.GetProperty("sheetId").GetInt32()==1?OwnA:OwnB;int row=pos.GetProperty("rowIndex").GetInt32();
+                foreach(var data in update.GetProperty("rows").EnumerateArray()){var values=data.GetProperty("values").EnumerateArray().Select(c=>{var v=c.GetProperty("userEnteredValue");return v.TryGetProperty("numberValue",out var n)?(object)n.GetDouble():v.GetProperty("stringValue").GetString()!;}).ToList();while(dest.Count<=row)dest.Add([]);dest[row++]=values;}
+            }
+            body=new{};
+        }else if(request.Method==HttpMethod.Put) {
             LastMode=request.RequestUri.Query.Contains("RAW")?"RAW":"OTHER";
             WriteBooks.Add(path.Split('/')[3]);
             byte[] bytes=await request.Content!.ReadAsByteArrayAsync(cancellationToken);
             string raw;
             if(bytes.Length>1&&bytes[0]==0x1f&&bytes[1]==0x8b){using var zip=new System.IO.Compression.GZipStream(new MemoryStream(bytes),System.IO.Compression.CompressionMode.Decompress);using var reader=new StreamReader(zip);raw=await reader.ReadToEndAsync();}else raw=Encoding.UTF8.GetString(bytes);
             using var doc=JsonDocument.Parse(raw);
-            int row=int.Parse(System.Text.RegularExpressions.Regex.Match(path,@"!A(\d+)$").Groups[1].Value)-1;
-            foreach(var values in doc.RootElement.GetProperty("values").EnumerateArray()) {var entry=values.EnumerateArray().Select(x=>x.ValueKind==JsonValueKind.Number?(object)x.GetDouble():x.ToString()).ToList();while(table.Count<=row)table.Add([]);table[row++]=entry;}
+            var address=System.Text.RegularExpressions.Regex.Match(path,@"!([A-Z]+)(\d+)$");int row=int.Parse(address.Groups[2].Value)-1;int col=0;foreach(char ch in address.Groups[1].Value)col=col*26+ch-'A'+1;col--;
+            foreach(var values in doc.RootElement.GetProperty("values").EnumerateArray()) {var entry=values.EnumerateArray().Select(x=>x.ValueKind==JsonValueKind.Number?(object)x.GetDouble():x.ToString()).ToList();while(table.Count<=row)table.Add([]);while(table[row].Count<col+entry.Count)table[row].Add("");for(int c=0;c<entry.Count;c++)table[row][col+c]=entry[c];row++;}
             body=new {};
         } else if(path.Contains("/values/")) {
             if(path.Contains("최종사용자값반영"))body=new{values=new List<List<object>> { new(){"메뉴명","열량(kcal)","탄수화물(g)","단백질(g)","지방(g)"}, new(){"테스트밥",57,10,2,1} }};

@@ -1,4 +1,4 @@
-﻿<Window x:Class="wpf.Main"
+<Window x:Class="wpf.Main"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -195,8 +195,16 @@
                             </StackPanel>
                         </RadioButton>
 
+                        <TextBlock Text="공식 자료 제안" Style="{StaticResource NavGroup}"/>
+                        <RadioButton x:Name="BtnCatalogRequests" Style="{StaticResource NavItem}" Click="BtnCatalogRequests_Click">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="✉" FontSize="17" Margin="0,0,14,0"/><TextBlock Text="메뉴·식재료 요청"/></StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="BtnCatalogAdmin" Style="{StaticResource NavItem}" Click="BtnCatalogAdmin_Click" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="☷" FontSize="17" Margin="0,0,14,0"/><TextBlock Text="관리자 요청함"/></StackPanel>
+                        </RadioButton>
+
                         <TextBlock Text="구글 시트 열기" Style="{StaticResource NavGroup}"/>
-                        <Button Content="공공 메뉴 자료 보기" Click="OpenPublicData_Click" Margin="18,4" Padding="10,8" ToolTip="앱에서 시트를 선택한 뒤 해당 자료를 브라우저에서 엽니다"/>
+                        <Button Content="공공 메뉴 자료 보기" Click="OpenPublicData_Click" Margin="18,4" Padding="10,8" ToolTip="앱에 포함된 공식 메뉴·식재료 표를 열람합니다"/>
                         <Button Content="내 식단 자료 보기" Click="OpenMyData_Click" Margin="18,4" Padding="10,8" ToolTip="내 구글 드라이브에 저장된 자료를 엽니다"/>
                         <Border Margin="18,12,18,14" Padding="12" CornerRadius="12" Background="#17421B" BorderBrush="#527958" BorderThickness="1">
                             <StackPanel>

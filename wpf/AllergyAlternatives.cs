@@ -1,4 +1,4 @@
-﻿namespace wpf;
+namespace wpf;
 public record AllergyAlternative(string PatientName,string RiskIngredients,string SuggestedAlternative);
 public static class AllergyAlternatives
 {
@@ -6,9 +6,9 @@ public static class AllergyAlternatives
     {
         if (GoogleSheetsService.InvalidAllergenCodes(raw).Count > 0) return false;
         var text=raw.Trim(' ', ',');
-        if(text.Length==0 || text.Contains("미확인") || text.Contains("확인 필요"))return false;
+        if(text.Length==0 || text.Contains("미확인") || text.Contains("확인 필요") || text.Contains("검토 필요"))return false;
         if(text is "없음" or "해당 없음" or "알레르기 없음")return true;
-        return System.Text.RegularExpressions.Regex.IsMatch(text,@"(?<!\d)(?:[1-9]|1[0-9])(?!\d)|[①-⑲]") || AllergenPicker.Names.Any(n=>text.Contains(n));
+        return System.Text.RegularExpressions.Regex.IsMatch(text,@"(?<!\d)(?:[1-9]|1[0-9])(?!\d)|[①-⑲]") || AllergenPicker.Names.Concat(AllergenPicker.ExtraNames).Any(n=>text.Contains(n));
     }
     private static bool Nutrition(TrackMenu m)=>m.HasNutrition && new[]{m.Carb!.Value,m.Protein!.Value,m.Fat!.Value,m.Energy}.All(n=>double.IsFinite(n)&&n>=0);
     public static TrackMenu? Choose(TrackMenu original,IReadOnlyList<TrackMenu> catalog,IReadOnlyCollection<string> allergies)
@@ -16,7 +16,7 @@ public static class AllergyAlternatives
         if(!Nutrition(original))return null;
         double Difference(double a,double b)=>Math.Abs(a-b)/Math.Max(a,1);
         return catalog.Where(m=>m.Category==original.Category && m.Name!=original.Name && Nutrition(m) &&
-            KnownAllergens(m.Allergens) && !GoogleSheetsService.MatchesRegisteredAllergen(m,allergies))
+            !GoogleSheetsService.NeedsAllergenReview(m) && MenuClassification.AutomaticCandidate(m) && !GoogleSheetsService.MatchesRegisteredAllergen(m,allergies))
             .OrderBy(m=>Difference(original.Energy,m.Energy)+Difference(original.Carb!.Value,m.Carb!.Value)+Difference(original.Protein!.Value,m.Protein!.Value)+Difference(original.Fat!.Value,m.Fat!.Value))
             .ThenBy(m=>m.Key,StringComparer.Ordinal).FirstOrDefault();
     }
@@ -38,14 +38,14 @@ public static class AllergyAlternatives
                 var catalog=catalogs.GetValueOrDefault(age,Array.Empty<TrackMenu>());
                 var keys=meal.Value(25).Split(" / ");
                 var originals=meal.Menus.Select((name,i)=>{
-                    var candidates=catalog.Where(m=>m.Name==name&&m.Category==WeeklyMealPlanner.Categories[i]).ToArray();
-                    return candidates.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(candidates.Length==1?candidates[0]:null);
+                    var candidates=catalog.Where(m=>m.Name==name&&m.Category==MealSnapshot.CategoryAt(i)).ToArray();
+                    return meal.SavedItems?.ElementAtOrDefault(i)??candidates.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(candidates.Length==1?candidates[0]:null);
                 }).ToArray();
                 var chosen=originals.ToArray();var changes=new List<string>();var risks=new HashSet<string>();bool incomplete=false;
-                for(int i=0;i<6;i++)
+                for(int i=0;i<meal.Menus.Length;i++)
                 {
                     var original=originals[i];
-                    if(original==null || !KnownAllergens(original.Allergens))
+                    if(original==null || GoogleSheetsService.NeedsAllergenReview(original))
                     {incomplete=true;changes.Add(meal.Menus[i]+": 원본·알레르기 정보 확인 필요");continue;}
                     var matches=allergies.Where(a=>GoogleSheetsService.MatchesRegisteredAllergen(original,new[]{a})).ToArray();
                     if(matches.Length==0)continue;

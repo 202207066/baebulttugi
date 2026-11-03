@@ -10,6 +10,7 @@ public partial class GoogleSheetsService
     public Facility? CurrentFacility { get; private set; }
     private GoogleSheetsService(GoogleSheetsService registry, Facility facility)
     {
+        _credential = registry._credential;
         _sheetsService = registry._sheetsService;
         _driveService = registry._driveService;
         _facilityRegistry = registry.FacilityRegistry;

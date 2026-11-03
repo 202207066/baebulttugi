@@ -72,7 +72,7 @@
                     <StackPanel x:Name="StepItem3" Orientation="Horizontal">
                         <Ellipse x:Name="Dot3" Width="10" Height="10" Fill="#6E9A72"
                                  VerticalAlignment="Center" Margin="0,0,14,0"/>
-                        <TextBlock x:Name="StepLabel3" Text="데이터는 내 계정 안에만"
+                        <TextBlock x:Name="StepLabel3" Text="내 자료와 공식 요청의 차이"
                                    FontSize="15" Foreground="#BFE0C2" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>

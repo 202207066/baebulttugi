@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -32,12 +32,13 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
-  <ItemGroup><EmbeddedResource Include="RecipePortions.json" LogicalName="wpf.RecipePortions"/></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="IngredientTemplate.xlsx" LogicalName="wpf.IngredientTemplate"/></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="OfficialCatalog.json" LogicalName="wpf.OfficialCatalog"/></ItemGroup>
   <Target Name="PrepareDeploymentSettings" BeforeTargets="PrepareResourceNames">
     <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/Deployment/Prepare-Settings.ps1&quot; -SourceDirectory &quot;$(MSBuildProjectDirectory)&quot; -OutputDirectory &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)deployment&quot;" />
   </Target>
   <ItemGroup>
-    <None Update="token.json/**;GoogleSignIn/**;user_sheet_id.txt;userprefs.json;Deployment/**" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
+    <None Update="token.json/**;GoogleSignIn/**;GoogleSignIn-PerFile/**;user_sheet_id.txt;userprefs.json;Deployment/**" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
   <ItemGroup><None Update="Deployment/Set-HolidayApiKey.ps1" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
 </Project>

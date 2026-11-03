@@ -52,11 +52,15 @@ namespace wpf
             {
                 var panel = new StackPanel { Margin = new Thickness(32) };
                 panel.Children.Add(new TextBlock { Text = "자료를 불러오지 못했습니다", FontSize = 24 });
-                panel.Children.Add(new TextBlock { Text = ex.Message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,16,0,16) });
+                panel.Children.Add(new TextBlock { Text = LoginFailure.From(ex).Message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,16,0,16) });
                 var retry = new Button { Content = "다시 불러오기", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16,8,16,8) };
                 retry.Click += (_, _) => Main_Loaded(this, new RoutedEventArgs());
                 panel.Children.Add(retry);
+                var changeAccount = new Button { Content = "다른 Google 계정으로 로그인", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16,8,16,8), Margin = new Thickness(0,10,0,0) };
+                changeAccount.Click += BtnLogout_Click;
+                panel.Children.Add(changeAccount);
                 MainFrame.Navigate(new Page { Content = panel });
+                return;
             }
             finally { IsEnabled = true; }
 
@@ -522,7 +526,7 @@ namespace wpf
         private void OpenPublicData_Click(object sender, RoutedEventArgs e)
         {
             var dialog=new PublicSheetWindow(_sheetsService.GetPublicSheetsAsync, sheet=>
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(PublicSheet.Url(AppConfig.TemplateSpreadsheetId,sheet.Id)){UseShellExecute=true})){Owner=this};
+                new OfficialCatalogWindow(sheet){Owner=this}.ShowDialog()){Owner=this};
             dialog.ShowDialog();
         }
         private void OpenMyData_Click(object sender, RoutedEventArgs e) => OpenSheet(_sheetsService.SpreadsheetId);

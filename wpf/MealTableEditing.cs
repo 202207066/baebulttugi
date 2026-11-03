@@ -11,8 +11,8 @@ public static class MealTableEditing
     public static bool GetIsEditable(DependencyObject element) => (bool)element.GetValue(IsEditableProperty);
     public static void SetIsEditable(DependencyObject element, bool value) => element.SetValue(IsEditableProperty, value);
     public static bool CanEdit(object row, int displayIndex, bool interactive)
-        => interactive && row is WeekMealRow week && week.MenuIndex is >= 0 and < 6 &&
-           displayIndex > 0 && displayIndex <= week.Meals.Length && week.Meals[displayIndex - 1] != null;
+        => interactive && row is WeekMealRow week && week.MenuIndex >= 0 &&
+           displayIndex > 0 && displayIndex <= week.Meals.Length && week.Meals[displayIndex - 1] is StoredMeal meal && week.MenuIndex < meal.Menus.Length;
 }
 public sealed class MealCellEditableConverter : IMultiValueConverter
 {

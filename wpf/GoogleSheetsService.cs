@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -78,11 +78,13 @@ namespace wpf
         private string TemplateSpreadsheetId => AppConfig.TemplateSpreadsheetId;
         private string? _userSpreadsheetId;
 
+        private readonly UserCredential? _credential;
         private readonly SheetsService _sheetsService;
         private readonly DriveService _driveService;
 
         public GoogleSheetsService(UserCredential credential)
         {
+            _credential = credential;
             _sheetsService = new SheetsService(new BaseClientService.Initializer()
             {
                 HttpClientInitializer = credential,
@@ -145,9 +147,7 @@ namespace wpf
         /// 사용자 전용 사본이 준비되어 있으면 그것을, 없으면 설정 파일의 공용 ID를 씁니다.
         /// </summary>
         public string SpreadsheetId =>
-            string.IsNullOrWhiteSpace(_userSpreadsheetId)
-                ? AppConfig.SpreadsheetId
-                : _userSpreadsheetId!;
+            _userSpreadsheetId ?? throw new InvalidOperationException("개인 DB를 먼저 준비해 주세요.");
 
         public bool HasUserDatabase => !string.IsNullOrWhiteSpace(_userSpreadsheetId);
 
@@ -159,26 +159,22 @@ namespace wpf
         }
 
         /// <summary>
-        /// 템플릿 스프레드시트를 사용자 드라이브로 복사해 개인 DB를 만듭니다.
+        /// 로그인한 계정에 빈 개인 DB를 만듭니다. 공공 원본은 복사하지 않습니다.
         /// </summary>
-        public async Task<string> SetupUserDatabaseAsync()
+        public async Task<string> SetupUserDatabaseAsync(CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(TemplateSpreadsheetId))
-            {
-                throw new InvalidOperationException(
-                    "appsettings.json에 TemplateSpreadsheetId(또는 SpreadsheetId)가 설정되어 있지 않습니다.");
-            }
-
-            var fileMetadata = new Google.Apis.Drive.v3.Data.File()
-            {
-                Name = "나만의 스마트 식단 및 알러지 DB"
-            };
-
-            var request = _driveService.Files.Copy(fileMetadata, TemplateSpreadsheetId);
-            var copiedFile = await request.ExecuteAsync();
-
-            _userSpreadsheetId = copiedFile.Id;
-            return _userSpreadsheetId;
+            var book = await _sheetsService.Spreadsheets.Create(new Spreadsheet {
+                Properties = new SpreadsheetProperties { Title = "배불뚝이 · 내 식단 자료" },
+                Sheets = [new Sheet { Properties = new SheetProperties { Title = "사용 안내" }, Data = [new GridData {
+                    RowData = new List<RowData> {
+                        new() { Values = new List<CellData> { TextCell("배불뚝이 개인 자료") } },
+                        new() { Values = new List<CellData> { TextCell("이 파일은 로그인한 본인 계정에 생성됩니다. 대상자·식단·직접 수정한 레시피는 이 파일에 저장됩니다.") } },
+                        new() { Values = new List<CellData> { TextCell("공식 메뉴 자료는 앱에 포함되어 있으며 개인 자료와 별도로 업데이트됩니다.") } }
+                    }
+                }] }]
+            }).ExecuteAsync(cancellationToken);
+            SetUserSpreadsheetId(book.SpreadsheetId);
+            return book.SpreadsheetId;
         }
 
         // ── 시트 읽기/쓰기 공통 헬퍼 ────────────────────────────────────
@@ -401,11 +397,11 @@ namespace wpf
         }
 
         /// <summary>급식소별 탭 목록을 45초간 공유하고 동시 요청을 합칩니다.</summary>
-        public async Task<List<string>> GetSheetTitlesAsync(bool forceRefresh = false)
+        public async Task<List<string>> GetSheetTitlesAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
         {
             string id = SpreadsheetId;
             var owner = FacilityRegistry;
-            await owner._sheetTitlesGate.WaitAsync().ConfigureAwait(false);
+            await owner._sheetTitlesGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 long version;
@@ -418,11 +414,11 @@ namespace wpf
                 var metadata = _sheetsService.Spreadsheets.Get(id);
                 metadata.Fields = "sheets(properties)";
                 Spreadsheet spreadsheet;
-                try { spreadsheet = await metadata.ExecuteAsync().ConfigureAwait(false); }
+                try { spreadsheet = await metadata.ExecuteAsync(cancellationToken).ConfigureAwait(false); }
                 catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(1.5)).ConfigureAwait(false);
-                    spreadsheet = await metadata.ExecuteAsync().ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(1.5), cancellationToken).ConfigureAwait(false);
+                    spreadsheet = await metadata.ExecuteAsync(cancellationToken).ConfigureAwait(false);
                 }
                 var titles = spreadsheet.Sheets?.Select(sheet => sheet.Properties?.Title)
                     .Where(title => !string.IsNullOrEmpty(title)).Select(title => title!).ToArray() ?? [];

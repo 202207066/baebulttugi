@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -22,7 +22,7 @@ internal static class WeekFeedbackChecks
         Check(days[1].IsClosed&&days[3].IsClosed&&days[5].IsClosed,"Holiday and explicit facility closure disable generation");
         Check(!days[2].IsClosed&&!days[4].IsClosed&&days[2].Description.Contains("생일"),"Normal events remain selectable and visible");
         Check(WeekDayNotice.IsClosure("📌 휴무"),"Legacy closure event with emoji is recognized");
-        var catalog=WeeklyMealPlanner.Categories.Select((c,i)=>new TrackMenu(i.ToString(),c+" 메뉴",c,"",20,5,3,127,"검증")).ToList();
+        var catalog=WeeklyMealPlanner.Categories.Select((c,i)=>new TrackMenu(i.ToString(),c+" 메뉴",c,"",20,5,3,127,"검증"){ServingGrams=c=="주찬"?30:100,ProteinReviewed=true,Almond="없음 확인",Sesame="없음 확인",OtherBeans="없음 확인"}).ToList();
         var generated=WeeklyMealPlanner.Generate(catalog,start,days.Where(d=>!d.IsClosed).Select(d=>d.Date.DayOfWeek).ToArray(),new[]{"중식"},"3-5","A",new MealTargets(120,30,18,20),seed:1,sundayFirst:true);
         Check(generated.Count==4&&generated.All(m=>m.Date>=start&&m.Date<=start.AddDays(6)&&!days.Single(d=>d.Date==m.Date).IsClosed),"Only selected open dates generate within the Sunday week");
         StoredMeal Stored(DateTime date,string meal)
@@ -71,7 +71,7 @@ internal static class WeekFeedbackChecks
         using(var batch=System.Text.Json.JsonDocument.Parse(http.LastBatch))
         {
             var updated=batch.RootElement.GetProperty("requests").EnumerateArray().Where(r=>r.TryGetProperty("updateCells",out _)).Select(r=>r.GetProperty("updateCells").GetProperty("start").GetProperty("rowIndex").GetInt32()).ToArray();
-            Check(http.BatchCount==1&&updated.SequenceEqual(new[]{2,3}),"Day save uses one atomic batch and touches only the selected day's rows");
+            Check(http.BatchCount==1&&updated.Where(i=>i>0).SequenceEqual(new[]{2,3})&&updated.Count(i=>i==0)<=1,"Day save atomically updates the selected day and optional schema headers");
         }
         http.SavedRows[2][3]="외부 수정";
         bool rejected=false;

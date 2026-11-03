@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -55,7 +55,7 @@ internal static class ManagementChecks
             check(requests[0].GetProperty("appendDimension").GetProperty("length").GetInt32()==2,"Eight-column cost sheet expands before storing age and menu key");
             var removed=requests.Where(r=>r.TryGetProperty("deleteDimension",out _)).ToList();
             check(removed.Count==1&&removed[0].GetProperty("deleteDimension").GetProperty("range").GetProperty("startIndex").GetInt32()==2,"Saving costs replaces selected recipe rows and preserves unrelated recipes");
-            var newRows=requests.Single(r=>r.TryGetProperty("appendCells",out _)).GetProperty("appendCells").GetProperty("rows");
+            var newRows=requests.Last(r=>r.TryGetProperty("appendCells",out _)).GetProperty("appendCells").GetProperty("rows");
             check(newRows.GetArrayLength()==6&&newRows[0].GetProperty("values")[5].GetProperty("userEnteredValue").GetProperty("stringValue").GetString()=="","Cost save retains missing prices as blanks across all six menus");
         }
         reject(()=>MealCostData.Validate(meal,drafts.Skip(1),false),"A missing menu cannot produce a partial meal total");
@@ -67,7 +67,7 @@ internal static class ManagementChecks
         check(CalendarDates.Special(new(2026,7,15)).Contains("초복")&&CalendarDates.Special(new(2026,8,14)).Contains("말복"),"Verified 2026 special-meal days");
 
         var calendarPage=new EventCalendar();var calendar=(Calendar)calendarPage.FindName("MainCalendar");calendar.DisplayDate=new DateTime(2026,12,1);calendar.SelectedDate=new DateTime(2026,12,25);
-        ((HashSet<DateTime>)typeof(EventCalendar).GetField("_eventDates",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(calendarPage)!).Add(new(2026,12,24));
+        ((List<AnnualEvent>)typeof(EventCalendar).GetField("_allEvents",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(calendarPage)!).Add(new(2,new(2026,12,24),"검증 행사",false));
         FeedbackChecks.Render(calendarPage,System.IO.Path.Combine(folder,"calendar-holidays.png"),1200,850);
         var buttons=Descendants<CalendarDayButton>(calendar).Where(b=>b.DataContext is DateTime).ToList();
         var christmas=buttons.Single(b=>(DateTime)b.DataContext==new DateTime(2026,12,25));

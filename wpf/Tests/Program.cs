@@ -27,6 +27,10 @@ internal static class Program
 
     private static void Run(string[] args)
     {
+        if (args.Contains("login-recovery")) { LoginRecoveryChecks.Run(); return; }
+        if (args.Contains("login-recovery-preview")) { LoginRecoveryChecks.Preview(); return; }
+        if(args.Length>1 && args[0]=="november-preview"){NovemberPreview.Run(args[1]);return;}
+        if(args.Contains("release-preview")) { ReleasePreview.Run(); return; }
         if(args.Length > 1 && args[0] == "fix-visual") { FixVisualChecks.Run(args[1]); return; }
         if(args.Length > 1 && args[0] == "week-feedback") { WeekFeedbackChecks.Run(args[1]); return; }
         if(args.Length > 1 && args[0] == "october-feedback") { OctoberFeedbackChecks.Run(args[1]); return; }
@@ -58,7 +62,7 @@ internal static class Program
             return;
         }
         if (args.Contains("facilities")) { FacilityChecks.Run(); return; }
-        var menus = WeeklyMealPlanner.Categories.Select((c, i) => new TrackMenu("A" + i, "Menu" + i, c, "", 10, 3, 2, null, "test fixture")).ToList();
+        var menus = WeeklyMealPlanner.Categories.Select((c, i) => new TrackMenu("A" + i, "Menu" + i, c, "", 10, 3, 2, null, "test fixture"){ServingGrams=c=="주찬"?20:100,ProteinReviewed=true,Almond="없음 확인",Sesame="없음 확인",OtherBeans="없음 확인"}).ToList();
         var target = new MealTargets(60, 18, 12, 0);
         var weekdays = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
         List<WeeklyMeal> Generate(TrackMenu[]? custom = null, DayOfWeek[]? days = null, string[]? meals = null, MealTargets? goals = null) =>
@@ -155,8 +159,11 @@ internal static class Program
         AnnualEventChecks.Run(Check);
         EntryChecks.Run(Check, args.Length > 2 ? args[2] : null);
         FeedbackChecks.Run(Check, Reject);
+        ReleaseChecks.Run(Check,Reject);
+        NovemberChecks.Run(Check,Reject);
         var app = new wpf.App();
         app.InitializeComponent();
+        RequestUiChecks.Run(Check);
         AppServices.Sheets = new GoogleSheetsService(null!);
         var recipePage = new MenuInputPage();
         var recipeGrid = (System.Windows.Controls.DataGrid)recipePage.FindName("MenuGrid");
@@ -277,13 +284,13 @@ internal sealed class FakeSheets : HttpMessageHandler
         else if (request.RequestUri!.AbsolutePath.Contains("/values/"))
         {
             var rows = new List<object[]> { Mismatch ? ["메뉴명","칼로리"] : ["식단 ID","날짜","구분","밥","국","메인","사이드1","사이드2","후식"] };
-            if(CostMode) rows = [GoogleSheetsService.CostHeaders.Take(8).Cast<object>().ToArray()];
+            if(CostMode) rows = [GoogleSheetsService.CostHeaders.Take(10).Cast<object>().ToArray()];
             rows.AddRange(SavedRows);
             json = JsonSerializer.Serialize(new { values = rows });
         }
         else json = "{\"sheets\":[{\"properties\":{\"title\":\"메뉴\",\"sheetId\":42,\"gridProperties\":{\"columnCount\":9,\"rowCount\":1000}}}]}";
         if(CostMode && request.Method != HttpMethod.Post && !request.RequestUri!.AbsolutePath.Contains("/values/"))
-            json=JsonSerializer.Serialize(new{sheets=new[]{new{properties=new{title=AppConfig.CostSheetName,sheetId=42,gridProperties=new{columnCount=8,rowCount=1000}}}}});
+            json=JsonSerializer.Serialize(new{sheets=new[]{new{properties=new{title=AppConfig.CostSheetName,sheetId=42,gridProperties=new{columnCount=10,rowCount=1000}}}}});
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json,Encoding.UTF8,"application/json") };
     }
 }

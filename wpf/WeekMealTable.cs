@@ -28,7 +28,7 @@ public static class WeekMealTable
         grid.Tag=new WeekMealTableState(days,meals);
         grid.ColumnHeaderHeight=double.NaN;
         grid.Columns[0].Width=130;
-        foreach(var column in grid.Columns.Skip(1)){column.MinWidth=150;column.Width=Math.Max(150,(grid.ActualWidth-150)/7);}
+        foreach(var column in grid.Columns.Skip(1)){column.MinWidth=80;column.Width=Math.Max(80,(grid.ActualWidth-150)/7);}
         for(int i=0;i<7;i++)grid.Columns[i+1].Header=new MealTableHeading($"{"일월화수목금토"[i]}요일 · {days[i].Date:M/d}",days[i].Description,days[i].DateColor);
         var rows=new List<WeekMealRow>();
         var kinds=new[]{"조식","중식","석식"}.Where(k=>meals.Any(m=>m.Stored?.Meal==k)).ToArray();
@@ -36,8 +36,9 @@ public static class WeekMealTable
         foreach(var kind in kinds)
         {
             var columns=days.Select(d=>meals.LastOrDefault(m=>m.Stored?.Date.Date==d.Date && m.Stored.Meal==kind)).ToArray();
-            for(int menu=0;menu<=6;menu++)
-                rows.Add(new WeekMealRow(kind+"\n"+(menu==6?"총 열량":WeeklyMealPlanner.Categories[menu]),columns.Select((m,i)=>m==null?(days[i].IsClosed?"휴무":"—"):menu==6?(m.Calories.HasValue?$"{m.Calories:0.#} kcal":"열량 미확인"):m.Menus.ElementAtOrDefault(menu)??"—").ToArray(),columns.Select(m=>m?.Stored).ToArray(),menu));
+            int count=Math.Max(6,columns.Where(m=>m!=null).Select(m=>m!.Menus.Length).DefaultIfEmpty(6).Max());
+            for(int menu=0;menu<=count;menu++)
+                rows.Add(new WeekMealRow(kind+"\n"+(menu==count?"총 열량":MealSnapshot.LabelAt(menu)),columns.Select((m,i)=>m==null?(days[i].IsClosed?"휴무":"—"):menu==count?(m.Calories.HasValue?$"{m.Calories:0.#} kcal":"열량 미확인"):m.Menus.ElementAtOrDefault(menu)??"—").ToArray(),columns.Select(m=>m?.Stored).ToArray(),menu==count?-1:menu));
         }
         grid.ItemsSource=rows;
         grid.PreviewMouseWheel-=Wheel;

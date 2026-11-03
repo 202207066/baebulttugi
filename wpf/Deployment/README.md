@@ -1,29 +1,73 @@
-﻿# Windows 배포
+# 배불뚝이 배포와 공식 자료 운영
 
-일반 사용자는 credentials.json이나 서비스 계정 키를 준비하지 않습니다. 앱에 포함된 데스크톱 OAuth 설정으로 본인의 Google 계정에 로그인하고, 본인 드라이브의 사본에 작업합니다.
+## 사용자 배포
 
-## 빌드
+`dotnet publish wpf.csproj -p:PublishProfile=Windows-x64 -o <새 폴더>`
 
-`dotnet publish wpf.csproj -p:PublishProfile=Windows-x64 -o <새 배포 폴더>`
+Windows x64 자체 포함 폴더 배포입니다. .NET 8.0.33 실행 환경을 포함하며 폴더 전체를 ZIP으로 전달합니다. 코드 서명된 설치 프로그램은 아닙니다. 빌드 직전에 지원되는 최신 .NET 8 보안 패치를 확인하고 PublishProfile의 RuntimeFrameworkVersion을 갱신하세요.
 
-생성된 폴더 전체를 배포합니다. bin/Debug, bin/Release 폴더를 그대로 압축하지 마세요. 기존 로그인 토큰이 남아 있을 수 있습니다. 현재 결과는 자체 실행 구성요소가 포함된 Windows x64 폴더이며, 서명된 Setup.exe 설치 프로그램은 아닙니다.
+Prepare-Settings.ps1은 허용한 설정과 설치형 OAuth 클라이언트 정보만 포함합니다. 개인 토큰·서비스 계정 키·HolidayApiKey를 포함하지 않습니다. 신규 사용자는 JSON 설정 파일을 준비하지 않습니다.
 
-모든 빌드는 Prepare-Settings.ps1을 통해 허용된 설정만 포함합니다. 서비스 계정 키와 웹 OAuth 설정은 거부하며 개인 토큰, HolidayApiKey는 포함하지 않습니다. 공휴일 API 키는 배포 파일에 포함하지 않습니다. 각 운영 PC에서 앱을 사용하는 Windows 계정으로 다음 설정 도구를 실행합니다.
+## 데이터 흐름
+
+- 공식 메뉴/영양/식재료/조리법: 앱에 포함된 OfficialCatalog.json. 원본 Google Sheets 열람 승인 불필요.
+- 개인 식단/대상자/일정/레시피: 사용자가 로그인한 계정이 소유하는 Google Sheets. 첫 로그인은 빈 개인 자료를 생성하며 급식소별 자료를 분리합니다.
+- 요청: 사용자가 명시적으로 보낸 내용과 로그인 이메일을 요청 서버에 저장합니다. 개인 명단이나 건강정보는 자동 전송하지 않습니다.
+- 공식 자료 갱신: 공공 메뉴 자료 보기의 ‘공식 자료 업데이트’. HTTPS 다운로드 크기·형식·SHA-256·버전 검사 후 교체합니다. 개인 레시피의 원본메뉴키로 수정 항목을 유지하며 저장 식단의 메뉴상세 JSON으로 당시 영양·알레르기 값을 유지합니다.
+
+## 요청 검토
+
+앱의 ‘관리자 요청함’은 baebulttugi03@gmail.com에서 표시됩니다. 서버도 검증된 Google ID token의 이메일로 관리자를 확인합니다. 요청 상태는 접수 / 검토 중 / 반영 예정 / 반영 완료 / 보류입니다. 상태 변경은 공식 메뉴 자동 수정이 아닙니다.
+
+웹 관리자 화면: https://baebulttugi.royal-snail-6531.chatgpt.site/admin
+웹에서는 같은 이메일의 ChatGPT 로그인으로 관리자 권한을 확인합니다. 앱과 웹은 같은 접수 데이터를 사용합니다. Drive 접근/갱신 토큰은 요청 서버에 보내지 않습니다.
+
+## 공식 자료를 업데이트할 때
+
+### 2026-11-03 검토판의 승인 반영
+
+현재 내장 자료 `2026.11.2.1`은 1차 검토 초안입니다. 원래 메뉴·영양·재료 값은 보존했고, 공식 반찬의 `ProteinReviewed`는 모두 false입니다. 승인된 고단백 주찬이 확보될 때까지 공식 자료만으로 자동 생성할 수 없습니다. Google 로그인 승인과는 별개의 음식 데이터 검토 단계입니다.
+
+교수님이 검토한 엑셀의 `1차 검토` 시트에서 F/I/J(제공량·근거·단백질 확인사항), K/L/M/N(추가 알레르기·확인사항), Z(기존 알레르기 코드)를 확인합니다. K/L/M은 `포함` 또는 `없음 확인`, 해결된 J/N은 빈 값, O는 `승인`으로 입력합니다. 아직 모호한 메뉴는 `대기`로 유지합니다. 기본 메뉴명·키·분류·원래 단백질 E열은 대조 원본이므로 바꾸지 않습니다. 원본 영양값을 수정해야 한다면 별도로 검토한 원본 자료와 엑셀을 함께 갱신해 재대조합니다.
+
+```powershell
+python Deployment/Apply-ReviewedCatalog.py --catalog OfficialCatalog.json --review <검토완료.xlsx> --out <새버전.json> --version 2026.11.3.2
+```
+
+이 명령은 원본 JSON을 덮어쓰거나 온라인 게시하지 않습니다. 전체 메뉴키·원본 단백질 일치, 승인 행의 제공량·알레르기 입력, 버전을 확인해 새 로컬 JSON만 만듭니다. 새 파일을 앱에 포함하거나 온라인 카탈로그로 게시하기 전에는 승인 범위와 자동 생성·알레르기·저장 검사를 수행합니다. 온라인 배포 시 파일 SHA-256·바이트 수에 맞춰 `latest.json`을 갱신해야 합니다.
+
+아래 TSV 변환 도구는 새 원본 수집용입니다. 이 도구의 출력은 단백질/추가 알레르기의 승인 정보를 보존하지 않으므로, 기존 승인 파일에 그대로 덮어쓰거나 검토 없이 게시하지 마세요. 현재 검토용 엑셀은 작업 산출물의 `배불뚝이_메뉴데이터_1차검토_2026-11-02.xlsx`입니다. 삭제한 22개는 명단이 없어 사용자 확인에 따라 확인 대기로 남겼습니다.
+
+### 새 원본을 수집하는 절차
+
+1. 요청함에서 변경 내용을 검토하고 공식 원본 Google Sheets에 승인한 음식 자료만 반영합니다.
+2. 다음 표를 UTF-8 탭 구분 파일(TSV)로 내려받아 한 폴더에 저장합니다. 개인 명단·일정·식단 표는 넣지 않습니다.
+   - trackA.tsv, trackB.tsv: 트랙별 메뉴 목록(메뉴ID, 메뉴명, 카테고리, 알레르기 열 포함)
+   - nutritionA.tsv, nutritionB.tsv: 메뉴명, 열량, 탄수화물, 단백질, 지방 등의 최종 영양값
+   - portionsA.tsv, portionsB.tsv: 기존 원본 식재료 분량 정리 표(29열 구조 유지)
+   - cooking.tsv: 메뉴명과 조리방법
+3. 버전을 올려 패키지와 점검 CSV를 생성합니다.
+
+```powershell
+python Deployment/Build-OfficialCatalog.py --version 2026.11.1.1 --data-dir <TSV폴더> --app-dir <wpf폴더> --site-catalog-dir <사이트/public/catalog>
+```
+
+4. ‘공식자료_점검.csv’의 영양 누락, 레시피 불일치, 알레르기 코드를 확인합니다. 빈 영양값을 0으로 바꾸지 않습니다. 현재 패키지에는 메뉴 3500개, 식재료 연결 3494개, 영양 미완성 메뉴 15개가 포함되며 미완성 메뉴는 자동 생성에서 제외됩니다.
+5. 앱 검사와 사이트 검사를 실행하고 사이트의 catalog 파일 + latest.json을 함께 배포합니다. 사이트 소스는 별도 sites/baebulttugi 폴더입니다. 기존 버전 파일은 남겨 둡니다. 새 앱 배포도 빌드하면 같은 자료를 포함합니다.
+6. 실제 다운로드의 버전과 해시를 확인한 뒤 요청 상태를 ‘반영 완료’로 바꿉니다. 이용자는 ‘공식 자료 업데이트’를 눌러 받습니다. 자동 원본 수집/자동 승인 기능은 없습니다.
+
+## Google 공개 설정
+
+실제 요청 권한은 drive.file, openid, userinfo.email, userinfo.profile입니다. 전체 Drive/Sheets 권한을 새로 요청하지 않습니다. Google Cloud에서 외부 앱 게시 상태가 프로덕션이어야 테스트 사용자 수동 등록 없이 이용할 수 있습니다. 기존 넓은 권한으로 로그인한 토큰과 새 토큰 저장소를 분리했습니다. 사용자는 새 버전에서 한 번 다시 로그인합니다.
+
+로그인 토큰: Windows 사용자 LocalAppData/Baebulttugi/GoogleSignIn-PerFile. 배포 또는 원격 문의에 이 폴더를 첨부하지 마세요. 일반 파일 저장이므로 해당 Windows 계정의 보안에 의존합니다.
+
+## 공휴일 키 (선택)
+
+기본 공휴일과 사용자가 등록한 일정은 키 없이 사용합니다. 실시간 공휴일 API 사용 시 운영 PC에서 다음 명령을 실행하여 디코딩된 서비스 키를 숨김 입력합니다.
 
 ```powershell
 powershell -NoProfile -File .\Deployment\Set-HolidayApiKey.ps1
 ```
 
-공공데이터포털의 **디코딩된 서비스 키**를 숨김 입력합니다. 키는 `Baebulttugi/HolidayApiKey`라는 이름으로 Windows 자격 증명 관리자에 저장되며 현재 사용자만 이용합니다. 키를 인수로 전달하거나 appsettings.json에 넣지 마세요. 앱은 해당 JSON의 HolidayApiKey를 읽지 않습니다. 제거는 같은 명령에 `-Remove`를 붙입니다. 공용 키를 모든 사용자에게 배포해야 하는 경우에는 별도 서버 중계가 필요합니다.
-
-키가 없거나 API 조회에 실패하면 기존 공휴일 기본 자료를 유지하고 달력 머리말에 상태를 표시합니다. 실제 API 조회에는 운영 PC의 네트워크 연결과 유효한 서비스 키가 필요합니다.
-
-런타임에서 사용하는 Sheets 설정은 Menu, WeeklyMenu, Recipe, TrackA, TrackB, Diet, Event, Patient, Dashboard, Facility, Cost이며 기존 허용 목록에 모두 포함됩니다. 기존 예약 항목 MealCount, AllergyPatient, DietSave, Ingredient도 유지합니다. 현재 코드가 읽지 않는 User, Allergy, MenuDatabase, FoodNutritionBasic 키를 새로 허용하지 않습니다. SpreadsheetId, TemplateSpreadsheetId와 installed 방식 OAuth 설정은 기존처럼 포함됩니다.
-
-## 공개 배포 전 확인
-
-- 공용 템플릿에는 공개 가능한 레시피만 두세요. 개인정보, 피급식자 명단, 개인 일정, 운영 메모는 별도 비공개 시트에 보관하세요. 현재 최초 설정은 템플릿 전체를 복사합니다. 복사 후 일부 예시를 지우는 동작은 정보 유출 방지가 아닙니다.
-- 원본은 일반 사용자에게 보기 권한만 부여하고, 상위 폴더에서 편집 권한을 상속받는지도 확인하세요. 앱의 원본 쓰기 차단은 보조 수단이며 Google 공유 권한을 대신하지 못합니다.
-- Google Cloud OAuth 동의 화면의 공개 상태, 테스트 사용자 제한, 사용하는 Drive/Sheets 권한의 검증 필요 여부를 확인하세요. 현재 전체 Drive 및 Sheets 접근 권한을 요청합니다. 권한을 더 줄이려면 파일 선택/복사 흐름 변경과 별도 검증이 필요합니다.
-- 로그인 토큰은 각 Windows 사용자 LocalAppData/Baebulttugi/GoogleSignIn에 저장됩니다. 현재 파일 저장 방식이므로 해당 Windows 계정이 침해되면 안전을 보장할 수 없습니다. 원격 지원 시 이 폴더를 전달하지 마세요.
-- 설치 프로그램 및 코드 서명은 별도 단계입니다. 공개 공유 권한과 신규 계정 로그인은 실제 환경에서 확인해야 합니다.
+키는 해당 Windows 계정의 자격 증명 관리자 Baebulttugi/HolidayApiKey에 저장됩니다. 배포 파일이나 명령 인수에 넣지 않습니다. 제거는 위 명령에 -Remove를 붙입니다. 키가 없거나 API 실패 시 기본 자료와 상태 안내를 유지합니다.

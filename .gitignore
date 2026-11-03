@@ -449,3 +449,11 @@ appsettings.json
 # 사용자별로 생성되는 개인 시트 ID 캐시
 user_sheet_id.txt
 
+# Packaged desktop releases are distributed separately from source
+/Baebulttugi/
+/Baebulttugi*.zip
+
+# Per-user OAuth tokens and preferences
+GoogleSignIn/
+GoogleSignIn-PerFile/
+userprefs.json

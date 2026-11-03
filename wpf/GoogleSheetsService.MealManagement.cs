@@ -17,7 +17,9 @@ public sealed class StoredMeal
     public string Track => Value(11);
     public string Rice => Value(3); public string Soup => Value(4); public string Main => Value(5);
     public string Side => Value(6); public string Kimchi => Value(7); public string Dessert => Value(8);
-    public string[] Menus => Enumerable.Range(3,6).Select(Value).ToArray();
+    private string? snapshotText;private TrackMenu[]? snapshotItems;
+    public TrackMenu[]? SavedItems {get{var text=Value(29);if(text!=snapshotText){snapshotItems=MealSnapshot.Read(text);snapshotText=text;}return snapshotItems;}}
+    public string[] Menus => SavedItems?.Select(m=>m.Name).ToArray()??Enumerable.Range(3,6).Select(Value).ToArray();
     public double? Carb => WeeklyMealPlanner.Number(Value(12)); public double? Protein => WeeklyMealPlanner.Number(Value(13));
     public double? Fat => WeeklyMealPlanner.Number(Value(14)); public double? Calories => WeeklyMealPlanner.Number(Value(15));
     public double? TargetCalories => WeeklyMealPlanner.Number(Value(27)); public double? CalorieDifference => WeeklyMealPlanner.Number(Value(28));
@@ -57,7 +59,7 @@ public partial class GoogleSheetsService
     }
     public static IList<object> EditedMealValues(StoredMeal meal,IReadOnlyList<TrackMenu> items)
     {
-        if(items.Count!=6 || items.Where((m,i)=>m.Category!=WeeklyMealPlanner.Categories[i] || string.IsNullOrWhiteSpace(m.Name)).Any())throw new InvalidOperationException("여섯 분류의 메뉴를 선택해 주세요.");
+        MealSnapshot.Validate(items);
         var row=meal.Raw.Take(WeeklyHeaders.Length).ToList();while(row.Count<WeeklyHeaders.Length)row.Add("");
         row[0]=meal.Date.ToString("yyMMdd")+(meal.Meal switch{"조식"=>"M","중식"=>"L","석식"=>"N",_=>throw new InvalidOperationException("끼니를 확인해 주세요.")});
         for(int i=0;i<6;i++)row[i+3]=items[i].Name;
@@ -75,7 +77,7 @@ public partial class GoogleSheetsService
         }
         if(items.All(m=>m.HasNutrition) && WeeklyMealPlanner.Number(meal.Value(27)) is double calorieTarget)
             row[28]=Math.Round(items.Sum(m=>m.Energy)-calorieTarget,1);
-        row[24]=DateTimeOffset.Now.ToString("o");row[25]=string.Join(" / ",items.Select(m=>m.Key));
+        row[29]=MealSnapshot.Write(items);row[24]=DateTimeOffset.Now.ToString("o");row[25]=string.Join(" / ",items.Select(m=>m.Key));
         return row;
     }
     public async Task ChangeStoredMealAsync(StoredMeal selected,IReadOnlyList<TrackMenu>? replacements)

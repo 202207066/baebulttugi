@@ -11,23 +11,30 @@ public static class PatientSheetCodec
     public static int[] AllergyColumns(IList<object> header) => header.Select((h,i)=>(h,i))
         .Where(x=>Aliases[3].Any(a=>HeaderKey(a)==HeaderKey(x.h?.ToString()??""))).Select(x=>x.i).ToArray();
     private static int[] Columns(IList<object> header) => Aliases.Select(a => header.ToList().FindIndex(h => a.Any(alias=>HeaderKey(alias)==HeaderKey(h?.ToString()??"")))).ToArray();
-    public static bool IsManagedColumn(IList<object> header, int index) => Columns(header).Contains(index);
+    public static bool IsManagedColumn(IList<object> header, int index) => Columns(header).Contains(index) || HeaderKey(header[index]?.ToString()??"")=="알레르기상태";
     public static List<PatientModel> Parse(IList<IList<object>> rows)
     {
         if (rows.Count == 0) return new();
         var c = Columns(rows[0]);
         var allergyColumns = AllergyColumns(rows[0]);
-        if (c[1] < 0) throw new InvalidOperationException("알레르기 명단에 이름 열이 필요합니다. 기존 자료는 변경하지 않았습니다.");
+        if (c[1] < 0 && c[0]<0) throw new InvalidOperationException("알레르기 명단에 이름 열이 필요합니다. 기존 자료는 변경하지 않았습니다.");
         var result = new List<PatientModel>();
         for (int i = 1; i < rows.Count; i++)
         {
             if (rows[i].All(x => string.IsNullOrWhiteSpace(x?.ToString()))) continue;
             string name = Cell(rows[i], c[1]);
-            if (name.Length == 0) throw new InvalidOperationException($"알레르기 명단 {i+1}행의 이름을 확인해 주세요.");
             int id = c[0] < 0 ? i : int.TryParse(Cell(rows[i], c[0]), out int n) && n > 0 ? n : throw new InvalidOperationException($"알레르기 명단 {i+1}행의 ID를 확인해 주세요.");
+            if(name.Length==0)name=$"대상자-{id:D4}";
             if (result.Any(p => p.Id == id)) throw new InvalidOperationException("알레르기 명단의 ID가 중복됩니다.");
             var allergy = PatientAllergyInfo.Merge(allergyColumns.Select(column=>Cell(rows[i],column)),allergyColumns.Length>0);
-            result.Add(new PatientModel { Id = id, Name = name, Category = c[2] < 0 ? "일반" : Cell(rows[i], c[2]), Allergies = allergy.Value, AllergyReview = allergy.Review, Note = Cell(rows[i], c[4]) });
+            int stateColumn=rows[0].ToList().FindIndex(h=>HeaderKey(h?.ToString()??"")=="알레르기상태");
+            string state=Cell(rows[i],stateColumn);
+            var issues=new List<string>();if(allergy.Review.Length>0)issues.Add(allergy.Review);
+            if(state=="미확인")issues.Add("사용자 확인 전");
+            else if(state=="없음 확인" && (!PatientAllergyInfo.IsNone(allergy.Value)||allergyColumns.Length==0))issues.Add("없음 확인 상태와 알레르기 내용이 불일치");
+            else if(state=="있음 확인" && (allergy.Value.Length==0||PatientAllergyInfo.IsNone(allergy.Value)))issues.Add("있음 확인 상태에 알레르기 항목 없음");
+            else if(state.Length>0&&!new[]{"미확인","없음 확인","있음 확인"}.Contains(state))issues.Add("알레르기 상태 확인 필요: "+state);
+            result.Add(new PatientModel { Id = id, Name = name, Category = c[2] < 0 ? "일반" : Cell(rows[i], c[2]), Allergies = allergy.Value, AllergyReview = string.Join(" · ",issues), AllergyState=state, Note = Cell(rows[i], c[4]) });
         }
         return result;
     }
@@ -41,6 +48,8 @@ public static class PatientSheetCodec
         while (header.Count < width) header.Add("");
         var c = Columns(header);
         for (int i=0;i<c.Length;i++) if (c[i]<0) { c[i]=header.Count; header.Add(Aliases[i][0]); }
+        int stateColumn=header.FindIndex(h=>HeaderKey(h?.ToString()??"")=="알레르기상태");
+        if(stateColumn<0){stateColumn=header.Count;header.Add("알레르기 상태");}
         var oldRows = new Dictionary<int,IList<object>>();
         int k = 0;
         for (int i=1;i<original.Count;i++) if (original[i].Any(x => !string.IsNullOrWhiteSpace(x?.ToString()))) oldRows[existing[k++].Id] = original[i];
@@ -60,6 +69,11 @@ public static class PatientSheetCodec
                 foreach(int column in AllergyColumns(header)) row[column]="";
                 row[c[3]]=p.Allergies;
             }
+            string state=p.AllergyState.Length>0?p.AllergyState:p.AllergyStatus;
+            if(state=="없음 확인"&&!PatientAllergyInfo.IsNone(p.Allergies))throw new InvalidOperationException("없음 확인과 알레르기 항목을 함께 저장할 수 없습니다.");
+            if(state=="있음 확인"&&(p.Allergies.Length==0||PatientAllergyInfo.Merge([p.Allergies]).Review.Length>0||PatientAllergyInfo.IsNone(p.Allergies)))throw new InvalidOperationException("있음 확인 상태에서는 알레르기 항목을 확인해 주세요.");
+            if(previous!=null&&previous.AllergyStatus!=state&&!p.AllergyChangeConfirmed)throw new InvalidOperationException("알레르기 상태 변경을 확인해 주세요.");
+            row[stateColumn]=state;
             result.Add(row);
         }
         return result;

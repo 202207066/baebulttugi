@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 namespace wpf;
 public partial class Main
@@ -10,6 +10,7 @@ public partial class Main
             AccountName.Text = SideAccountName.Text = user.FriendlyName;
             AccountEmail.Text = SideAccountEmail.Text = user.Email;
             SideAccountInitial.Text = user.Initial;
+            BtnCatalogAdmin.Visibility = string.Equals(user.Email, CatalogRequestsClient.AdminEmail, StringComparison.OrdinalIgnoreCase) ? Visibility.Visible : Visibility.Collapsed;
         }
         catch { AccountName.Text = SideAccountName.Text = "로그인됨"; AccountEmail.Text = SideAccountEmail.Text = ""; }
     }

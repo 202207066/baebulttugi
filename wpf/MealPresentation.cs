@@ -55,7 +55,7 @@ public static class MealPresentation
             string heading = meals[i].Stored is StoredMeal saved ? $"{saved.Day}요일 · {saved.Date:M/d}" : lines[0];
             grid.Columns.Add(new DataGridTemplateColumn { Header = new MealTableHeading(heading, lines.Length > 1 ? lines[1] : ""), CellTemplate = new DataTemplate { VisualTree = panel }, Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 165, CanUserReorder = false, CanUserSort = false });
         }
-        grid.ItemsSource = meals.Count == 0 ? Array.Empty<MealDisplayRow>() : WeeklyMealPlanner.Categories.Select((c,i) => new MealDisplayRow(c, meals.Select(m => m.Menus[i]).ToArray())).Append(new MealDisplayRow("총 열량", meals.Select(m => m.Calories.HasValue ? $"{m.Calories:0.#} kcal" : "열량 미확인").ToArray())).ToArray();
+        grid.ItemsSource = meals.Count == 0 ? Array.Empty<MealDisplayRow>() : Enumerable.Range(0,meals.Max(m=>m.Menus.Length)).Select(i => new MealDisplayRow(MealSnapshot.LabelAt(i), meals.Select(m => m.Menus.ElementAtOrDefault(i)??"—").ToArray())).Append(new MealDisplayRow("총 열량", meals.Select(m => m.Calories.HasValue ? $"{m.Calories:0.#} kcal" : "열량 미확인").ToArray())).ToArray();
         grid.CanUserReorderColumns = false;
         var textStyle = new Style(typeof(TextBlock));
         textStyle.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
@@ -73,7 +73,7 @@ public static class MealPresentation
             foreach(var column in grid.Columns.Skip(1)) column.Width = Math.Max(0,(grid.ActualWidth-134)/7);
             return;
         }
-        double width = grid.Tag is WeekMealTableState ? Math.Max(150,(grid.ActualWidth-150)/7) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
+        double width = grid.Tag is WeekMealTableState ? Math.Max(80,(grid.ActualWidth-150)/7) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
         foreach(var column in grid.Columns.Skip(1)) column.Width = new DataGridLength(width);
     }
     public static StoredMeal? Selected(DataGrid grid) => grid.Tag is WeekMealTableState ? WeekMealTable.Selected(grid).Meal : grid.SelectedCells.Count > 0 && grid.Tag is IReadOnlyList<MealDisplayColumn> meals && grid.SelectedCells[0].Column?.DisplayIndex is int i && i > 0 && i <= meals.Count ? meals[i - 1].Stored : null;
@@ -92,8 +92,8 @@ public partial class GoogleSheetsService
             var keys = m.Value(25).Split(" / ");
             var labels = m.Menus.Select((name,i) => {
                 var exact = catalog.FirstOrDefault(x => i < keys.Length && x.Key == keys[i]);
-                var candidates = catalog.Where(x => x.Name == name && x.Category == WeeklyMealPlanner.Categories[i]).ToList();
-                var item = exact ?? (candidates.Count == 1 ? candidates[0] : null);
+                var candidates = catalog.Where(x => x.Name == name && x.Category == MealSnapshot.CategoryAt(i)).ToList();
+                var item = m.SavedItems?.ElementAtOrDefault(i) ?? exact ?? (candidates.Count == 1 ? candidates[0] : null);
                 return MealPresentation.Label(name, item?.DisplayCalories);
             }).ToArray();
             return new MealDisplayColumn($"{m.Date:M/d} ({m.Day})\n{m.Meal} · {m.AgeGroup}세", labels, m.Calories, m);

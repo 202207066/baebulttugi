@@ -14,6 +14,7 @@ namespace wpf
         private readonly System.Windows.Threading.DispatcherTimer _monitorTimer=new(){Interval=TimeSpan.FromSeconds(30)};
         private int _monitorVersion;
         private bool _monitorBusy;
+        private int? _selectedPatientId;
 
 
         // 💡 메모리 DB 대신, 프로그램 내부에서 구글 시트 데이터를 담고 있을 실시간 리스트입니다.
@@ -37,7 +38,7 @@ namespace wpf
             Unloaded += (_,_)=>{_monitorTimer.Stop();++_monitorVersion;_monitorBusy=false;};
             DpMonitorDate.SelectedDate=DateTime.Today;
             DpMonitorDate.SelectedDateChanged+=async (_,_)=>{if(IsLoaded)await RefreshMonitorAsync();};
-            _monitorTimer.Tick+=async (_,_)=>{if(IsLoaded&&!_monitorBusy)await RefreshMonitorAsync();};
+            _monitorTimer.Tick+=async (_,_)=>{if(IsLoaded&&!_monitorBusy&&!TxtPatientName.IsKeyboardFocusWithin&&!TxtPatientNote.IsKeyboardFocusWithin&&!PatientAllergens.IsKeyboardFocusWithin&&!PatientAllergyState.IsKeyboardFocusWithin)await RefreshMonitorAsync();};
 
             // 버튼 이벤트 연결
             BtnSavePatient.Click += BtnSavePatient_Click;
@@ -71,7 +72,7 @@ namespace wpf
                 var stored=(await _service.GetStoredMealsAsync(date)).Where(m=>m.Date.Date==date).ToList();
                 var catalogs=new Dictionary<string,IReadOnlyList<TrackMenu>>();
                 foreach(var age in stored.Select(m=>m.AgeGroup.Length==0?"3-5":m.AgeGroup).Distinct())
-                    catalogs[age]=(await _service.GetTrackCatalogAsync(age,true)).Menus;
+                    catalogs[age]=(await _service.GetTrackCatalogAsync(age)).Menus;
                 var alternatives=(await Task.Run(()=>AllergyAlternatives.Build(stored,patients,catalogs))).ToList();
                 if(version!=_monitorVersion)return;
                 _patientList=patients;UpdatePatientGrid(patients);
@@ -86,10 +87,10 @@ namespace wpf
                 {
                     var catalog=catalogs[meal.AgeGroup.Length==0?"3-5":meal.AgeGroup];
                     var keys=meal.Value(25).Split(" / ");
-                    for(int i=0;i<6;i++)
+                    for(int i=0;i<meal.Menus.Length;i++)
                     {
-                        var matches=catalog.Where(m=>m.Name==meal.Menus[i]&&m.Category==WeeklyMealPlanner.Categories[i]).ToList();
-                        var menu=matches.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(matches.Count==1?matches[0]:null);
+                        var matches=catalog.Where(m=>m.Name==meal.Menus[i]&&m.Category==MealSnapshot.CategoryAt(i)).ToList();
+                        var menu=meal.SavedItems?.ElementAtOrDefault(i)??matches.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(matches.Count==1?matches[0]:null);
                         labels.Add(new{DisplayName=$"{meal.Meal} · {meal.AgeGroup}세 · "+MealPresentation.Label(meal.Menus[i],menu?.DisplayCalories),Ingredients=string.IsNullOrWhiteSpace(menu?.Allergens)?"정보 미확인":GoogleSheetsService.NeedsAllergenReview(menu)?"알레르기 확인 필요 · "+menu.Allergens:menu.Allergens});
                         if(menu!=null)_menuCatalog.TryAdd(menu.Name,menu.Allergens);
                     }
@@ -179,8 +180,8 @@ namespace wpf
                 p.Name,
                 p.Category,
                 Allergies = p.Allergies,
-                AllergyDisplay = p.Allergies + (p.NeedsAllergyReview ? "\n확인 필요: "+p.AllergyReview : ""),
-                p.AllergyReview,
+                AllergyDisplay = p.AllergyStatus+" · "+p.Allergies + (p.NeedsAllergyReview ? "\n확인 필요: "+p.AllergyReview : ""),
+                p.AllergyReview, p.AllergyStatus,
                 p.Note
             }).ToList();
         }
@@ -193,6 +194,7 @@ namespace wpf
             if (DgPatients.SelectedItem == null) return;
 
             dynamic selectedPatient = DgPatients.SelectedItem;
+            _selectedPatientId=(int)selectedPatient.Id;
             string name = selectedPatient.Name;
             string category = selectedPatient.Category;
             string allergiesText = selectedPatient.Allergies;
@@ -210,22 +212,9 @@ namespace wpf
                 }
             }
 
-            var allergyList = GoogleSheetsService.SplitAllergens(allergiesText).Select(PatientAllergyInfo.Key).ToHashSet();
-            var currentContent = this.Content as DependencyObject;
-            if (currentContent != null)
-            {
-                foreach (var child in FindVisualChildren<CheckBox>(currentContent))
-                {
-                    if (child != null && child.Content != null)
-                    {
-                        string checkBoxName = (child.Tag ?? child.Content).ToString()!;
-                        child.IsChecked = allergyList.Contains(PatientAllergyInfo.Key(checkBoxName))
-                            || (checkBoxName == "달걀" && allergyList.Overlaps(new[] { "난류", "계란" }))
-                            || (checkBoxName == "소고기" && allergyList.Contains("쇠고기"))
-                            || (checkBoxName == "조개류" && allergyList.Overlaps(new[] { "굴", "전복", "홍합" }));
-                    }
-                }
-            }
+            PatientAllergens.Text=allergiesText;
+            string state=selectedPatient.AllergyStatus;
+            PatientAllergyState.SelectedIndex=state=="없음 확인"?1:state=="있음 확인"?2:0;
         }
 
         // ==========================================
@@ -233,43 +222,21 @@ namespace wpf
         // ==========================================
         private async void BtnSavePatient_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(TxtPatientName.Text))
-            {
-                MessageBox.Show("피급식자의 성명을 입력해 주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            string inputName = TxtPatientName.Text.Trim();
-            List<string> selectedAllergies = new List<string>();
-
-            if (this.Content is DependencyObject currentContent)
-            {
-                foreach (var child in FindVisualChildren<CheckBox>(currentContent))
-                {
-                    if (child?.IsChecked == true && child.Content != null)
-                    {
-                        selectedAllergies.Add((child.Tag ?? child.Content).ToString() ?? "");
-                    }
-                }
-            }
-
-            if(selectedAllergies.Count==0)
-            {
-                var answer=MessageBox.Show("알레르기가 없는 것으로 확인했나요? '예'는 없음, '아니요'는 정보 미입력으로 등록합니다.","알레르기 정보 확인",MessageBoxButton.YesNoCancel,MessageBoxImage.Question,MessageBoxResult.Cancel);
-                if(answer==MessageBoxResult.Cancel)return;
-                if(answer==MessageBoxResult.Yes)selectedAllergies.Add("없음");
-            }
+            string inputName=TxtPatientName.Text.Trim();
+            string state=StateInput();string allergyValue;
+            try{allergyValue=AllergyInput(state);}catch(Exception ex){MessageBox.Show(ex.Message,"알레르기 상태 확인");return;}
             string category = CmbPatientCategory?.SelectedItem is ComboBoxItem item ? (item.Content?.ToString() ?? "일반") : "일반";
 
             // 고유 ID 부여 (가장 큰 ID + 1)
             int nextId = _patientList.Count > 0 ? _patientList.Max(p => p.Id) + 1 : 1;
 
+            if(inputName.Length==0)inputName=$"대상자-{nextId:D4}";
             var newPatient = new PatientModel
             {
                 Id = nextId,
                 Name = inputName,
                 Category = category,
-                Allergies = string.Join(", ", selectedAllergies),
+                Allergies = allergyValue, AllergyState=state,
                 Note = TxtPatientNote?.Text?.Trim() ?? string.Empty
             };
 
@@ -293,48 +260,26 @@ namespace wpf
         // ==========================================
         private async void BtnUpdatePatient_Click(object sender, RoutedEventArgs e)
         {
-            if (DgPatients.SelectedItem == null)
+            if (_selectedPatientId == null)
             {
                 MessageBox.Show("수정할 대상을 목록에서 먼저 선택해 주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            dynamic selectedItem = DgPatients.SelectedItem;
-            int selectedId = selectedItem.Id;
+            int selectedId = _selectedPatientId!.Value;
 
             var target = _patientList.FirstOrDefault(p => p.Id == selectedId);
             if (target != null)
             {
-                List<string> updatedAllergies = new List<string>();
-                if (this.Content is DependencyObject currentContent)
-                {
-                    foreach (var child in FindVisualChildren<CheckBox>(currentContent))
-                    {
-                        if (child?.IsChecked == true && child.Content != null)
-                        {
-                            updatedAllergies.Add((child.Tag ?? child.Content).ToString() ?? "");
-                        }
-                    }
-                }
-
-                string updated = string.Join(",",updatedAllergies);
-                var previousKeys=GoogleSheetsService.SplitAllergens(target.Allergies).Select(PatientAllergyInfo.Key).ToHashSet();
-                var selectedKeys=updatedAllergies.Select(PatientAllergyInfo.Key).ToHashSet();
-                if(target.NeedsAllergyReview)
-                {
-                    MessageBox.Show("알레르기 정보 확인 필요: "+target.AllergyReview+"\n원본 시트의 관련 열을 확인해 주세요. 이번 저장에서는 알레르기 원문을 보존하고 이름·분류·메모만 변경합니다.","알레르기 정보 확인");
-                    updated=target.Allergies;
-                }
-                else if(previousKeys.SetEquals(selectedKeys)) updated=target.Allergies;
-                else
-                {
-                    if(updated.Length==0 && MessageBox.Show("선택한 알레르기를 모두 제거하고 '알레르기 없음'으로 확인할까요?","알레르기 정보 확인",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes)return;
-                    if(updated.Length==0)updated="없음";
-                    if(MessageBox.Show($"알레르기 정보를 다음과 같이 통합 저장할까요?\n기존: {target.Allergies}\n변경: {updated}\n관련 열의 이전 값은 이 통합 정보로 대체됩니다.","알레르기 정보 변경",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes)return;
+                string state=StateInput();string updated;
+                try{updated=state=="미확인"&&target.NeedsAllergyReview?target.Allergies:AllergyInput(state);}catch(Exception ex){MessageBox.Show(ex.Message,"알레르기 상태 확인");return;}
+                if(updated!=target.Allergies||state!=target.AllergyStatus){
+                    if(MessageBox.Show($"알레르기 정보를 통합 저장할까요?\n기존: {target.AllergyStatus} / {target.Allergies}\n변경: {state} / {updated}\n관련 열의 알레르기 정보는 확인한 내용으로 통합됩니다.","알레르기 정보 변경",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes)return;
                     target.AllergyChangeConfirmed=true;
                 }
+                target.AllergyState=state;
                 // 값 업데이트
-                target.Name = TxtPatientName.Text.Trim();
+                target.Name = TxtPatientName.Text.Trim().Length==0?$"대상자-{target.Id:D4}":TxtPatientName.Text.Trim();
                 target.Category = CmbPatientCategory.SelectedItem is ComboBoxItem item ? (item.Content?.ToString() ?? "일반") : "일반";
                 target.Allergies = updated;
                 target.Note = TxtPatientNote?.Text?.Trim() ?? string.Empty;
@@ -541,8 +486,11 @@ namespace wpf
             }
         }
 
+        private string StateInput()=>(PatientAllergyState.SelectedItem as ComboBoxItem)?.Content?.ToString()??"미확인";
+        private string AllergyInput(string state){var value=PatientAllergens.Text;if(state=="없음 확인"){if(value.Length>0)throw new InvalidOperationException("없음 확인을 선택했다면 알레르기 항목 선택을 해제해 주세요.");return "없음";}if(state=="있음 확인"&&(value.Length==0||PatientAllergyInfo.Merge([value]).Review.Length>0))throw new InvalidOperationException("있음 확인은 해당 알레르기 항목을 선택한 후 저장하세요.");return value;}
         private void ClearInputFields()
         {
+            _selectedPatientId=null;PatientAllergyState.SelectedIndex=0;PatientAllergens.Clear();
             if (TxtPatientName != null) TxtPatientName.Text = string.Empty;
             if (TxtPatientNote != null) TxtPatientNote.Text = string.Empty;
             var currentContent = this.Content as DependencyObject;
@@ -567,7 +515,9 @@ namespace wpf
         public string Category { get; set; } = string.Empty;
         public string Allergies { get; set; } = string.Empty;
         public string AllergyReview { get; set; } = string.Empty;
-        public bool NeedsAllergyReview => AllergyReview.Length>0;
+        public string AllergyState {get;set;}="";
+        public string AllergyStatus => new[]{"미확인","없음 확인","있음 확인"}.Contains(AllergyState)?AllergyState:AllergyReview.Length>0||Allergies.Length==0?"미확인":PatientAllergyInfo.IsNone(Allergies)?"없음 확인":"있음 확인";
+        public bool NeedsAllergyReview => AllergyReview.Length>0||AllergyState=="미확인";
         public bool AllergyChangeConfirmed { get; set; }
         public string Note { get; set; } = string.Empty;
     }

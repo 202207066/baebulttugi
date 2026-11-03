@@ -16,14 +16,6 @@ public static class CookingMethods
 }
 public partial class GoogleSheetsService
 {
-    public const string CookingSourceId="1r6YjkX57pqOaJV0DMiZYOZY_L1nqdF0qTXJLXu7gDN0";
-    public async Task<Dictionary<string,string>> GetCookingMethodsAsync()
-    {
-        var request=_sheetsService.Spreadsheets.Get(CookingSourceId);request.Fields="sheets(properties(title))";
-        var book=await request.ExecuteAsync();
-        var titles=book.Sheets.Select(s=>s.Properties.Title).ToList();
-        string title=titles.Contains("조리방법")?"조리방법":titles.Contains("cooking_methods_columns")?"cooking_methods_columns":throw new InvalidOperationException("지정한 자료에서 조리방법 시트를 찾을 수 없습니다.");
-        var values=await _sheetsService.Spreadsheets.Values.Get(CookingSourceId,QuoteTitle(title)+"!A:B").ExecuteAsync();
-        return CookingMethods.Parse(values.Values??new List<IList<object>>());
-    }
+    public Task<Dictionary<string,string>> GetCookingMethodsAsync() =>
+        Task.FromResult(new Dictionary<string,string>(OfficialCatalog.Current.Cooking));
 }

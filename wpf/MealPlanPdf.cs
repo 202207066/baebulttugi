@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -73,14 +73,19 @@ public static class MealPlanPdf
                 string[] PerDay(Func<MealDisplayColumn,string> display)=>Enumerable.Range(0,7).Select(i=>string.Join("\n",group.Where(x=>x.Stored!.Date==week.AddDays(i)).Select(display))).Select((x,i)=>x.Length==0?(days[i].IsClosed?"휴무":"-"):x).ToArray();
                 string Menu(MealDisplayColumn meal)
                 {
-                    var menuLines=meal.Stored!.Menus.Where(n=>!string.IsNullOrWhiteSpace(n)).Select(n=>
-                        n+(allergens?.TryGetValue(CookingMethods.Key(n),out var code)==true && AllergyCodes(code).Length>0?" ("+AllergyCodes(code)+")":""));
+                    var menuLines=meal.Stored!.Menus.Select((n,i)=>
+                    {
+                        var savedItem=meal.Stored.SavedItems?.ElementAtOrDefault(i);
+                        string? code=savedItem==null?null:MenuIngredientReview.EffectiveAllergens(savedItem);
+                        if(code==null && allergens!=null)allergens.TryGetValue(CookingMethods.Key(n),out code);
+                        return string.IsNullOrWhiteSpace(n)?"":n+(code!=null&&AllergyCodes(code).Length>0?" ("+AllergyCodes(code)+")":"");
+                    }).Where(n=>n.Length>0);
                     return string.Join("\n",menuLines)+"\n\n"+N(meal.Calories,"kcal")+
                         "\n탄 "+N(meal.Stored.Carb,"g")+"\n단 "+N(meal.Stored.Protein,"g")+"\n지 "+N(meal.Stored.Fat,"g");
                 }
                 Add(Row(group.Key,PerDay(Menu),minHeight:270));
             }
-            var legend=Text("알레르기: "+string.Join(" · ",AllergenPicker.Names.Select((n,i)=>$"{i+1} {n}"))+"\n코드가 비어 있는 메뉴는 알레르기 없음이 아니라 확인이 필요한 항목입니다.",12);legend.Margin=new Thickness(0,10,0,14);Add(legend);
+            var legend=Text("알레르기: "+string.Join(" · ",AllergenPicker.Names.Select((n,i)=>$"{i+1} {n}").Concat(AllergenPicker.ExtraNames))+"\n코드가 비어 있는 메뉴는 알레르기 없음이 아니라 확인이 필요한 항목입니다.",12);legend.Margin=new Thickness(0,10,0,14);Add(legend);
             mealTable.Measure(new Size(Inner,double.PositiveInfinity));
             var table=mealTable;mealTable=null;
             double available=Height-80-used;
@@ -89,7 +94,7 @@ public static class MealPlanPdf
             {
                 NewPage(true);
                 var heading=Text("이번 식단의 조리방법",23,true);heading.Margin=new Thickness(0,14,0,10);Add(heading,true);
-                Add(Text("자료: test 구글 시트 · 조리방법 | 메뉴명 일치 기준 · 날짜·끼니별 안내",12),true);
+                Add(Text("자료: 앱 공식 자료 · 조리방법 | 메뉴명 일치 기준 · 날짜·끼니별 안내",12),true);
                 foreach(var day in age.GroupBy(m=>m.Stored!.Date.Date).OrderBy(g=>g.Key))
                 foreach(var meal in day.GroupBy(m=>m.Stored!.Meal).OrderBy(g=>g.Key=="조식"?0:g.Key=="중식"?1:g.Key=="석식"?2:3))
                 {
@@ -133,8 +138,9 @@ public static class MealPlanPdf
     }
     static string AllergyCodes(string raw)
     {
-        for(int i=1;i<=19;i++)raw=raw.Replace(((char)('①'+i-1)).ToString(),i+",");
-        return string.Join(",",Regex.Matches(raw,@"(?<!\d)\d{1,2}(?!\d)").Select(m=>int.Parse(m.Value)).Where(n=>n>=1&&n<=19).Distinct().OrderBy(n=>n));
+        var marker=new TrackMenu("","","밥류",raw,null,null,null,null,"");
+        var codes=Enumerable.Range(1,19).Where(i=>GoogleSheetsService.MatchesRegisteredAllergen(marker,[i.ToString()])).Select(i=>i.ToString());
+        return string.Join(",",codes.Concat(AllergenPicker.ExtraNames.Where(a=>GoogleSheetsService.MatchesRegisteredAllergen(marker,[a]))));
     }
     static string N(double? value,string unit)=>value.HasValue?value.Value.ToString("0.#",CultureInfo.InvariantCulture)+" "+unit:"미확인";
     public static void Save(string path,string facility,DateTime week,IReadOnlyList<MealDisplayColumn> meals, IReadOnlyDictionary<string,string>? cooking=null, IReadOnlyDictionary<string,string>? allergens=null,bool sundayFirst=false,IReadOnlyList<WeekDayNotice>? schedule=null)

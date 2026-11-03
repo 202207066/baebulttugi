@@ -1,0 +1,58 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using Microsoft.Win32;
+namespace wpf;
+
+public sealed class IngredientStandardsWindow : Window
+{
+    private readonly ObservableCollection<CostDraft> rows = [];
+    private readonly DataGrid grid = new() { AutoGenerateColumns = false, CanUserAddRows = true, CanUserDeleteRows = false, EnableRowVirtualization = true, EnableColumnVirtualization = true };
+    private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 10) };
+    private bool busy;
+    public IngredientStandardsWindow(GoogleSheetsService service)
+    {
+        Title = "재료 공통 기준표 · 엑셀 일괄 입력"; Width = 1060; Height = 650; MinWidth = 800; MinHeight = 450; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        var root = new DockPanel { Margin = new Thickness(20) }; Content = root;
+        var top = new StackPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
+        top.Children.Add(new TextBlock { Text = "식재료별로 한 번 입력하면 모든 메뉴에 적용됩니다", FontSize = 22, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap });
+        top.Children.Add(new TextBlock { Text = "동일한 식재료명에만 적용합니다. 제품·부위가 다르면 이름을 구분하세요. 빈 값은 기존 값을 유지합니다. 폐기율 0%는 0으로 입력하세요.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 10) });
+        var buttons = new WrapPanel(); top.Children.Add(buttons);
+        void Button(string title, RoutedEventHandler handler) { var button = new Button { Content = title, Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 12, 0) }; button.Click += handler; buttons.Children.Add(button); }
+        Button("엑셀 양식 저장", (_, _) => {
+            var dialog = new SaveFileDialog { Filter = "Excel 파일|*.xlsx", FileName = "배불뚝이_재료기준표.xlsx" }; if (dialog.ShowDialog(this) != true) return;
+            try { using var source = typeof(IngredientStandardsWindow).Assembly.GetManifestResourceStream("wpf.IngredientTemplate") ?? throw new InvalidOperationException("양식 파일이 포함되지 않았습니다."); using var output = File.Create(dialog.FileName); source.CopyTo(output); status.Text = "양식을 저장했습니다. 재료기준표 시트에 기준값을 채운 뒤 불러오세요."; } catch (Exception ex) { status.Text = ex.Message; }
+        });
+        Button("엑셀 불러오기 · 미리보기", (_, _) => {
+            if (busy) return; var dialog = new OpenFileDialog { Filter = "Excel 파일|*.xlsx" }; if (dialog.ShowDialog(this) != true) return;
+            try {
+                Commit(); var imported = IngredientExcel.Read(dialog.FileName);
+                var next = rows.Select(MealCostData.Clone).ToList();
+                foreach (var entry in imported) { int index = next.FindIndex(r => IngredientStandards.Key(r.Name) == IngredientStandards.Key(entry.Name)); var merged = IngredientStandards.Merge(index < 0 ? null : next[index], entry); if (index < 0) next.Add(merged); else next[index] = merged; }
+                IngredientStandards.Validate(next); rows.Clear(); foreach (var entry in next) rows.Add(entry);
+                status.Text = $"입력한 재료 {imported.Count:N0}개를 미리 불러왔습니다. 아직 저장 전입니다. 값을 확인하고 공통 기준 저장을 누르세요.";
+            } catch (Exception ex) { status.Text = "불러오기 실패 · 저장하지 않았습니다: " + ex.Message; }
+        });
+        Button("공통 기준 저장", async (_, _) => {
+            if (busy) return;
+            bool saved = false;
+            try {
+                Commit(); var validated = IngredientStandards.Validate(rows); busy = true; grid.IsEnabled = false; buttons.IsEnabled = false;
+                await service.SaveIngredientStandardsAsync(validated); saved = true;
+                var latest = (await service.GetMealCostsAsync(true)).Where(IngredientStandards.IsStandard).ToArray();
+                rows.Clear(); foreach (var row in latest) { row.Draft.SharedBasisSignature = IngredientStandards.Signature(row.Draft); rows.Add(row.Draft); }
+                status.Text = $"공통 기준 {validated.Count:N0}개를 내 원가 시트에 저장했습니다. 모든 메뉴의 원가 계산에 적용됩니다.";
+            }
+            catch (Exception ex) { status.Text = (saved ? "저장은 완료했지만 재조회에 실패했습니다. 창을 다시 열어 최신 값을 확인해 주세요: " : "저장 실패: ") + ex.Message; }
+            finally { busy = false; grid.IsEnabled = true; buttons.IsEnabled = true; }
+        });
+        top.Children.Add(status);
+        var properties = new[] { "Name", "Price", "PriceQuantity", "PriceUnit", "WastePercent", "PackageWeightGrams" };
+        for (int i = 0; i < properties.Length; i++) grid.Columns.Add(new DataGridTextColumn { Header = IngredientStandards.Headers[i], Binding = new Binding(properties[i]), Width = i == 0 ? 280 : 130 });
+        grid.ItemsSource = rows; root.Children.Add(grid);
+        Loaded += async (_, _) => { busy = true; buttons.IsEnabled = false; try { foreach (var row in (await service.GetMealCostsAsync(true)).Where(IngredientStandards.IsStandard)) {row.Draft.SharedBasisSignature=IngredientStandards.Signature(row.Draft);rows.Add(row.Draft);} status.Text = $"저장된 재료 공통 기준 {rows.Count:N0}개 · 직접 입력하거나 엑셀 양식을 불러오세요."; } catch (Exception ex) { status.Text = "조회 실패: " + ex.Message; } finally { busy = false; buttons.IsEnabled = true; } };
+    }
+    private void Commit() { if (!grid.CommitEdit(DataGridEditingUnit.Cell, true) || !grid.CommitEdit(DataGridEditingUnit.Row, true)) throw new InvalidOperationException("편집 중인 셀을 확인해 주세요."); }
+}
