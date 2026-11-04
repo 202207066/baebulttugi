@@ -8,6 +8,9 @@ public sealed class StoredMeal
     public int RowIndex { get; init; }
     public List<object> Raw { get; init; } = [];
     public string Value(int i) => i < Raw.Count ? Convert.ToString(Raw[i],CultureInfo.InvariantCulture)?.Trim() ?? "" : "";
+    // Split before trimming so empty leading meal slots keep their positions.
+    public string[] MenuKeys => (Raw.Count > 25 ? Convert.ToString(Raw[25],CultureInfo.InvariantCulture) ?? "" : "")
+        .Split(" / ",StringSplitOptions.None).Select(key=>key.Trim()).ToArray();
     public DateTime Date { get; init; }
     public string Id => Value(0);
     public string DateText => Date.ToString("yyyy-MM-dd");

@@ -29,6 +29,9 @@ internal static class Program
     {
         if (args.Contains("login-recovery")) { LoginRecoveryChecks.Run(); return; }
         if (args.Contains("login-recovery-preview")) { LoginRecoveryChecks.Preview(); return; }
+        if (args.Contains("criteria-preview")) { CriteriaPreview.Run(); return; }
+        if (args.Length>1&&args[0]=="cost-calculation-preview") { CostCalculationPreview.Run(args[1]); return; }
+        if (args.Length > 1 && args[0] == "criteria-planner-preview") { NovemberPreview.Run(args[1], true); return; }
         if(args.Length>1 && args[0]=="november-preview"){NovemberPreview.Run(args[1]);return;}
         if(args.Contains("release-preview")) { ReleasePreview.Run(); return; }
         if(args.Length > 1 && args[0] == "fix-visual") { FixVisualChecks.Run(args[1]); return; }
@@ -161,10 +164,13 @@ internal static class Program
         FeedbackChecks.Run(Check, Reject);
         ReleaseChecks.Run(Check,Reject);
         NovemberChecks.Run(Check,Reject);
+        CriteriaChecks.Run(Check);
+        CostCalculationChecks.Run(Check,Reject);
         var app = new wpf.App();
         app.InitializeComponent();
         RequestUiChecks.Run(Check);
         AppServices.Sheets = new GoogleSheetsService(null!);
+        CriteriaChecks.RunUi(Check);
         var recipePage = new MenuInputPage();
         var recipeGrid = (System.Windows.Controls.DataGrid)recipePage.FindName("MenuGrid");
         recipeGrid.ItemsSource = Enumerable.Range(0, 2000).Select(i => new TrackMenu("load-"+i, "메뉴 "+i, "밥류", "", 10, 3, 2, 70, "test")).ToList();

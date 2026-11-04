@@ -88,6 +88,18 @@ public static class WeeklyMealPlanner
         _ => ""
     };
 
+    public static TrackMenu FixedBaechuKimchi(IReadOnlyList<TrackMenu> menus, IEnumerable<string> allergens)
+    {
+        var matches = menus.Where(m => m.Category == "김치류" && m.Name.Trim() == "배추김치").ToArray();
+        if (matches.Length == 0) throw new InvalidOperationException("선택한 연령의 메뉴에 배추김치가 없습니다. 메뉴·레시피 관리에서 추가하거나 배추김치 고정을 해제해 주세요.");
+        if (matches.Length > 1) throw new InvalidOperationException("배추김치 메뉴가 여러 개여서 자동으로 확정할 수 없습니다. 배추김치 고정을 해제하고 아래 김치류 목록에서 사용할 메뉴를 선택해 주세요.");
+        var chosen = matches[0];
+        if (!chosen.HasNutrition) throw new InvalidOperationException("배추김치의 탄수화물·단백질·지방 정보가 일부 비어 있습니다. 메뉴·레시피 관리에서 누락된 영양값을 입력하거나 배추김치 고정을 해제해 주세요.");
+        if (GoogleSheetsService.NeedsAllergenReview(chosen)) throw new InvalidOperationException("배추김치의 알레르기 정보에 확인할 항목이 있습니다. 메뉴·레시피 관리에서 확인하거나 배추김치 고정을 해제해 주세요.");
+        if (GoogleSheetsService.MatchesRegisteredAllergen(chosen, allergens)) throw new InvalidOperationException("배추김치가 등록된 대상자의 알레르기와 겹쳐 고정할 수 없습니다. 배추김치 고정을 해제하고 다른 김치를 선택해 주세요.");
+        return chosen;
+    }
+
     // Find the real header below the title/summary rows. Never treat section separators as recipes.
     public static List<TrackMenu> Parse(IList<IList<object>> rows)
     {
@@ -130,7 +142,8 @@ public static class WeeklyMealPlanner
             (targets.Calories.HasValue && (!double.IsFinite(targets.Calories.Value) || targets.Calories.Value <= 0)) ||
             !double.IsFinite(targets.TolerancePercent) || targets.TolerancePercent < 0 || targets.TolerancePercent > 100)
             throw new ArgumentException("한 끼 영양 목표는 0보다 큰 숫자, 허용 편차는 0~100%로 입력해 주세요.");
-        var pools = Categories.Select(c => menus.Where(m => m.Category == c && MenuClassification.AutomaticCandidate(m) && m.HasNutrition &&
+        var classified = menus.Select(MenuClassification.Official).ToArray();
+        var pools = Categories.Select(c => classified.Where(m => m.Category == c && MenuClassification.AutomaticCandidate(m) && m.HasNutrition &&
             new[] { m.Carb!.Value, m.Protein!.Value, m.Fat!.Value }.All(n => double.IsFinite(n) && n >= 0)).ToArray()).ToArray();
         for (int i = 0; i < pools.Length; i++)
         {

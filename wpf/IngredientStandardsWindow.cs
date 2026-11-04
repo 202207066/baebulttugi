@@ -14,11 +14,12 @@ public sealed class IngredientStandardsWindow : Window
     private bool busy;
     public IngredientStandardsWindow(GoogleSheetsService service)
     {
-        Title = "재료 공통 기준표 · 엑셀 일괄 입력"; Width = 1060; Height = 650; MinWidth = 800; MinHeight = 450; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Title = "원가 기준 입력 · 재료 공통 기준표 · 엑셀"; Width = 1180; Height = 680; MinWidth = 900; MinHeight = 500; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var root = new DockPanel { Margin = new Thickness(20) }; Content = root;
         var top = new StackPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
         top.Children.Add(new TextBlock { Text = "식재료별로 한 번 입력하면 모든 메뉴에 적용됩니다", FontSize = 22, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap });
         top.Children.Add(new TextBlock { Text = "동일한 식재료명에만 적용합니다. 제품·부위가 다르면 이름을 구분하세요. 빈 값은 기존 값을 유지합니다. 폐기율 0%는 0으로 입력하세요.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 10) });
+        top.Children.Add(new TextBlock { Text = "입력: 구매가격 / 가격 기준량·단위 / 폐기율(%) / 개·봉 구매 시 1개 중량(g). 예: 양파 2,000원, 1kg, 폐기율 10 → g당 2원.\n정미량은 메뉴마다 다르므로 뒤의 원가 화면에서 레시피 분량과 식수를 확인하고 ‘한 끼 원가 계산·저장’을 누르세요. 액체의 ml·L는 무게(g)로 임의 환산하지 않습니다.", TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,14) });
         var buttons = new WrapPanel(); top.Children.Add(buttons);
         void Button(string title, RoutedEventHandler handler) { var button = new Button { Content = title, Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 12, 0) }; button.Click += handler; buttons.Children.Add(button); }
         Button("엑셀 양식 저장", (_, _) => {
@@ -50,7 +51,10 @@ public sealed class IngredientStandardsWindow : Window
         });
         top.Children.Add(status);
         var properties = new[] { "Name", "Price", "PriceQuantity", "PriceUnit", "WastePercent", "PackageWeightGrams" };
-        for (int i = 0; i < properties.Length; i++) grid.Columns.Add(new DataGridTextColumn { Header = IngredientStandards.Headers[i], Binding = new Binding(properties[i]), Width = i == 0 ? 280 : 130 });
+        for (int i = 0; i < properties.Length; i++) grid.Columns.Add(new DataGridTextColumn { Header = IngredientStandards.Headers[i], Binding = new Binding(properties[i]), Width = i == 0 ? 220 : i == 5 ? 132 : 100 });
+        grid.Columns.Add(new DataGridTextColumn {Header="환산 기준량",Binding=new Binding(nameof(CostDraft.PurchaseBasisDisplay)),IsReadOnly=true,Width=110});
+        grid.Columns.Add(new DataGridTextColumn {Header="g·ml당 단가 (자동)",Binding=new Binding(nameof(CostDraft.BaseUnitPriceDisplay)),IsReadOnly=true,Width=160});
+        grid.CellEditEnding+=(_,_)=>Dispatcher.BeginInvoke(new Action(()=>{if(!busy){try{Commit();grid.Items.Refresh();}catch(Exception ex){status.Text=ex.Message;}}}));
         grid.ItemsSource = rows; root.Children.Add(grid);
         Loaded += async (_, _) => { busy = true; buttons.IsEnabled = false; try { foreach (var row in (await service.GetMealCostsAsync(true)).Where(IngredientStandards.IsStandard)) {row.Draft.SharedBasisSignature=IngredientStandards.Signature(row.Draft);rows.Add(row.Draft);} status.Text = $"저장된 재료 공통 기준 {rows.Count:N0}개 · 직접 입력하거나 엑셀 양식을 불러오세요."; } catch (Exception ex) { status.Text = "조회 실패: " + ex.Message; } finally { busy = false; buttons.IsEnabled = true; } };
     }

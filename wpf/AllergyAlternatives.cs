@@ -36,7 +36,7 @@ public static class AllergyAlternatives
             {
                 string age=meal.AgeGroup.Length==0?"3-5":meal.AgeGroup;
                 var catalog=catalogs.GetValueOrDefault(age,Array.Empty<TrackMenu>());
-                var keys=meal.Value(25).Split(" / ");
+                var keys=meal.MenuKeys;
                 var originals=meal.Menus.Select((name,i)=>{
                     var candidates=catalog.Where(m=>m.Name==name&&m.Category==MealSnapshot.CategoryAt(i)).ToArray();
                     return meal.SavedItems?.ElementAtOrDefault(i)??candidates.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(candidates.Length==1?candidates[0]:null);

@@ -13,22 +13,22 @@ using wpf;
 
 internal static class NovemberPreview
 {
-    public static void Run(string folder)
+    public static void Run(string folder, bool officialMenus = false)
     {
         System.IO.Directory.CreateDirectory(folder);
-        var catalog = FixtureCatalog(); typeof(OfficialCatalog).GetField("current", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, catalog);
+        if (!officialMenus) { var catalog = FixtureCatalog(); typeof(OfficialCatalog).GetField("current", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, catalog); }
         var app = new Application(); app.Resources = (ResourceDictionary)Application.LoadComponent(new Uri("/PlannerChecks;component/PreviewResources.xaml", UriKind.Relative));
         var http = new NovemberSheets();
         var service = new GoogleSheetsService(null!); service.SetUserSpreadsheetId("november-isolated-test");
         typeof(GoogleSheetsService).GetField("_sheetsService", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(service, new SheetsService(new BaseClientService.Initializer { HttpClientFactory = new NovemberFactory(http) })); AppServices.Sheets = service;
         var main = new wpf.Main(service);
         main.Loaded -= (RoutedEventHandler)Delegate.CreateDelegate(typeof(RoutedEventHandler), main, typeof(wpf.Main).GetMethod("Main_Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!);
-        main.Title = "배불뚝이 · 기능 검증용 가상자료 | F1 대상자 F2 식단생성 F3 반찬수정 F4 원가 F5 PDF F6 공통단가";
+        main.Title = officialMenus ? "배불뚝이 · 실제 내장 메뉴 · Google 연결은 검증용" : "배불뚝이 · 기능 검증용 가상자료 | F1 대상자 F2 식단생성 F3 반찬수정 F4 원가 F5 PDF F6 공통단가";
         main.WindowState = WindowState.Normal; main.Width = 1260; main.Height = 850; main.MinWidth = 1000; main.MinHeight = 600; main.Left = 0; main.Top = 0;
         ((TextBlock)main.FindName("SideAccountName")).Text = "기능 검증용 계정"; ((TextBlock)main.FindName("SideAccountEmail")).Text = "실계정 연결 없음"; ((TextBlock)main.FindName("FacilityCount")).Text = "가상 급식소 · 30명";
         var frame = (Frame)main.FindName("MainFrame");
-        void Navigate(Page page, string title) { ((TextBlock)main.FindName("TxtPageTitle")).Text = title; ((TextBlock)main.FindName("TxtPageSubtitle")).Text = "검증용 가상 식재료·영양값 · 실제 앱 코드 · 실제 Google 전송 없음"; frame.Navigate(page); }
-        void Planner() { var page = new Menu_table("3-5"); ((DatePicker)page.FindName("WeekPicker")).SelectedDate = new(2026, 11, 2); Navigate(page, "식단 만들기 · 우유·참깨 제외 검증"); }
+        void Navigate(Page page, string title) { ((TextBlock)main.FindName("TxtPageTitle")).Text = title; ((TextBlock)main.FindName("TxtPageSubtitle")).Text = officialMenus ? "실제 내장 메뉴·식재료·영양값 · Google 연결은 검증용" : "검증용 가상 식재료·영양값 · 실제 앱 코드 · 실제 Google 전송 없음"; frame.Navigate(page); }
+        void Planner() { var page = new Menu_table(officialMenus ? "6-18" : "3-5"); ((DatePicker)page.FindName("WeekPicker")).SelectedDate = new(2026, 11, 2); Navigate(page, "식단 만들기 · 우유·참깨 제외 검증"); }
         main.PreviewKeyDown += async (_, e) => {
             if (Keyboard.Modifiers != ModifierKeys.None) return;
             try {
@@ -54,7 +54,7 @@ internal static class NovemberPreview
             } catch (Exception ex) { MessageBox.Show(main, ex.Message, "검증 확인"); }
         };
         main.Closed += (_, _) => Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
-        Navigate(new AllergyManagementPage(), "피급식자 · 우유·참깨 테스트"); main.Show(); Dispatcher.Run();
+        if (officialMenus) Planner(); else Navigate(new AllergyManagementPage(), "피급식자 · 우유·참깨 테스트"); main.Show(); Dispatcher.Run();
     }
     private static OfficialCatalogData FixtureCatalog()
     {

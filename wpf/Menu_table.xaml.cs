@@ -133,11 +133,12 @@ public partial class Menu_table : Page
     {
         int ready=catalog.Menus.Count(m=>m.HasNutrition);
         int review=catalog.Menus.Count(GoogleSheetsService.NeedsAllergenReview);
-        int proteinPending=catalog.Menus.Count(m=>MenuClassification.IsSide(m)&&!MenuClassification.AutomaticCandidate(m));
+        int proteinPending=catalog.Menus.Count(m=>MenuClassification.UsesProteinCriteria(m)&&!MenuClassification.AutomaticCandidate(m));
         DataStatus.Text = $"{catalog.Title} · 메뉴 {catalog.Menus.Count:N0}개 · 영양정보 등록 {ready:N0}개" +
             (ready==0 ? "\n아직 메뉴별 영양정보가 준비되지 않았습니다. 영양정보 등록 후 식단을 만들 수 있어요." : "\n등록된 1인분 영양정보로 조합하고, 완성된 식단은 내 구글 시트에 저장합니다.");
-        if(review>0) DataStatus.Text += $"\n알레르기 확인 필요: {review}개 메뉴의 코드가 1~19 범위를 벗어나 생성 후보에서 제외됩니다.";
-        if(proteinPending>0)DataStatus.Text+=$" 단백질 분류 검토 대기 {proteinPending}개는 자동 생성에서 제외합니다.";
+        if(review>0) DataStatus.Text += $"\n알레르기 확인 필요: 코드 누락·잘못된 코드·원재료 확인이 필요한 {review}개 메뉴는 생성 후보에서 제외됩니다.";
+        if(proteinPending>0)DataStatus.Text+=$" 제공량·단백질 자료 확인이 필요한 주찬·부찬 {proteinPending}개는 자동 생성에서 제외합니다.";
+        KimchiPreferenceChanged(this,new RoutedEventArgs());
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await ReloadAsync(true);
@@ -193,9 +194,10 @@ public partial class Menu_table : Page
                 { SaveStatus.Text = "생성을 취소했습니다. 피급식자 화면에서 알레르기 상태를 확인해 주세요."; return; }
             }
             var allergens = ExcludeAllergens.IsChecked == true ? await _service.GetPlannerAllergensAsync() : new HashSet<string>();
+            if (FixedBaechuKimchiBox.IsChecked == true) fixedIds["김치류"] = WeeklyMealPlanner.FixedBaechuKimchi(catalog.Menus, allergens).Key;
             int reviewCount = catalog.Menus.Count(GoogleSheetsService.NeedsAllergenReview);
             var eligible = catalog.Menus.Where(m => MenuClassification.AutomaticCandidate(m) && !GoogleSheetsService.NeedsAllergenReview(m) && !GoogleSheetsService.MatchesRegisteredAllergen(m, allergens)).ToList();
-            if (!eligible.Any(m=>m.Category=="주찬")) throw new InvalidOperationException("검토 승인된 고단백 주찬 후보가 없습니다. 공공 메뉴 자료에서 제공량·단백질 등급과 검토 상태를 확인해 주세요. 검토 전 자료를 임의로 확정하지 않습니다.");
+            if (!eligible.Any(m=>m.Category=="주찬")) throw new InvalidOperationException("사용할 수 있는 고단백 주찬 후보가 없습니다. 반찬의 100g당 단백질이 11g 이상인지, 제공량·영양정보가 입력되어 있는지, 알레르기 제외 조건에 해당하는지 확인해 주세요.");
             SaveStatus.Text = "주간 식단을 조합하는 중입니다…";
             var generated = await Task.Run(() => WeeklyMealPlanner.Generate(eligible, week, days, meals, age, catalog.Title, targets, fixedIds, sundayFirst:true));
             _results = generated;
@@ -249,6 +251,7 @@ public partial class Menu_table : Page
         foreach (var c in DayPanel.Children.OfType<CheckBox>()) c.IsChecked = c.IsEnabled && c.Tag.ToString() is not ("0" or "6");
         foreach (var c in MealPanel.Children.OfType<CheckBox>()) c.IsChecked = c.Tag.ToString() == "중식";
         foreach (var c in _fixed.Values) c.SelectedIndex = 0;
+        FixedBaechuKimchiBox.IsChecked = false;
         ExcludeAllergens.IsChecked = true;
         ApplyNutritionProfile();
     }
@@ -257,6 +260,12 @@ public partial class Menu_table : Page
     {
         if (FixedMenuStatus == null) return;
         var selected = _fixed.Values.Select(x => x.SelectedItem as TrackMenu).Where(x => x?.Id.Length > 0).Cast<TrackMenu>().ToList();
+        if (FixedBaechuKimchiBox?.IsChecked == true)
+        {
+            selected.RemoveAll(m=>m.Category=="김치류");
+            var kimchi=_catalog?.Menus.Where(m=>m.Category=="김치류"&&m.Name.Trim()=="배추김치").ToArray();
+            if(kimchi?.Length==1&&kimchi[0].HasNutrition)selected.Add(kimchi[0]);
+        }
         if (selected.Count == 0) { FixedMenuStatus.Text = "메뉴를 선택하면 열량·탄수화물·단백질·지방 오차를 표시합니다. 원가는 원가 화면에 저장한 구매 단가 기준으로 계산합니다."; return; }
         var targets = _profileTargets;
         if (targets == null) return;
@@ -273,6 +282,18 @@ public partial class Menu_table : Page
         FixedMenuStatus.Text = $"선택 {selected.Count}/6개 · {kcal:N0} kcal ({kcal-targets.Calories!.Value:+0.0;-0.0;0.0}) · 탄수 {carb:N1} g ({carb-targets.Carb:+0.0;-0.0;0.0}) · 단백질 {protein:N1} g ({protein-targets.Protein:+0.0;-0.0;0.0}) · 지방 {fat:N1} g ({fat-targets.Fat:+0.0;-0.0;0.0}) · {costText}";
     }
     private void TargetCostChanged(object sender, TextChangedEventArgs e) => UpdateFixedMenuStatus();
+
+    private void KimchiPreferenceChanged(object sender, RoutedEventArgs e)
+    {
+        if (KimchiChoiceStatus == null) return;
+        bool fixedKimchi = FixedBaechuKimchiBox.IsChecked == true;
+        if (_fixed.TryGetValue("김치류",out var combo)) combo.IsEnabled = !fixedKimchi;
+        KimchiChoiceStatus.Text = fixedKimchi ? "선택한 연령의 배추김치를 모든 끼니에 넣습니다. 알레르기 제외 조건은 그대로 적용합니다." : "체크하면 생성하는 모든 끼니에 배추김치를 넣습니다.";
+        if (fixedKimchi && _catalog != null)
+            try { WeeklyMealPlanner.FixedBaechuKimchi(_catalog.Menus, []); }
+            catch (InvalidOperationException error) { KimchiChoiceStatus.Text = error.Message; }
+        UpdateFixedMenuStatus();
+    }
 
     private async void ExportPdf_Click(object sender, RoutedEventArgs e)
     {

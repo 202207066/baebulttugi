@@ -8,8 +8,8 @@ internal static class ReleaseChecks
   var boundary=new TrackMenu("boundary","분류 시험","부찬","2",10,11,10,100,"시험"){ServingGrams=100,ProteinReviewed=true};
   var main=MenuClassification.Official(boundary);check(main.Category=="주찬"&&main.Key==boundary.Key,"Protein classification preserves source key and recipe links");
   check(MenuClassification.Official(boundary with{Category="주찬",Protein=10.999}).Category=="부찬"&&MenuClassification.Official(boundary with{Category="밥류"}).Category=="밥류","Protein classification respects boundary and preserves rice category");
-  check(OfficialCatalog.Menus("3-5").Where(MenuClassification.IsSide).All(m=>!m.ProteinReviewed),"Official draft grades remain unapproved pending professor review");
-  check(!MenuClassification.AutomaticCandidate(boundary with{ProteinReviewed=false})&&MenuClassification.AutomaticCandidate(main),"Automatic main candidates require reviewed protein density");
+  check(OfficialCatalog.Menus("3-5").Any(m=>m.Category=="주찬"&&m.ProteinGrade=="고단백"&&!m.ProteinReviewed),"Official high-protein mains are available without a separate approval flag");
+  check(MenuClassification.AutomaticCandidate(boundary with{ProteinReviewed=false})&&MenuClassification.AutomaticCandidate(main),"Automatic candidates follow valid protein density regardless of approval metadata");
   var noData=new OfficialCatalogData{SchemaVersion=99,Version="2026.10.29.1"};try{OfficialCatalog.Validate(noData);throw new Exception("accepted bad catalog");}catch(System.IO.InvalidDataException){check(true,"Unsupported catalog update cannot replace existing data");}
   var rice=new CostRow("쌀","",35,"g",3000,1,"kg");var onion=new CostRow("양파","",20,"g",2000,1,"kg",10);
   check(CostCalculator.CostPerPerson(rice)==105&&decimal.Round((CostCalculator.CostPerPerson(rice)+CostCalculator.CostPerPerson(onion))*30,2)==4483.33m,"Waste formula keeps precision until final display");

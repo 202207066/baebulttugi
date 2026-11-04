@@ -89,7 +89,7 @@ public partial class GoogleSheetsService
         }
         return meals.Select(m => {
             var catalog = catalogs[string.IsNullOrEmpty(m.AgeGroup) ? "3-5" : m.AgeGroup];
-            var keys = m.Value(25).Split(" / ");
+            var keys = m.MenuKeys;
             var labels = m.Menus.Select((name,i) => {
                 var exact = catalog.FirstOrDefault(x => i < keys.Length && x.Key == keys[i]);
                 var candidates = catalog.Where(x => x.Name == name && x.Category == MealSnapshot.CategoryAt(i)).ToList();

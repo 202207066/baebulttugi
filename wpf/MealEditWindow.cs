@@ -17,7 +17,7 @@ public sealed class MealEditWindow:Window
         var root=new StackPanel{Margin=new Thickness(20)};Content=new ScrollViewer{Content=root,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         root.Children.Add(new TextBlock{Text=meal.ToString(),FontSize=22,FontWeight=FontWeights.Bold,TextWrapping=TextWrapping.Wrap});
         root.Children.Add(new TextBlock{Text="메뉴를 바꾸면 해당 끼니의 영양 합계를 다시 계산합니다. 반찬은 주찬·부찬·김치를 합쳐 최대 5개까지 구성할 수 있습니다.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,12,0,16)});
-        var keys=meal.Value(25).Split(" / ");
+        var keys=meal.MenuKeys;
         for(int i=0;i<meal.Menus.Length;i++){
             var chosen=meal.SavedItems?.ElementAtOrDefault(i)??catalog.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??catalog.FirstOrDefault(m=>m.Name==meal.Menus[i]&&m.Category==MealSnapshot.CategoryAt(i));
             selections.Add(chosen??new TrackMenu("기존",meal.Menus[i],MealSnapshot.CategoryAt(i),"",null,null,null,null,""));

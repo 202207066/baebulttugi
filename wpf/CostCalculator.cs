@@ -6,6 +6,21 @@ public record CostRow(string Name, string Category, decimal UnitSize, string Uni
 
 public static class CostCalculator
 {
+    public static (decimal Quantity, string Unit) PurchaseBasis(CostRow row)
+    {
+        if (row.PriceQuantity <= 0 || row.UnitPrice < 0) throw new InvalidOperationException("구매가격과 기준량을 확인해 주세요.");
+        string unit = (string.IsNullOrWhiteSpace(row.PriceUnit) ? row.Unit : row.PriceUnit).Trim().ToLowerInvariant();
+        return unit switch {
+            "kg" => (row.PriceQuantity * 1000, "g"),
+            "g" => (row.PriceQuantity, "g"),
+            "l" => (row.PriceQuantity * 1000, "ml"),
+            "ml" => (row.PriceQuantity, "ml"),
+            "개" or "봉" when row.PackageWeightGrams is > 0 => (row.PriceQuantity * row.PackageWeightGrams.Value, "g"),
+            _ when unit.Length > 0 => (row.PriceQuantity, unit),
+            _ => throw new InvalidOperationException("구매 기준량의 단위를 입력해 주세요.")
+        };
+    }
+    public static decimal PricePerBaseUnit(CostRow row) => row.UnitPrice / PurchaseBasis(row).Quantity;
     public static decimal Number(string raw, string label, bool positive = false)
     {
         if (!decimal.TryParse(raw.Trim().Replace(",", ""), NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var value)
@@ -47,18 +62,24 @@ public class IngredientItem
 {
     private readonly CostRow _row;
     private readonly int _headCount;
-    public IngredientItem(CostRow row, int headCount, bool hasPrice=true)
+    public IngredientItem(CostRow row, int headCount, bool hasPrice=true, string menu="", bool wasteConfirmed=true)
     {
         if (headCount <= 0) throw new ArgumentException("인원은 1명 이상이어야 합니다.");
-        _row = row; _headCount = headCount;
+        _row = row; _headCount = headCount; Menu = menu; WasteConfirmed = wasteConfirmed;
         CostCalculator.GrossSize(row);
         PerPersonCost = hasPrice?CostCalculator.CostPerPerson(row):null;
     }
     public string Name => _row.Name;
+    public string Menu { get; }
+    public bool WasteConfirmed { get; }
+    public CostRow Inputs => _row;
     public string Category => _row.Category;
     public decimal? PerPersonCost { get; }
     public bool HasPrice => PerPersonCost.HasValue;
-    public string WasteDisplay => $"{_row.WastePercent:0.###}%";
+    public string WasteDisplay => WasteConfirmed ? $"{_row.WastePercent:0.###}%" : "미입력 · 0% 임시 계산";
+    public string PurchaseBasisDisplay => !HasPrice ? "미입력" : $"{CostCalculator.PurchaseBasis(_row).Quantity:0.###} {CostCalculator.PurchaseBasis(_row).Unit}";
+    public string BaseUnitPriceDisplay => !HasPrice ? "미입력" : $"₩ {CostCalculator.PricePerBaseUnit(_row):0.######} / {CostCalculator.PurchaseBasis(_row).Unit}";
+    public string PerPersonCostDisplay => HasPrice ? $"₩ {PerPersonCost:N2}" + (WasteConfirmed ? "" : " (임시)") : "미입력";
     public string GrossWeightDisplay => $"{CostCalculator.GrossSize(_row):0.###} {_row.Unit}";
     public decimal? TotalCost => PerPersonCost * _headCount;
     public decimal TotalQuantity => CostCalculator.GrossSize(_row) * _headCount;

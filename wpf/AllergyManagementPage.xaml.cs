@@ -86,7 +86,7 @@ namespace wpf
                 foreach(var meal in stored)
                 {
                     var catalog=catalogs[meal.AgeGroup.Length==0?"3-5":meal.AgeGroup];
-                    var keys=meal.Value(25).Split(" / ");
+                    var keys=meal.MenuKeys;
                     for(int i=0;i<meal.Menus.Length;i++)
                     {
                         var matches=catalog.Where(m=>m.Name==meal.Menus[i]&&m.Category==MealSnapshot.CategoryAt(i)).ToList();

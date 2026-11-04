@@ -13,7 +13,7 @@ internal static class NovemberChecks
         check(MenuClassification.Official(high).Category == "주찬" && MenuClassification.Official(high).Key == high.Key, "작은 제공량의 고단백 반찬은 낮은 열량에서도 주찬이며 원본키 유지");
         check(MenuClassification.Official(high with { Category = "밥류" }).Category == "밥류" && MenuClassification.Official(high with { Category = "국류" }).Category == "국류", "밥류·국류는 단백질 수치로 분류를 바꾸지 않음");
         check((high with { ServingGrams = null }).ProteinGrade == "검토 필요" && (high with { Protein = null }).ProteinGrade == "검토 필요", "빈 제공량·단백질을 0으로 계산하지 않음");
-        check(!MenuClassification.AutomaticCandidate(MenuClassification.Official(high with { ProteinReviewed = false })), "승인 전 1차 등급은 자동 생성에서 제외");
+        check(MenuClassification.AutomaticCandidate(MenuClassification.Official(high with { ProteinReviewed = false })), "제공량·단백질 기준을 충족하면 별도 승인 없이 자동 생성에 사용");
         TrackMenu Infer(params string[] names) => MenuIngredientReview.Apply(Reviewed("추론", "부찬"), names.Select(n => new PortionIngredient { Name = n, Amount = .01m, Unit = "g" }));
         foreach (string word in new[] { "참깨", "통깨", "깨소금", "참기름", "흑임자" }) check(Infer(word).Sesame == "포함", "소량 참깨 계열 포함: " + word);
         foreach (string word in new[] { "아몬드", "아몬드가루", "아몬드 슬라이스", "아몬드 우유" }) check(Infer(word).Almond == "포함", "아몬드 계열 포함: " + word);
@@ -35,7 +35,7 @@ internal static class NovemberChecks
         var eligible = catalog.Where(m => MenuClassification.AutomaticCandidate(m) && !GoogleSheetsService.NeedsAllergenReview(m) && !GoogleSheetsService.MatchesRegisteredAllergen(m, ["2", "참깨"])).ToArray();
         var week = WeeklyMealPlanner.Generate(eligible, new(2026, 11, 2), [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday], ["중식"], "3-5", "검증용", new(60, 18, 12, 20), seed: 7);
         check(week.Count == 5 && week.All(m => m.Items.Count(i => i.Category == "주찬" && i.ProteinGrade == "고단백") == 1 && m.Items.All(i => !GoogleSheetsService.MatchesRegisteredAllergen(i, ["우유", "참깨"]))), "5일 생성: 매 끼 고단백 주찬 1개 및 우유·참깨 제외");
-        reject(() => WeeklyMealPlanner.Generate(catalog.Select(m => m with { ProteinReviewed = false }).ToArray(), DateTime.Today, [DayOfWeek.Monday], ["중식"], "3-5", "검증", new(60, 18, 12, 20)), "미승인 반찬뿐이면 생성 중단");
+        check(WeeklyMealPlanner.Generate(eligible.Select(m => m with { ProteinReviewed = false }).ToArray(), DateTime.Today, [DayOfWeek.Monday], ["중식"], "3-5", "검증", new(60, 18, 12, 20)).Count == 1, "별도 승인 표시가 없어도 수치 기준으로 식단 생성");
         var saved = new SavedCost("", "MASTER:양파", new() { Menu = IngredientStandards.Marker, Name = "양파", Price = "2000", PriceQuantity = "1", PriceUnit = "kg", WastePercent = "10", PackageWeightGrams = "150" });
         var old = new CostDraft { Menu = "옛 레시피", Name = "양파", Amount = "50", Unit = "g", Price = "1", PriceQuantity = "1", PriceUnit = "g" };
         IngredientStandards.Apply(old, [saved]);

@@ -452,6 +452,7 @@ user_sheet_id.txt
 # Packaged desktop releases are distributed separately from source
 /Baebulttugi/
 /Baebulttugi*.zip
+/배불뚝이_Windows64*.zip
 
 # Per-user OAuth tokens and preferences
 GoogleSignIn/

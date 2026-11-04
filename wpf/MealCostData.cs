@@ -18,12 +18,24 @@ public sealed class CostDraft
     public string? SharedBasisSignature { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
     public string DisplayMenu => MenuLabel ?? MealPresentation.Label(Menu, null);
-    public string Menu {get;set;}="";public string Name {get;set;}="";public string Category {get;set;}="";
+    private string menu="";
+    public string Menu {get=>menu;set{menu=value;MenuLabel=null;}}
+    public string Name {get;set;}="";public string Category {get;set;}="";
     public string Amount {get;set;}="";public string Unit {get;set;}="g";public string Price {get;set;}="";
     public string PriceQuantity {get;set;}="1";public string PriceUnit {get;set;}="kg";public string Source {get;set;}="직접 입력";
     public string WastePercent {get;set;}="";public string PackageWeightGrams {get;set;}="";
     public decimal WasteValue=>string.IsNullOrWhiteSpace(WastePercent)?0:CostCalculator.Number(WastePercent,Name+" 폐기율");
     public decimal? PackageValue=>string.IsNullOrWhiteSpace(PackageWeightGrams)?null:CostCalculator.Number(PackageWeightGrams,Name+" 개당 중량",true);
+    private CostRow PriceBasisRow()
+    {
+        if(string.IsNullOrWhiteSpace(Price)||string.IsNullOrWhiteSpace(PriceQuantity)||string.IsNullOrWhiteSpace(PriceUnit))throw new InvalidOperationException("구매가격·기준량·단위 입력 필요");
+        if(PriceUnit.Trim() is "개" or "봉" && PackageValue is not >0)throw new InvalidOperationException("개·봉당 중량 입력 필요");
+        return new CostRow(Name,Category,0,"g",CostCalculator.Number(Price,"구매가격"),CostCalculator.Number(PriceQuantity,"기준량",true),PriceUnit,0,PackageValue);
+    }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string PurchaseBasisDisplay {get{try{var basis=CostCalculator.PurchaseBasis(PriceBasisRow());return $"{basis.Quantity:0.###} {basis.Unit}";}catch(InvalidOperationException){return "입력 확인";}}}
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string BaseUnitPriceDisplay {get{try{var row=PriceBasisRow();return $"{CostCalculator.PricePerBaseUnit(row):0.######}원 / {CostCalculator.PurchaseBasis(row).Unit}";}catch(InvalidOperationException error){return error.Message;}}}
     public CostRow ToCostRow()=>new(Name,Category,CostCalculator.Number(Amount,Menu+" / "+Name+" 소요량"),Unit,CostCalculator.Number(Price,Name+" 구매 단가"),CostCalculator.Number(PriceQuantity,Name+" 단가 기준량",true),PriceUnit,WasteValue,PackageValue);
 }
 public record SavedCost(string Age,string Key,CostDraft Draft);
@@ -37,7 +49,7 @@ public static class MealCostData
     public static List<CostDraft> Build(StoredMeal meal,IReadOnlyList<SavedCost> saved,IReadOnlySet<string>? personalKeys=null)
     {
         string track=meal.AgeGroup.Length>0?WeeklyMealPlanner.TrackForAge(meal.AgeGroup):meal.Track.Contains("트랙B")?"B":"A";
-        var result=new List<CostDraft>();var keys=meal.Value(25).Split(" / ");
+        var result=new List<CostDraft>();var keys=meal.MenuKeys;
         for(int i=0;i<meal.Menus.Length;i++) {
             string name=meal.Menus[i],key=i<keys.Length?keys[i]:"",category=MealSnapshot.CategoryAt(i);if(name.Length==0)continue;
             var owned=saved.Where(s=>s.Draft.Menu==name && s.Age==meal.AgeGroup && (s.Key==key||s.Key.Length==0)).ToList();
@@ -106,8 +118,9 @@ public partial class GoogleSheetsService
         var rows=await GetValuesAsync(QuoteTitle(AppConfig.CostSheetName)+"!A:L").ConfigureAwait(false);
         return rows.Skip(1).Where(r=>Cell(r,0).Length>0&&Cell(r,1).Length>0).Select(r=>new SavedCost(Cell(r,8),Cell(r,9),new CostDraft{Menu=Cell(r,0),Name=Cell(r,1),Category=Cell(r,2),Amount=Cell(r,3),Unit=Cell(r,4),Price=Cell(r,5),PriceQuantity=Cell(r,6).Length==0?"1":Cell(r,6),PriceUnit=Cell(r,7).Length==0?Cell(r,4):Cell(r,7),WastePercent=Cell(r,10),PackageWeightGrams=Cell(r,11)})).ToList();
     }
-    public async Task SaveMealCostsAsync(StoredMeal meal,IReadOnlyList<CostDraft> drafts,bool allowEmpty=false)
+    public async Task SaveMealCostsAsync(StoredMeal meal,IReadOnlyList<CostDraft> drafts,bool allowEmpty=false,MealCostCalculation? calculation=null)
     {
+        if(calculation!=null&&MealCostCalculation.Create(meal,drafts,calculation.HeadCount,true).Fingerprint!=calculation.Fingerprint)throw new InvalidOperationException("계산 후 입력값이 변경되었습니다. 다시 계산해 주세요.");
         RequirePersonalWrite();var costs=allowEmpty&&drafts.Count==0?new List<CostRow>():MealCostData.Validate(meal,drafts,false);await _entryGate.WaitAsync().ConfigureAwait(false);
         try {
             var sheet=await EnsureSheetAsync(AppConfig.CostSheetName,CostHeaders).ConfigureAwait(false);
@@ -116,7 +129,7 @@ public partial class GoogleSheetsService
             if(rows.Count>0 && ((Cell(rows[0],8).Length>0&&Cell(rows[0],8)!="연령대")||(Cell(rows[0],9).Length>0&&Cell(rows[0],9)!="메뉴키")))throw new InvalidOperationException("원가 시트 I~J열에 다른 자료가 있어 저장을 중단했습니다.");
             for(int col=10;col<12;col++)if(rows.Count>0&&((Cell(rows[0],col).Length>0&&Cell(rows[0],col)!=CostHeaders[col])||(Cell(rows[0],col).Length==0&&rows.Skip(1).Any(r=>Cell(r,col).Length>0))))throw new InvalidOperationException("원가 시트 K~L열에 다른 자료가 있어 저장을 중단했습니다.");
             int id=await GetSheetIdByTitleAsync(sheet).ConfigureAwait(false)??throw new InvalidOperationException("원가 탭이 없습니다.");
-            var keys=meal.Value(25).Split(" / ");string Key(string name){int i=Array.IndexOf(meal.Menus,name);return i>=0&&i<keys.Length?keys[i]:"";}
+            var keys=meal.MenuKeys;string Key(string name){int i=Array.IndexOf(meal.Menus,name);return i>=0&&i<keys.Length?keys[i]:"";}
             ValidateCostHeaders(rows);
             var requests=StandardRequests(id,rows,drafts);
             var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
@@ -125,6 +138,7 @@ public partial class GoogleSheetsService
             for(int i=rows.Count-1;i>=1;i--)if(meal.Menus.Contains(Cell(rows[i],0))&&Cell(rows[i],8)==meal.AgeGroup&&Cell(rows[i],9)==Key(Cell(rows[i],0)))requests.Add(new Request{DeleteDimension=new DeleteDimensionRequest{Range=new DimensionRange{SheetId=id,Dimension="ROWS",StartIndex=i,EndIndex=i+1}}});
             requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=CostHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
             if(drafts.Count>0)requests.Add(new Request{AppendCells=new AppendCellsRequest{SheetId=id,Rows=drafts.Select((d,i)=>new RowData{Values=new object[]{d.Menu,d.Name,d.Category,costs[i].UnitSize,d.Unit,d.Price.Trim().Length==0?"":costs[i].UnitPrice,costs[i].PriceQuantity,d.PriceUnit,meal.AgeGroup,Key(d.Menu),d.WastePercent.Trim().Length==0?"":costs[i].WastePercent,d.PackageWeightGrams.Trim().Length==0?"":(object?)costs[i].PackageWeightGrams??""}.Select(DataCell).ToList()}).ToList(),Fields="userEnteredValue"}});
+            if(calculation!=null)requests.AddRange(await CalculationRequestsAsync(meal,calculation).ConfigureAwait(false));
             await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
             _mealCostCache=null;
         }finally{_entryGate.Release();}
