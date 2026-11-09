@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using Google.Apis.Sheets.v4.Data;
 namespace wpf;
@@ -50,13 +50,13 @@ public partial class GoogleSheetsService
         }
         return result;
     }
-    public async Task<List<StoredMeal>> GetStoredMealsAsync(DateTime? week=null,string? age=null,bool sundayFirst=false)
+    public async Task<List<StoredMeal>> GetStoredMealsAsync(DateTime? week=null,string? age=null,bool sundayFirst=false,bool excludeSunday=false)
     {
         var titles=await GetSheetTitlesAsync().ConfigureAwait(false);
         if(!titles.Contains(AppConfig.WeeklyMenuSheetName))return [];
         var rows=await GetValuesAsync(QuoteTitle(AppConfig.WeeklyMenuSheetName)).ConfigureAwait(false);
         var start=sundayFirst?WeeklyMealPlanner.Sunday(week??DateTime.Today):WeeklyMealPlanner.Monday(week??DateTime.Today);
-        return ParseStoredMeals(rows).Where(m=>(!week.HasValue || (m.Date>=start && m.Date<start.AddDays(7))) &&
+        return ParseStoredMeals(rows).Where(m=>(!excludeSunday || m.Date.DayOfWeek!=DayOfWeek.Sunday) && (!week.HasValue || (m.Date>=start && m.Date<start.AddDays(7))) &&
             (age==null || m.AgeGroup==age || m.AgeGroup.Length==0 || (age=="6-18" && m.AgeGroup is "6-11" or "12-18")))
             .GroupBy(m=>m.Identity).Select(g=>g.Last()).OrderBy(m=>m.Date).ThenBy(m=>m.Meal=="조식"?0:m.Meal=="중식"?1:2).ToList();
     }
@@ -97,18 +97,17 @@ public partial class GoogleSheetsService
             if(replacements==null) {
                 foreach(var row in matches.OrderByDescending(m=>m.RowIndex))requests.Add(new Request{DeleteDimension=new DeleteDimensionRequest{Range=new DimensionRange{SheetId=id,Dimension="ROWS",StartIndex=row.RowIndex,EndIndex=row.RowIndex+1}}});
             } else {
-                var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
-                var book=await metadata.ExecuteAsync().ConfigureAwait(false);int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
+                var book = await ReadBookAsync(SpreadsheetId).ConfigureAwait(false);int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
                 if(columns<WeeklyHeaders.Length)requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=id,Dimension="COLUMNS",Length=WeeklyHeaders.Length-columns}});
                 requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=WeeklyHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
                 requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=matches[^1].RowIndex,ColumnIndex=0},Rows=[new RowData{Values=EditedMealValues(selected,replacements).Select(DataCell).ToList()}],Fields="userEnteredValue"}});
             }
-            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ConfigureAwait(false);
         }finally{_mealSaveGate.Release();}
     }
 
     /// <summary>현재 화면에 표시한 주·연령대의 저장 식단을 모두 삭제합니다.</summary>
-    public async Task<int> DeleteStoredMealsForWeekAsync(DateTime week, string age, bool sundayFirst=false)
+    public async Task<int> DeleteStoredMealsForWeekAsync(DateTime week, string age, bool sundayFirst=false,bool excludeSunday=false)
     {
         RequirePersonalWrite();
         await _mealSaveGate.WaitAsync().ConfigureAwait(false);
@@ -117,7 +116,7 @@ public partial class GoogleSheetsService
             var sheet = AppConfig.WeeklyMenuSheetName;
             var raw = await GetValuesAsync(QuoteTitle(sheet)).ConfigureAwait(false);
             var start = sundayFirst?WeeklyMealPlanner.Sunday(week):WeeklyMealPlanner.Monday(week);
-            var targets = ParseStoredMeals(raw).Where(m => m.Date >= start && m.Date < start.AddDays(7) &&
+            var targets = ParseStoredMeals(raw).Where(m => (!excludeSunday || m.Date.DayOfWeek!=DayOfWeek.Sunday) && m.Date >= start && m.Date < start.AddDays(7) &&
                 (m.AgeGroup == age || m.AgeGroup.Length == 0 || (age == "6-18" && m.AgeGroup is "6-11" or "12-18"))).ToList();
             if (targets.Count == 0) return 0;
             int id = await GetSheetIdByTitleAsync(sheet).ConfigureAwait(false) ?? throw new InvalidOperationException("메뉴 탭이 없습니다.");
@@ -125,7 +124,7 @@ public partial class GoogleSheetsService
             {
                 DeleteDimension = new DeleteDimensionRequest { Range = new DimensionRange { SheetId = id, Dimension = "ROWS", StartIndex = row.RowIndex, EndIndex = row.RowIndex + 1 } }
             }).ToList();
-            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId).ConfigureAwait(false);
             return targets.Count;
         }
         finally { _mealSaveGate.Release(); }

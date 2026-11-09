@@ -25,6 +25,7 @@ public sealed class PublicSheetWindow : Window
         var footer=new StackPanel();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);footer.Children.Add(status);
         var buttons=new WrapPanel();buttons.Children.Add(openButton);buttons.Children.Add(refresh);
         var update=new Button{Content="공식 자료 업데이트",Padding=new Thickness(10,10,10,10),Margin=new Thickness(0,8,0,0)};footer.Children.Add(update);
+        if (RuntimeEdition.IsLocal) { update.Content="공식 자료는 새 로컬 버전으로 업데이트"; update.IsEnabled=false; }
         update.Click+=async(_,_)=>{if(loading)return;loading=true;update.IsEnabled=false;refresh.IsEnabled=false;openButton.IsEnabled=false;status.Text="새 공식 자료가 있는지 확인하는 중입니다…";try{status.Text=await OfficialCatalog.UpdateAsync();}catch(Exception ex){status.Text="자료 업데이트를 완료하지 못했습니다. 현재 자료와 내 수정 내용은 유지됩니다. "+ex.Message;}finally{loading=false;update.IsEnabled=true;refresh.IsEnabled=true;openButton.IsEnabled=list.SelectedItem is PublicSheet;}};
         footer.Children.Add(buttons);root.Children.Add(list);
         search.TextChanged+=(_,_)=>Filter();list.SelectionChanged+=(_,_)=>openButton.IsEnabled=!loading&&list.SelectedItem is PublicSheet;

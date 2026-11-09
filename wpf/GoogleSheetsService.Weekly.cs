@@ -166,7 +166,7 @@ public partial class GoogleSheetsService
             m.Targets.Carb, m.Targets.Protein, m.Targets.Fat, m.CarbDifference, m.ProteinDifference, m.FatDifference,
             m.Status, WeeklyMealPlanner.Monday(m.Date).ToString("yyyy-MM-dd"), now,
             string.Join(" / ", m.Items.Select(i => i.Key)), m.Targets.TolerancePercent, (object?)m.Targets.Calories ?? "", (object?)m.CalorieDifference ?? "", MealSnapshot.Write(m.Items) }.Select(DataCell).ToList() }).ToList();
-        var book = await _sheetsService.Spreadsheets.Get(SpreadsheetId).ExecuteAsync();
+        var book = await ReadBookAsync(SpreadsheetId);
         int columns = book.Sheets.First(s => s.Properties.SheetId == id).Properties.GridProperties.ColumnCount ?? 0;
         var requests = new List<Request>();
         if (columns < WeeklyHeaders.Length) requests.Add(new Request { AppendDimension = new AppendDimensionRequest { SheetId = id, Dimension = "COLUMNS", Length = WeeklyHeaders.Length - columns } });
@@ -184,6 +184,6 @@ public partial class GoogleSheetsService
                 Start = new GridCoordinate { SheetId = id, RowIndex = index, ColumnIndex = 0 }, Rows = [rows[n]], Fields = "userEnteredValue" } });
         }
         if (appended.Count > 0) requests.Add(new Request { AppendCells = new AppendCellsRequest { SheetId = id, Rows = appended, Fields = "userEnteredValue" } });
-        await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId).ExecuteAsync();
+        await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId);
     }
 }

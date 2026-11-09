@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 namespace wpf;
@@ -48,6 +48,7 @@ public static class MealPresentation
             var energy = new FrameworkElementFactory(typeof(TextBlock));
             energy.SetBinding(TextBlock.TextProperty, new Binding($"Values[{i}].Calories"));
             energy.SetValue(TextBlock.FontSizeProperty, 12d);
+            energy.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
             energy.SetValue(TextBlock.ForegroundProperty, new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(108,135,115)));
             energy.SetValue(FrameworkElement.MarginProperty, new Thickness(0,5,0,0));
             panel.AppendChild(energy);
@@ -70,10 +71,10 @@ public static class MealPresentation
         if(grid.Columns.Count < 2 || grid.ActualWidth <= 0) return;
         if (ScrollViewer.GetHorizontalScrollBarVisibility(grid) == ScrollBarVisibility.Disabled && grid.Tag is WeekMealTableState)
         {
-            foreach(var column in grid.Columns.Skip(1)) column.Width = Math.Max(0,(grid.ActualWidth-134)/7);
+            foreach(var column in grid.Columns.Skip(1)) column.Width = Math.Max(0,(grid.ActualWidth-grid.Columns[0].Width.Value-24)/(grid.Columns.Count-1));
             return;
         }
-        double width = grid.Tag is WeekMealTableState ? Math.Max(80,(grid.ActualWidth-150)/7) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
+        double width = grid.Tag is WeekMealTableState ? Math.Max(80,(grid.ActualWidth-150)/(grid.Columns.Count-1)) : Math.Max(165, (grid.ActualWidth - 130) / (grid.Columns.Count - 1));
         foreach(var column in grid.Columns.Skip(1)) column.Width = new DataGridLength(width);
     }
     public static StoredMeal? Selected(DataGrid grid) => grid.Tag is WeekMealTableState ? WeekMealTable.Selected(grid).Meal : grid.SelectedCells.Count > 0 && grid.Tag is IReadOnlyList<MealDisplayColumn> meals && grid.SelectedCells[0].Column?.DisplayIndex is int i && i > 0 && i <= meals.Count ? meals[i - 1].Stored : null;

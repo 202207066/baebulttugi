@@ -83,7 +83,7 @@ namespace wpf
         public static bool HasCredentials => File.Exists(CredentialsPath) || typeof(AppConfig).Assembly.GetManifestResourceNames().Contains("wpf.DesktopOAuth");
         public static Stream OpenCredentials() => File.Exists(CredentialsPath) ? File.OpenRead(CredentialsPath)
             : typeof(AppConfig).Assembly.GetManifestResourceStream("wpf.DesktopOAuth") ?? throw new InvalidOperationException("앱의 로그인 설정이 없습니다. 배포 담당자에게 문의해 주세요.");
-        public static string UserDataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Baebulttugi");
+        public static string UserDataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), RuntimeEdition.IsLocal ? "Baebulttugi/Local" : "Baebulttugi");
 
         /// <summary>OAuth 토큰 저장 폴더.</summary>
         public static string TokenStorePath =>
@@ -113,7 +113,7 @@ namespace wpf
         // ── 공공데이터포털 특일 정보 API ─────────────────────────────────
 
         /// <summary>Windows 자격 증명 관리자에 등록한 공공데이터포털 서비스 키입니다. 배포 JSON에서는 읽지 않습니다.</summary>
-        public static string HolidayApiKey => HolidayApiKeyStore.Read();
+        public static string HolidayApiKey => RuntimeEdition.IsLocal ? "" : HolidayApiKeyStore.Read();
 
         public static bool HasHolidayApiKey => !string.IsNullOrWhiteSpace(HolidayApiKey);
 

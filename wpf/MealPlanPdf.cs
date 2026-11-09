@@ -23,17 +23,18 @@ public static class MealPlanPdf
     static Grid Row(string label,IEnumerable<string> values,bool heading=false,double minHeight=0)
     {
         var grid=new Grid {Width=Inner,MinHeight=minHeight};grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(80)});
-        for(int i=0;i<7;i++)grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength((Inner-80)/7)});
+        var cells=values.ToArray();
+        for(int i=0;i<cells.Length;i++)grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength((Inner-80)/cells.Length)});
         grid.Children.Add(Cell(label,true));int col=1;
-        foreach(string value in values) {var cell=Cell(value,heading);Grid.SetColumn(cell,col++);grid.Children.Add(cell);}
+        foreach(string value in cells) {var cell=Cell(value,heading);Grid.SetColumn(cell,col++);grid.Children.Add(cell);}
         return grid;
     }
     public static IReadOnlyList<FrameworkElement> CreatePages(string facility,DateTime week,IReadOnlyList<MealDisplayColumn> source,IReadOnlyDictionary<string,string>? cooking=null,IReadOnlyDictionary<string,string>? allergens=null,bool sundayFirst=false,IReadOnlyList<WeekDayNotice>? schedule=null)
     {
-        week=sundayFirst?WeeklyMealPlanner.Sunday(week):WeeklyMealPlanner.Monday(week);
-        var meals=source.Where(x=>x.Stored!=null&&x.Stored.Date>=week&&x.Stored.Date<week.AddDays(7)).ToList();
+        week=sundayFirst?WeeklyMealPlanner.Sunday(week).AddDays(1):WeeklyMealPlanner.Monday(week);
+        var meals=source.Where(x=>x.Stored!=null&&x.Stored.Date>=week&&x.Stored.Date<week.AddDays(6)).ToList();
         if(meals.Count==0)throw new InvalidOperationException("출력할 저장된 식단이 없습니다.");
-        var days=Enumerable.Range(0,7).Select(i=>week.AddDays(i)).Select(d=>schedule?.FirstOrDefault(n=>n.Date.Date==d)??new WeekDayNotice(d,CalendarDates.Holidays(d.Year).GetValueOrDefault(d,""),"")).ToArray();
+        var days=Enumerable.Range(0,6).Select(i=>week.AddDays(i)).Select(d=>schedule?.FirstOrDefault(n=>n.Date.Date==d)??new WeekDayNotice(d,CalendarDates.Holidays(d.Year).GetValueOrDefault(d,""),"")).ToArray();
         var pages=new List<FrameworkElement>();
         foreach(var age in meals.GroupBy(x=>x.Stored!.AgeGroup))
         {
@@ -46,7 +47,7 @@ public static class MealPlanPdf
                 var accent=new Border {Background=Tint,Height=116,VerticalAlignment=VerticalAlignment.Top};page.Children.Add(accent);
                 body=new StackPanel {Margin=new Thickness(32,20,32,0)};page.Children.Add(body);
                 var title=Text($"{week:yyyy년 M월} "+(recipe?"조리방법":"식단표"),38,true);title.TextAlignment=TextAlignment.Center;title.Foreground=new SolidColorBrush(Color.FromRgb(61,134,157));body.Children.Add(title);
-                var subtitle=Text($"{facility} · {(age.Key.Length==0?"연령 미지정":age.Key+"세")} | {week:M월 d일} ~ {week.AddDays(6):M월 d일}",19,true);subtitle.TextAlignment=TextAlignment.Center;subtitle.Margin=new Thickness(0,6,0,10);body.Children.Add(subtitle);
+                var subtitle=Text($"{facility} · {(age.Key.Length==0?"연령 미지정":age.Key+"세")} | {week:M월 d일} ~ {week.AddDays(5):M월 d일}",19,true);subtitle.TextAlignment=TextAlignment.Center;subtitle.Margin=new Thickness(0,6,0,10);body.Children.Add(subtitle);
                 var meta=Text($"발행: {facility}    작성일: {DateTime.Today:yyyy.MM.dd}    배불뚝이 SMART MEAL CARE",12);meta.VerticalAlignment=VerticalAlignment.Bottom;meta.Margin=new Thickness(32,0,32,42);page.Children.Add(meta);
                 if(recipe && recipeContext.Length>0)
                 {
@@ -66,11 +67,11 @@ public static class MealPlanPdf
             NewPage();
             mealTable=new StackPanel {Width=Inner};
             var dates=Row("일자",days.Select(d=>$"{d.Date:%d}일 ({"일월화수목금토"[(int)d.Date.DayOfWeek]})"+(d.Description.Length>0?"\n"+d.Description:"")),true);
-            for(int i=0;i<7;i++)((TextBlock)((Border)dates.Children[i+1]).Child).Foreground=(Brush)new BrushConverter().ConvertFromString(days[i].DateColor)!;
+            for(int i=0;i<days.Length;i++)((TextBlock)((Border)dates.Children[i+1]).Child).Foreground=(Brush)new BrushConverter().ConvertFromString(days[i].DateColor)!;
             Add(dates);
             foreach(var group in age.GroupBy(x=>x.Stored!.Meal).OrderBy(g=>g.Key=="조식"?0:g.Key=="중식"?1:g.Key=="석식"?2:3))
             {
-                string[] PerDay(Func<MealDisplayColumn,string> display)=>Enumerable.Range(0,7).Select(i=>string.Join("\n",group.Where(x=>x.Stored!.Date==week.AddDays(i)).Select(display))).Select((x,i)=>x.Length==0?(days[i].IsClosed?"휴무":"-"):x).ToArray();
+                string[] PerDay(Func<MealDisplayColumn,string> display)=>Enumerable.Range(0,6).Select(i=>string.Join("\n",group.Where(x=>x.Stored!.Date==week.AddDays(i)).Select(display))).Select((x,i)=>x.Length==0?(days[i].IsClosed?"휴무":"-"):x).ToArray();
                 string Menu(MealDisplayColumn meal)
                 {
                     var menuLines=meal.Stored!.Menus.Select((n,i)=>

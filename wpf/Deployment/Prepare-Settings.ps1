@@ -1,10 +1,21 @@
-﻿param([Parameter(Mandatory=$true)][string]$SourceDirectory, [Parameter(Mandatory=$true)][string]$OutputDirectory)
+﻿param([Parameter(Mandatory=$true)][string]$SourceDirectory, [Parameter(Mandatory=$true)][string]$OutputDirectory, [string]$LocalEdition = 'false')
 $ErrorActionPreference = 'Stop'
 # Desktop OAuth identifies the app; account tokens and service-account keys are never embedded.
 try {
-    $settings = Get-Content -LiteralPath (Join-Path $SourceDirectory 'appsettings.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    $oauth = Get-Content -LiteralPath (Join-Path $SourceDirectory 'credentials.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($LocalEdition -eq 'true' -and -not (Test-Path -LiteralPath (Join-Path $SourceDirectory 'appsettings.json'))) { $settings = [pscustomobject]@{} }
+    else { $settings = Get-Content -LiteralPath (Join-Path $SourceDirectory 'appsettings.json') -Raw -Encoding UTF8 | ConvertFrom-Json }
+    if ($LocalEdition -ne 'true') { $oauth = Get-Content -LiteralPath (Join-Path $SourceDirectory 'credentials.json') -Raw -Encoding UTF8 | ConvertFrom-Json }
 } catch { throw 'Missing or invalid deployment JSON configuration. Contents are not logged.' }
+if ($LocalEdition -eq 'true') {
+    $localSheets = [ordered]@{}
+    foreach ($name in @('Menu','WeeklyMenu','Recipe','TrackA','TrackB','Diet','Event','Patient','Dashboard','Facility','Cost','MealCount','AllergyPatient','DietSave','Ingredient')) {
+        if ($settings.Sheets.$name) { $localSheets[$name] = [string]$settings.Sheets.$name }
+    }
+    New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    @{ Edition = 'Local'; Sheets = $localSheets } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'appsettings.json') -Encoding UTF8
+    Write-Output 'Local deployment settings prepared without OAuth or network credentials.'
+    exit 0
+}
 if (-not $oauth.installed -or $oauth.private_key -or $oauth.type -eq 'service_account' -or $oauth.web) {
     throw 'Only an installed desktop OAuth client may be packaged. Private keys are forbidden.'
 }

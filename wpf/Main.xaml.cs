@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -26,6 +26,9 @@ namespace wpf
 
             _sheetsService = sheetsService ?? throw new ArgumentNullException(nameof(sheetsService));
             _ageGroup = ageGroup ?? string.Empty;
+            Title = "배불뚝이 · " + (sheetsService.IsLocal ? "로컬 버전" : "인터넷 버전");
+            if (sheetsService.IsLocal) { BtnLogout.Content = "종료"; BtnLogout.ToolTip = "로컬 자료를 유지하고 프로그램을 닫습니다"; MyDataButton.ToolTip = "이 PC에 저장된 자료를 엑셀로 옮기거나 백업합니다"; }
+            HelpStorageText.Text = sheetsService.IsLocal ? "이 PC의 전용 자료 폴더에 저장됩니다. 왼쪽 내 자료 · 엑셀에서 내보내기와 전체 백업을 할 수 있습니다." : "로그인한 Google 계정의 드라이브에 저장됩니다. 왼쪽 내 식단 자료 보기에서 Google Sheets로 열 수 있습니다.";
 
             SizeChanged += (_,_) => { TxtToday.Visibility=ActualWidth<1350?Visibility.Collapsed:Visibility.Visible; };
             this.Loaded += Main_Loaded;
@@ -58,7 +61,7 @@ namespace wpf
                 panel.Children.Add(retry);
                 var changeAccount = new Button { Content = "다른 Google 계정으로 로그인", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16,8,16,8), Margin = new Thickness(0,10,0,0) };
                 changeAccount.Click += BtnLogout_Click;
-                panel.Children.Add(changeAccount);
+                if (!_sheetsService.IsLocal) panel.Children.Add(changeAccount);
                 MainFrame.Navigate(new Page { Content = panel });
                 return;
             }
@@ -88,6 +91,7 @@ namespace wpf
 
         private void BtnLogout_Click(object sender, RoutedEventArgs e)
         {
+            if (_sheetsService.IsLocal) { Close(); return; }
             if (MessageBox.Show("이 PC의 구글 로그인 정보를 지우고 로그인 화면으로 돌아갈까요?", "로그아웃",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             try
@@ -124,6 +128,7 @@ namespace wpf
         {
             HelpOverlay.Visibility = Visibility.Collapsed;
 
+            if (_sheetsService.IsLocal) { HelpOverlay.Visibility = Visibility.Visible; return; }
             var welcome = new WelcomeWindow { Owner = this };
             welcome.ShowDialog();
         }
@@ -265,39 +270,44 @@ namespace wpf
             try { await _sheetsService.SaveFacilityDashboardAsync(dbData); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("급식소 요약 저장 실패: " + ex.Message); }
             Page dashboardPage = new Page { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F5F6FA")) };
-            ScrollViewer scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            Grid mainGrid = new Grid { Margin = new Thickness(30) };
+            Grid mainGrid = new Grid { Margin = new Thickness(20,12,20,12) };
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            Grid titleGrid = new Grid { Margin = new Thickness(0, 0, 0, 25) };
+            Grid titleGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             var welcome = new StackPanel();
-            welcome.Children.Add(new TextBlock { Text = "우리 급식소 한눈에 보기", FontSize=12, Foreground=new SolidColorBrush(Color.FromRgb(103,137,115)), Margin=new Thickness(0,0,0,8) });
-            welcome.Children.Add(new TextBlock { Text = "급식소 · " + (_sheetsService.CurrentFacility?.Name ?? "미선택"), FontSize=30, FontWeight=FontWeights.Bold, Foreground=new SolidColorBrush(Color.FromRgb(36,68,48)), TextWrapping=TextWrapping.Wrap });
-            welcome.Children.Add(new TextBlock { Text = $"{DateTime.Today:yyyy년 M월 d일 (ddd)} · 연령별 식단과 알레르기 관리 현황을 확인하세요.", FontSize=13, TextWrapping=TextWrapping.Wrap, Margin=new Thickness(0,10,0,0), Foreground=new SolidColorBrush(Color.FromRgb(96,125,106)) });
-            titleGrid.Children.Add(new Border { Background=new SolidColorBrush(Color.FromRgb(233,243,234)), CornerRadius=new CornerRadius(22), Padding=new Thickness(28,24,28,24), Child=welcome });
+            
+            welcome.Children.Add(new TextBlock { Text = "급식소 · " + (_sheetsService.CurrentFacility?.Name ?? "미선택"), FontSize=22, FontWeight=FontWeights.Bold, Foreground=new SolidColorBrush(Color.FromRgb(36,68,48)), TextWrapping=TextWrapping.Wrap });
+            welcome.Children.Add(new TextBlock { Text = $"{DateTime.Today:yyyy년 M월 d일 (ddd)} · 연령별 식단과 알레르기 관리 현황을 확인하세요.", FontSize=13, TextWrapping=TextWrapping.Wrap, Margin=new Thickness(0,4,0,0), Foreground=new SolidColorBrush(Color.FromRgb(96,125,106)) });
+            titleGrid.Children.Add(new Border { Background=new SolidColorBrush(Color.FromRgb(233,243,234)), CornerRadius=new CornerRadius(22), Padding=new Thickness(18,8,18,8), Child=welcome });
             Grid.SetRow(titleGrid, 0);
             mainGrid.Children.Add(titleGrid);
 
-            Grid cardGrid = new Grid { Margin = new Thickness(0, 0, 0, 25) };
+            Grid cardGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             var dinerCard = CreateWidgetCard("배식 인원", dbData.TotalPatients, "#2D3748", new Thickness(0, 0, 15, 0), 0);
-            var dinerButton = new Button { Content = "배식 인원 수정", Margin = new Thickness(0,12,0,0), Padding = new Thickness(10,8,10,8) };
+            var dinerButton = new Button { Height=32, Content = "배식 인원 수정", Margin = new Thickness(0,12,0,0), Padding = new Thickness(10,8,10,8) };
             dinerButton.Click += async (_,_) => await EditDinerCountAsync();
             ((StackPanel)dinerCard.Child).Children.Add(dinerButton);
             cardGrid.Children.Add(dinerCard);
             var allergyCard = CreateWidgetCard("알레르기 관리 대상", dbData.AllergyPatients, "#E53E3E", new Thickness(10, 0, 10, 0), 1);
-            var allergyButton = new Button { Content = "명단 관리", Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(10, 8, 10, 8) };
+            var allergyButton = new Button { Height=32, Content = "명단 관리", Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(10, 8, 10, 8) };
             allergyButton.Click += (_, _) => NavigateTo(BtnManagement, () => new AllergyManagementPage(),
                 "피급식자 · 알러지 관리", "대상자를 등록하고 그날 메뉴와의 교차 위험을 점검합니다");
-            ((StackPanel)allergyCard.Child).Children.Add(allergyButton);
+            var allergyActions=new WrapPanel();
+            var allergyDetailsButton=new Button {Height=32,Content="대상자 · 대체 식단 보기",Margin=new Thickness(0,8,8,0),Padding=new Thickness(10,6,10,6)};
+            allergyButton.Margin=new Thickness(0,8,0,0); allergyButton.Padding=new Thickness(10,6,10,6);
+            allergyActions.Children.Add(allergyDetailsButton); allergyActions.Children.Add(allergyButton);
+            ((StackPanel)allergyCard.Child).Children.Add(allergyActions);
+            if(patients.Any(p=>p.NeedsAllergyReview))
+                ((StackPanel)allergyCard.Child).Children.Add(new TextBlock {Text=$"정보 확인 필요 {patients.Count(p=>p.NeedsAllergyReview)}명",Foreground=Brushes.DarkRed,FontWeight=FontWeights.Bold,Margin=new Thickness(0,4,0,0)});
             cardGrid.Children.Add(allergyCard);
             var todayCard = CreateWidgetCard("오늘의 식단", dbData.DietStatus, "#3182CE", new Thickness(15, 0, 0, 0), 2, true);
-            var todayButton = new Button { Content = "식단 만들기", Margin = new Thickness(0,12,0,0), Padding = new Thickness(10,8,10,8) };
+            var todayButton = new Button { Height=32, Content = "식단 만들기", Margin = new Thickness(0,12,0,0), Padding = new Thickness(10,8,10,8) };
             todayButton.Click += (_,_) => OpenMealBuilder(DateTime.Today);
             ((StackPanel)todayCard.Child).Children.Add(todayButton);
             cardGrid.Children.Add(todayCard);
@@ -308,15 +318,18 @@ namespace wpf
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
 
-            Border leftCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(20), Padding = new Thickness(28), Margin = new Thickness(0, 0, 15, 0), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
+            Border leftCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(20), Padding = new Thickness(16), Margin = new Thickness(0), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
             Grid leftGrid = new Grid();
             leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             leftGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            var monday = WeeklyMealPlanner.Sunday(DateTime.Today);
-            leftGrid.Children.Add(new TextBlock { Text = $"이번 주 식단 · {monday:M/d} ~ {monday.AddDays(6):M/d}", FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0,0,0,16) });
-            var weekPanel = new StackPanel();
+            var monday = WeeklyMealPlanner.Monday(DateTime.Today);
+            leftGrid.Children.Add(new TextBlock { Text = $"이번 주 식단 · {monday:M/d} ~ {monday.AddDays(5):M/d}", FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0,0,0,8) });
+            var weekPanel = new Grid();
+            weekPanel.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+            weekPanel.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
+            weekPanel.RowDefinitions.Add(new RowDefinition {Height=new GridLength(1,GridUnitType.Star)});
             try {
-                var weekMeals = await _sheetsService.GetStoredMealsAsync(monday,sundayFirst:true);
+                var weekMeals = await _sheetsService.GetStoredMealsAsync(monday,excludeSunday:true);
                 var notices=await WeekSchedule.LoadAsync(_sheetsService,monday);
                 if (notices.Any(d => d.Date.Date == DateTime.Today && d.IsClosed))
                 {
@@ -324,29 +337,34 @@ namespace wpf
                     foreach(var text in ((StackPanel)todayCard.Child).Children.OfType<TextBlock>().Skip(1).Take(1)) text.Text = dbData.DietStatus;
                 }
                 var display = await _sheetsService.DisplayMealsAsync(weekMeals);
-                var table = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column, MinHeight = 240, HorizontalAlignment=HorizontalAlignment.Stretch };
-                var ageTabs = new TabControl { Margin = new Thickness(0,0,0,16), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
-                ageTabs.Items.Add(new TabItem { Header = "3–5세", Tag = "3-5", Padding = new Thickness(18,10,18,10) });
-                ageTabs.Items.Add(new TabItem { Header = "6–18세", Tag = "6-18", Padding = new Thickness(18,10,18,10) });
-                if(weekMeals.Any(m => string.IsNullOrWhiteSpace(m.AgeGroup))) ageTabs.Items.Add(new TabItem { Header = "연령 미지정", Tag = "unknown", Padding = new Thickness(18,10,18,10) });
-                var summary = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(105,132,114)), Margin = new Thickness(0,0,0,12) };
+                var table = new DataGrid { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column, MinHeight = 0, HorizontalAlignment=HorizontalAlignment.Stretch };
+                var ageTabs = new TabControl { Height=36, Margin = new Thickness(0,0,0,6), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
+                ageTabs.Items.Add(new TabItem { Header = "3–5세", Tag = "3-5", Padding = new Thickness(14,6,14,6) });
+                ageTabs.Items.Add(new TabItem { Header = "6–18세", Tag = "6-18", Padding = new Thickness(14,6,14,6) });
+                if(weekMeals.Any(m => string.IsNullOrWhiteSpace(m.AgeGroup))) ageTabs.Items.Add(new TabItem { Header = "연령 미지정", Tag = "unknown", Padding = new Thickness(14,6,14,6) });
+                var summary = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(105,132,114)), Margin = new Thickness(0,0,0,6) };
                 var empty = new Border { Background = new SolidColorBrush(Color.FromRgb(243,248,243)), CornerRadius = new CornerRadius(14), Padding = new Thickness(24), Child = new TextBlock { Text = "이 연령대에는 이번 주 식단이 없습니다. 식단 만들기에서 등록해 주세요.", TextWrapping = TextWrapping.Wrap } };
+                var mealKinds=weekMeals.Select(m=>m.Meal).Distinct().OrderBy(m=>m=="조식"?0:m=="중식"?1:2).ToArray();
+                if(mealKinds.Length==0)mealKinds=["중식"];
+                var mealSelector=new ComboBox {ItemsSource=mealKinds,SelectedItem=mealKinds.Contains("중식")?"중식":mealKinds[0],Width=90,Margin=new Thickness(10,0,10,6),VerticalAlignment=VerticalAlignment.Center};
+                System.Windows.Automation.AutomationProperties.SetName(mealSelector,"대시보드 표시 끼니");
                 void FilterWeek() {
                     var age = (ageTabs.SelectedItem as TabItem)?.Tag?.ToString() ?? "3-5";
-                    var chosen = display.Where(m => DashboardAgeFilter.Matches(m.Stored?.AgeGroup ?? "", age)).ToList();
+                    var chosen = display.Where(m => DashboardAgeFilter.Matches(m.Stored?.AgeGroup ?? "", age) && m.Stored?.Meal==mealSelector.SelectedItem?.ToString()).ToList();
                     WeekMealTable.ShowDashboard(table,chosen,notices);
                     table.Visibility = Visibility.Visible;
                     empty.Visibility = chosen.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                    table.Visibility = chosen.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
                     summary.Text = $"{chosen.Select(m=>m.Stored!.Date).Distinct().Count()}일 · {chosen.Count}끼 작성됨 · 메뉴별 1인분 기준";
                 }
-                var exportPdf=new Button{Content="PDF 만들기",HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,12),Padding=new Thickness(20,10,20,10)};
+                var exportPdf=new Button{Height=32,Content="주간 PDF 만들기",HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6),Padding=new Thickness(14,6,14,6)};
                 exportPdf.Click+=async (_,_)=>
                 {
                     exportPdf.IsEnabled=false;
                     try
                     {
                         string age=(ageTabs.SelectedItem as TabItem)?.Tag?.ToString()??"3-5";
-                        var saved=(await _sheetsService.GetStoredMealsAsync(monday,sundayFirst:true)).Where(m=>DashboardAgeFilter.Matches(m.AgeGroup,age)).ToList();
+                        var saved=(await _sheetsService.GetStoredMealsAsync(monday,excludeSunday:true)).Where(m=>DashboardAgeFilter.Matches(m.AgeGroup,age)).ToList();
                         if(saved.Count==0){summary.Text="선택한 연령에 출력할 식단이 없습니다.";return;}
                         var printable=await _sheetsService.DisplayMealsAsync(saved);
                         var cooking=await _sheetsService.GetCookingMethodsAsync();
@@ -360,7 +378,7 @@ namespace wpf
                         var schedule=await WeekSchedule.LoadAsync(_sheetsService,monday);
                         var dialog=new Microsoft.Win32.SaveFileDialog{Filter="PDF 문서 (*.pdf)|*.pdf",DefaultExt=".pdf",FileName=$"식단표_{monday:yyyy-MM-dd}_{age}세.pdf"};
                         if(dialog.ShowDialog(this)!=true)return;
-                        MealPlanPdf.Save(dialog.FileName,_sheetsService.CurrentFacility?.Name??"우리 급식소",monday,printable,cooking,codes,sundayFirst:true,schedule:schedule);
+                        MealPlanPdf.Save(dialog.FileName,_sheetsService.CurrentFacility?.Name??"우리 급식소",monday,printable,cooking,codes,schedule:schedule);
                         summary.Text="PDF 저장 완료: "+dialog.FileName;
                         try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dialog.FileName){UseShellExecute=true});}
                         catch(Exception ex){summary.Text+="\n자동 열기 실패: "+ex.Message;}
@@ -368,22 +386,26 @@ namespace wpf
                     catch(Exception ex){summary.Text="PDF 생성 실패: "+ex.Message;}
                     finally{exportPdf.IsEnabled=true;}
                 };
-                weekPanel.Children.Add(exportPdf);
+                var weekTools=new DockPanel();
+                DockPanel.SetDock(exportPdf,Dock.Right);weekTools.Children.Add(exportPdf);
+                DockPanel.SetDock(mealSelector,Dock.Right);weekTools.Children.Add(mealSelector);
+                weekTools.Children.Add(ageTabs);weekPanel.Children.Add(weekTools);
+                mealSelector.SelectionChanged+=(_,e)=>{if(ReferenceEquals(e.Source,mealSelector))FilterWeek();};
                 ageTabs.SelectionChanged += (_,e) => { if(ReferenceEquals(e.Source,ageTabs)) FilterWeek(); };
-                weekPanel.Children.Add(ageTabs); weekPanel.Children.Add(summary); weekPanel.Children.Add(table); weekPanel.Children.Add(empty);
+                Grid.SetRow(summary,1);Grid.SetRow(table,2);Grid.SetRow(empty,2);
+                weekPanel.Children.Add(summary);weekPanel.Children.Add(table);weekPanel.Children.Add(empty);
                 ageTabs.SelectedIndex = 0;
                 FilterWeek();
             } catch(Exception ex) { weekPanel.Children.Add(new TextBlock { Text = "주간 식단 조회 실패: " + ex.Message, TextWrapping = TextWrapping.Wrap }); }
             var openWeek = new Button { Content = "이번 주 식단 만들기 · 수정", Margin = new Thickness(0,12,0,0) };
             openWeek.Click += (_,_) => OpenMealBuilder(monday);
-            weekPanel.Children.Add(openWeek);
+
             Grid.SetRow(weekPanel, 1); leftGrid.Children.Add(weekPanel);
             leftCard.Child = leftGrid;
             Grid.SetColumn(leftCard, 0);
-            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) });
             Grid.SetColumnSpan(leftCard, 2);
-            leftCard.Margin = new Thickness(0,0,0,20);
+            leftCard.Margin = new Thickness(0);
             contentGrid.Children.Add(leftCard);
 
             Border rightCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(20), Padding = new Thickness(28), Margin = new Thickness(15, 0, 0, 0), BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
@@ -398,8 +420,7 @@ namespace wpf
 
             ListBox allergyList = new ListBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
             ScrollViewer.SetHorizontalScrollBarVisibility(allergyList, ScrollBarVisibility.Disabled);
-            ScrollViewer.SetVerticalScrollBarVisibility(allergyList, ScrollBarVisibility.Disabled);
-            allergyList.PreviewMouseWheel+=WeekMealTable.ScrollDashboard;
+            ScrollViewer.SetVerticalScrollBarVisibility(allergyList, ScrollBarVisibility.Auto);
 
             string defaultMenuText = (dbData.TodayMenu != null && dbData.TodayMenu.Count > 0)
                 ? string.Join(", ", dbData.TodayMenu) : dbData.DietStatus == "오늘은 휴무일입니다" ? dbData.DietStatus : "아직 식단이 작성되지 않았습니다.";
@@ -435,13 +456,14 @@ namespace wpf
             Grid.SetColumnSpan(rightCard, 2);
             Grid.SetRow(rightCard, 1);
             rightCard.Margin = new Thickness(0);
-            contentGrid.Children.Add(rightCard);
+            var allergyHost=new Border {Visibility=Visibility.Collapsed,Child=rightCard};
+            mainGrid.Children.Add(allergyHost);
+            allergyDetailsButton.Click+=(_,_)=>new PageDetailWindow(dashboardPage,allergyHost,"알레르기 대상자와 대체 식단").ShowAttachedDialog();
 
             Grid.SetRow(contentGrid, 2);
             mainGrid.Children.Add(contentGrid);
 
-            scrollViewer.Content = mainGrid;
-            dashboardPage.Content = scrollViewer;
+            dashboardPage.Content = mainGrid;
 
             if (navigation == _navigationVersion) MainFrame.Navigate(dashboardPage);
             return dashboardPage;
@@ -449,10 +471,10 @@ namespace wpf
 
         private Border CreateWidgetCard(string title, string value, string colorHex, Thickness margin, int column, bool isCompact = false)
         {
-            Border card = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(18), Padding = new Thickness(24), Margin = margin, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
+            Border card = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(18), Padding = new Thickness(12), Margin = margin, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1) };
             StackPanel stack = new StackPanel();
             stack.Children.Add(new TextBlock { Text = title, FontSize = 14, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#718096")) });
-            stack.Children.Add(new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, FontSize = isCompact ? 24 : 28, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)), Margin = new Thickness(0, isCompact ? 13 : 10, 0, 0) });
+            stack.Children.Add(new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, FontSize = isCompact ? 20 : 24, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)), Margin = new Thickness(0,6,0,0) });
             card.Child = stack;
             Grid.SetColumn(card, column);
             return card;
@@ -472,7 +494,7 @@ namespace wpf
 
         private ListBoxItem CreateAllergyCard(string label, IReadOnlyList<PatientModel> patients, string defaultMenu, string alternativeMenu)
         {
-            ListBoxItem item = new ListBoxItem { Margin = new Thickness(0, 0, 0, 12), Padding = new Thickness(0) };
+            ListBoxItem item = new ListBoxItem { Margin = new Thickness(0, 0, 0, 8), Padding = new Thickness(0) };
             // The list container must not draw a full-width hover/selection rectangle.
             item.HorizontalContentAlignment = HorizontalAlignment.Left;
             item.HorizontalAlignment = HorizontalAlignment.Left;
@@ -529,7 +551,28 @@ namespace wpf
                 new OfficialCatalogWindow(sheet){Owner=this}.ShowDialog()){Owner=this};
             dialog.ShowDialog();
         }
-        private void OpenMyData_Click(object sender, RoutedEventArgs e) => OpenSheet(_sheetsService.SpreadsheetId);
+        private void OpenMyData_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sheetsService.IsLocal) OpenDataTransfer_Click(sender, e);
+            else OpenSheet(_sheetsService.SpreadsheetId);
+        }
+        private async void OpenDataTransfer_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dialog = new DataTransferWindow(_sheetsService) { Owner = this };
+                dialog.ShowDialog();
+                if (dialog.ImportedFacility is Facility imported)
+                {
+                    _sheetsService = _sheetsService.ForFacility(imported);
+                    AppServices.Sheets = _sheetsService;
+                    _facilityLoading = true;
+                    await LoadFacilitiesAsync();
+                    await LoadDefaultDashboardAsync();
+                }
+            }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "내 자료", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        }
         private void OpenSheet(string id)
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://docs.google.com/spreadsheets/d/" + Uri.EscapeDataString(id) + "/edit") { UseShellExecute = true }); }

@@ -18,8 +18,19 @@ public partial class CalculatePage : Page
     private MealCostCalculation? calculation;
     private string savedReadError="";
     private bool busy;
+    private PageDetailWindow? detailWindow;
+    private bool loaded;
     private readonly Dictionary<string,string[]> displayMenus = new();
-    public CalculatePage(){InitializeComponent();Loaded+=async(_,_)=>await Load();}
+    public CalculatePage(){InitializeComponent();Loaded+=async(_,_)=>{if(!loaded){loaded=true;await Load();}};}
+    private void OpenInputs_Click(object sender,RoutedEventArgs e)=>OpenDetails(InputDetailsHost,"원가 기준 입력 · 정미량과 구매 기준");
+    private void OpenResults_Click(object sender,RoutedEventArgs e){Calculate(false);OpenDetails(ResultDetailsHost,"재료별 계산 결과와 한 끼 원가");}
+    private void OpenIngredientSearch_Click(object sender,RoutedEventArgs e)=>OpenDetails(IngredientDetailsHost,"원재료 CSV 검색");
+    private void OpenDetails(Border host,string title)
+    {
+        if(busy||detailWindow!=null)return;
+        detailWindow=new PageDetailWindow(this,host,title,EditorRoot,TxtDataStatus,()=>{Commit();Calculate(false);});
+        try{detailWindow.ShowAttachedDialog();}finally{detailWindow=null;}
+    }
     private void ClearResult(){result=[];calculation=null;if(dgCalculationResult==null)return;dgCalculationResult.ItemsSource=null;txtTotalCount.Text="재료 —";txtCostPerPerson.Text="1인당 —";txtTotalCost.Text="총 원가 —";UpdateSavedStatus();}
     private void QueueCalculate()=>Dispatcher.BeginInvoke(new Action(()=>{if(!busy)Calculate(false);}));
     private void InputsChanged(object sender,TextChangedEventArgs e){ClearResult();if(IsInitialized)QueueCalculate();}
@@ -64,7 +75,27 @@ public partial class CalculatePage : Page
             UpdateSavedStatus();
         }catch(Exception ex){TxtDataStatus.Text="레시피 연결 실패: "+ex.Message;}
     }
-    private async void OpenStandards_Click(object sender,RoutedEventArgs e){if(busy)return;new IngredientStandardsWindow(service){Owner=Window.GetWindow(this)}.ShowDialog();await Load(true);}
+    private async void OpenStandards_Click(object sender,RoutedEventArgs e)=>await OpenStandards(false);
+    private async void OpenMissingCosts_Click(object sender,RoutedEventArgs e)=>await OpenStandards(true);
+    private async Task OpenStandards(bool missing)
+    {
+        if(busy)return;
+        try
+        {
+            Commit();
+            var window=new IngredientStandardsWindow(service,drafts.ToList(),missing){Owner=detailWindow??Window.GetWindow(this)};
+            window.ShowDialog();
+            if(!window.HasSavedChanges)return;
+            busy=true;EditorRoot.IsEnabled=false;
+            costs=await service.GetMealCostsAsync(true);
+            var updated=costs.Where(r=>IngredientStandards.IsStandard(r)&&window.ChangedNames.Contains(IngredientStandards.Key(r.Draft.Name))).ToArray();
+            // Keep the meal's unsaved portion edits; only update the standards explicitly saved in the dialog.
+            foreach(var draft in drafts)IngredientStandards.Apply(draft,updated);
+            CostInputs.Items.Refresh();Calculate(false);
+        }
+        catch(Exception ex){TxtDataStatus.Text="원가 기준 입력·반영 확인: "+ex.Message;}
+        finally{busy=false;EditorRoot.IsEnabled=true;}
+    }
     private void Commit(){if(!CostInputs.CommitEdit(DataGridEditingUnit.Cell,true)||!CostInputs.CommitEdit(DataGridEditingUnit.Row,true))throw new InvalidOperationException("편집 중인 입력값을 확인해 주세요.");}
     private void btnRunCalculate_Click(object sender,RoutedEventArgs e)=>Calculate(true);
     private void Calculate(bool interactive)
@@ -88,10 +119,10 @@ public partial class CalculatePage : Page
         if(CalculationSaveStatus==null)return;
         if(savedReadError.Length>0){CalculationSaveStatus.Text="저장된 원가 조회 실패: "+savedReadError;return;}
         var saved=cbTargetMenu?.SelectedItem is StoredMeal meal?savedCalculations.LastOrDefault(s=>s.Identity==meal.Identity):null;
-        if(saved==null){CalculationSaveStatus.Text="아직 저장된 한 끼 원가가 없습니다. 입력만으로 Google 시트에 자동 전송되지는 않습니다.";return;}
+        if(saved==null){CalculationSaveStatus.Text="아직 저장된 한 끼 원가가 없습니다. 계산·저장 버튼을 눌러 저장해 주세요.";return;}
         string when=DateTimeOffset.TryParse(saved.SavedAt,out var date)?date.ToLocalTime().ToString("yyyy-MM-dd HH:mm"):saved.SavedAt;
         CalculationSaveStatus.Text=$"저장 기록 {when} · 1인당 {saved.PerPersonCost:N2}원 · {saved.HeadCount}명 총 {saved.TotalCost:N2}원\n"+
-            (calculation?.Fingerprint==saved.Fingerprint?"현재 식단·입력값과 일치합니다. 내 시트의 ‘원가계산결과’에 재료별 내역과 합계가 저장되어 있습니다.":"현재 식단·입력값과 다르거나 계산 대기 중입니다. 이전 원가를 현재 원가로 사용하지 말고 다시 계산·저장해 주세요.");
+            (calculation?.Fingerprint==saved.Fingerprint?"현재 식단·입력값과 일치합니다. 내 자료의 ‘원가계산결과’에 재료별 내역과 합계가 저장되어 있습니다.":"현재 식단·입력값과 다르거나 계산 대기 중입니다. 이전 원가를 현재 원가로 사용하지 말고 다시 계산·저장해 주세요.");
     }
     private async void SaveCosts_Click(object sender,RoutedEventArgs e)
     {
@@ -113,7 +144,7 @@ public partial class CalculatePage : Page
             using var activity=AppActivity.Begin("재료별 비용과 한 끼 원가를 저장하는 중입니다…");
             await service.SaveMealCalculationAsync(meal,snapshot,people);saved=true;
             bool refreshed=await Load(true);
-            if(refreshed&&savedReadError.Length==0)TxtDataStatus.Text="재료·구매 기준과 재료별 1인분 비용·발주량·한 끼 합계를 내 시트에 저장했습니다.";
+            if(refreshed&&savedReadError.Length==0)TxtDataStatus.Text="재료·구매 기준과 재료별 1인분 비용·발주량·한 끼 합계를 내 자료에 저장했습니다.";
             else TxtDataStatus.Text="저장은 완료했지만 재조회에 실패했습니다. "+(savedReadError.Length>0?savedReadError:TxtDataStatus.Text);
         }
         catch(Exception ex){TxtDataStatus.Text=(saved?"저장은 완료했지만 재조회에 실패했습니다: ":"원가 저장을 완료하지 못했습니다. 입력값과 연결을 확인한 뒤 다시 저장해 주세요: ")+ex.Message;}
@@ -122,7 +153,7 @@ public partial class CalculatePage : Page
     private void ImportIngredientCsv_Click(object sender,RoutedEventArgs e)
     {
         var dialog=new OpenFileDialog{Filter="CSV 파일|*.csv",Multiselect=false};
-        if(dialog.ShowDialog()!=true)return;
+        if(dialog.ShowDialog(detailWindow??Window.GetWindow(this))!=true)return;
         try { using var reader=new StreamReader(dialog.FileName,detectEncodingFromByteOrderMarks:true); ingredientCatalog=IngredientCsv.Parse(reader,Path.GetFileName(dialog.FileName)); RefreshIngredientSearch(); }
         catch(Exception ex){IngredientSearchStatus.Text="CSV 불러오기 실패: "+ex.Message;}
     }
@@ -138,7 +169,7 @@ public partial class CalculatePage : Page
     private void btnExportExcel_Click(object sender,RoutedEventArgs e)
     {
         if(result.Count==0){TxtDataStatus.Text="먼저 원가를 계산해 주세요.";return;}
-        var dialog=new SaveFileDialog{Filter="CSV 파일|*.csv",FileName=$"원가명세표_{DateTime.Now:yyyyMMdd_HHmm}.csv"};if(dialog.ShowDialog()!=true)return;
+        var dialog=new SaveFileDialog{Filter="CSV 파일|*.csv",FileName=$"원가명세표_{DateTime.Now:yyyyMMdd_HHmm}.csv"};if(dialog.ShowDialog(detailWindow??Window.GetWindow(this))!=true)return;
         string Csv(string s)=>"\""+s.Replace("\"","\"\"")+"\"";
         try {var lines=new List<string>{"메뉴명,식재료명,1인분 정미량,폐기율,1인분 구매량,환산 기준량,g·ml당 단가,1인분 재료비,발주량,재료 총 원가"};lines.AddRange(result.Select(r=>string.Join(",",new[]{r.Menu,r.Name,r.UnitWeightDisplay,r.WasteDisplay,r.GrossWeightDisplay,r.PurchaseBasisDisplay,r.BaseUnitPriceDisplay,r.PerPersonCostDisplay,r.TotalWeightDisplay,r.TotalPriceDisplay}.Select(Csv))));if(calculation!=null)lines.Add(string.Join(",",new[]{"합계",calculation.Complete?"계산 완료":"임시 소계","식수",calculation.HeadCount.ToString(),"한 끼 1인당 원가",calculation.PerPersonCost.ToString(CultureInfo.InvariantCulture),"한 끼 총 원가",calculation.TotalCost.ToString(CultureInfo.InvariantCulture)}.Select(Csv)));File.WriteAllLines(dialog.FileName,lines,new UTF8Encoding(true));TxtDataStatus.Text="CSV 파일을 저장했습니다.";}
         catch(Exception ex){TxtDataStatus.Text="파일 저장 실패: "+ex.Message;}

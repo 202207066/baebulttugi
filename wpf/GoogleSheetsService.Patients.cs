@@ -1,4 +1,4 @@
-﻿using Google.Apis.Sheets.v4.Data;
+using Google.Apis.Sheets.v4.Data;
 using System.Text.Json;
 
 namespace wpf;
@@ -83,12 +83,7 @@ public static class PatientSheetCodec
 public partial class GoogleSheetsService
 {
     private string? _patientSnapshot;
-    private async Task<IList<IList<object>>> ReadPatientRowsAsync(string title)
-    {
-        var get = _sheetsService.Spreadsheets.Values.Get(SpreadsheetId, QuoteTitle(title));
-        get.ValueRenderOption = Google.Apis.Sheets.v4.SpreadsheetsResource.ValuesResource.GetRequest.ValueRenderOptionEnum.FORMULA;
-        return (await get.ExecuteAsync()).Values ?? new List<IList<object>>();
-    }
+    private Task<IList<IList<object>>> ReadPatientRowsAsync(string title) => ReadValuesAsync(SpreadsheetId, QuoteTitle(title), formulas: true);
     public async Task SavePatientsAsync(IReadOnlyList<PatientModel> patients)
     {
         if (!HasUserDatabase || SpreadsheetId == AppConfig.TemplateSpreadsheetId) throw new InvalidOperationException("내 식단 자료가 준비되지 않았습니다.");
@@ -97,7 +92,7 @@ public partial class GoogleSheetsService
         if (_patientSnapshot == null || JsonSerializer.Serialize(original) != _patientSnapshot)
             throw new InvalidOperationException("명단이 변경되었습니다. 최신 명단을 다시 불러온 뒤 저장해 주세요.");
         var rows = PatientSheetCodec.Merge(original, patients);
-        var book = await _sheetsService.Spreadsheets.Get(SpreadsheetId).ExecuteAsync();
+        var book = await ReadBookAsync(SpreadsheetId);
         var props = book.Sheets.First(s => s.Properties.Title == title).Properties;
         int width = rows[0].Count, height = Math.Max(original.Count, rows.Count);
         var requests = new List<Request>();
@@ -107,7 +102,7 @@ public partial class GoogleSheetsService
         requests.Add(new Request { UpdateCells = new UpdateCellsRequest {
             Range = new GridRange { SheetId = props.SheetId, StartRowIndex=0, EndRowIndex=height, StartColumnIndex=0, EndColumnIndex=width },
             Rows = rows.Select(r => new RowData { Values=r.Select((v,c) => Preserve(v,c)).ToList() }).ToList(), Fields="userEnteredValue" } });
-        await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests=requests }, SpreadsheetId).ExecuteAsync();
+        await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest { Requests=requests }, SpreadsheetId);
         _patientSnapshot = JsonSerializer.Serialize(await ReadPatientRowsAsync(title));
     }
 }

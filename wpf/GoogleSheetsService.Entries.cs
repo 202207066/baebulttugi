@@ -74,8 +74,7 @@ public partial class GoogleSheetsService
             for (int i = 1; i < rows.Count; i++) if ((Cell(rows[i], 1) == menu.Id && Cell(rows[i], 2) == menu.Name && WeeklyMealPlanner.Category(Cell(rows[i], 3)) == menu.Category) || (originKey.Length>0 && (Cell(rows[i],22)==originKey || (Cell(rows[i],22).Length==0 && $"{Cell(rows[i],1)}:{WeeklyMealPlanner.Category(Cell(rows[i],3))}:{Cell(rows[i],2)}"==originKey)))) index = i;
             object Num(double? value) => value.HasValue ? value.Value : "";
             IList<object> row = new object[] { "", menu.Id, menu.Name, menu.Category, "사용자", "직접 입력", "", "", menu.Allergens, "", "", Num(menu.Carb), Num(menu.Protein), Num(menu.Fat), Num(menu.Calories ?? (menu.HasNutrition ? menu.Energy : null)), Num(menu.ServingGrams), menu.Source, age, "", menu.HasNutrition ? "사용자 입력" : "영양정보 미완성", "", ingredients, originKey, menu.ServingBasis, menu.ProteinReviewed?"승인":"대기", menu.ProteinReview, menu.Almond, menu.Sesame, menu.OtherBeans, menu.AllergyReview, menu.Key };
-            var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
-            var book=await metadata.ExecuteAsync().ConfigureAwait(false);var props=book.Sheets.Single(s=>s.Properties.Title==sheet).Properties;
+            var book = await ReadBookAsync(SpreadsheetId).ConfigureAwait(false);var props=book.Sheets.Single(s=>s.Properties.Title==sheet).Properties;
             int targetRow=index<0?Math.Max(1,rows.Count):index;
             var requests=new List<Request>();
             int width=props.GridProperties?.ColumnCount??26,height=props.GridProperties?.RowCount??1000;
@@ -83,12 +82,13 @@ public partial class GoogleSheetsService
             if(height<=targetRow) requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=props.SheetId,Dimension="ROWS",Length=targetRow+1-height}});
             requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=props.SheetId,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=PersonalTrackHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
             requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=props.SheetId,RowIndex=targetRow,ColumnIndex=0},Rows=[new RowData{Values=row.Select(DataCell).ToList()}],Fields="userEnteredValue"}});
-            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ConfigureAwait(false);
             _catalogCache.Clear();
         } finally { _catalogGate.Release(); }
     }
     private async Task WriteRawAsync(string range, IList<IList<object>> rows)
     {
+        if (_localStore != null) { _localStore.UpdateValues(SpreadsheetId, range, rows); return; }
         var request = _sheetsService.Spreadsheets.Values.Update(new ValueRange { Values = rows }, SpreadsheetId, range);
         request.ValueInputOption = Google.Apis.Sheets.v4.SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.RAW;
         await request.ExecuteAsync().ConfigureAwait(false);

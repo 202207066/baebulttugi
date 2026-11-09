@@ -36,6 +36,8 @@ public sealed class CostDraft
     public string PurchaseBasisDisplay {get{try{var basis=CostCalculator.PurchaseBasis(PriceBasisRow());return $"{basis.Quantity:0.###} {basis.Unit}";}catch(InvalidOperationException){return "입력 확인";}}}
     [System.Text.Json.Serialization.JsonIgnore]
     public string BaseUnitPriceDisplay {get{try{var row=PriceBasisRow();return $"{CostCalculator.PricePerBaseUnit(row):0.######}원 / {CostCalculator.PurchaseBasis(row).Unit}";}catch(InvalidOperationException error){return error.Message;}}}
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string PurchaseInputStatus => IngredientCostEntry.MissingFields(this) is {Length:>0} missing?"입력 필요: "+missing:"입력 완료";
     public CostRow ToCostRow()=>new(Name,Category,CostCalculator.Number(Amount,Menu+" / "+Name+" 소요량"),Unit,CostCalculator.Number(Price,Name+" 구매 단가"),CostCalculator.Number(PriceQuantity,Name+" 단가 기준량",true),PriceUnit,WasteValue,PackageValue);
 }
 public record SavedCost(string Age,string Key,CostDraft Draft);
@@ -132,14 +134,13 @@ public partial class GoogleSheetsService
             var keys=meal.MenuKeys;string Key(string name){int i=Array.IndexOf(meal.Menus,name);return i>=0&&i<keys.Length?keys[i]:"";}
             ValidateCostHeaders(rows);
             var requests=StandardRequests(id,rows,drafts);
-            var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
-            var book=await metadata.ExecuteAsync().ConfigureAwait(false);int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
+            var book = await ReadBookAsync(SpreadsheetId).ConfigureAwait(false);int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
             if(columns<12)requests.Insert(0,new Request{AppendDimension=new AppendDimensionRequest{SheetId=id,Dimension="COLUMNS",Length=12-columns}});
             for(int i=rows.Count-1;i>=1;i--)if(meal.Menus.Contains(Cell(rows[i],0))&&Cell(rows[i],8)==meal.AgeGroup&&Cell(rows[i],9)==Key(Cell(rows[i],0)))requests.Add(new Request{DeleteDimension=new DeleteDimensionRequest{Range=new DimensionRange{SheetId=id,Dimension="ROWS",StartIndex=i,EndIndex=i+1}}});
             requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=CostHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
             if(drafts.Count>0)requests.Add(new Request{AppendCells=new AppendCellsRequest{SheetId=id,Rows=drafts.Select((d,i)=>new RowData{Values=new object[]{d.Menu,d.Name,d.Category,costs[i].UnitSize,d.Unit,d.Price.Trim().Length==0?"":costs[i].UnitPrice,costs[i].PriceQuantity,d.PriceUnit,meal.AgeGroup,Key(d.Menu),d.WastePercent.Trim().Length==0?"":costs[i].WastePercent,d.PackageWeightGrams.Trim().Length==0?"":(object?)costs[i].PackageWeightGrams??""}.Select(DataCell).ToList()}).ToList(),Fields="userEnteredValue"}});
             if(calculation!=null)requests.AddRange(await CalculationRequestsAsync(meal,calculation).ConfigureAwait(false));
-            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ConfigureAwait(false);
             _mealCostCache=null;
         }finally{_entryGate.Release();}
     }

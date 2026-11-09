@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net.Http;
 using Newtonsoft.Json.Linq;
 
@@ -22,6 +22,7 @@ public static class WeekSchedule
     public static async Task<Dictionary<DateTime,string>> HolidaysAsync(int year,int month)
     {
         var result=CalendarDates.Holidays(year).Where(p=>p.Key.Month==month).ToDictionary(p=>p.Key,p=>p.Value);
+        if (RuntimeEdition.IsLocal) { HolidayStatus="로컬 공휴일 기본 자료 · 임시공휴일은 이벤트에서 직접 등록해 주세요."; return result; }
         string apiKey=AppConfig.HolidayApiKey;
         if(string.IsNullOrWhiteSpace(apiKey))
         {
@@ -49,16 +50,16 @@ public static class WeekSchedule
     }
     public static IReadOnlyList<WeekDayNotice> Build(DateTime selected,IList<IList<object>> rows,IReadOnlyDictionary<DateTime,string> holidays)
     {
-        var start=WeeklyMealPlanner.Sunday(selected);
+        var start=WeeklyMealPlanner.Monday(selected);
         var events=AnnualEvent.Parse(rows);
-        return Enumerable.Range(0,7).Select(i=>start.AddDays(i)).Select(d=>new WeekDayNotice(d,holidays.GetValueOrDefault(d,""),
+        return Enumerable.Range(0,6).Select(i=>start.AddDays(i)).Select(d=>new WeekDayNotice(d,holidays.GetValueOrDefault(d,""),
             string.Join("\n",events.Where(item=>item.OccursOn(d)).Select(item=>item.Content)))).ToArray();
     }
     public static async Task<IReadOnlyList<WeekDayNotice>> LoadAsync(GoogleSheetsService service,DateTime selected)
     {
-        var start=WeeklyMealPlanner.Sunday(selected);
+        var start=WeeklyMealPlanner.Monday(selected);
         var holidays=new Dictionary<DateTime,string>();
-        foreach(var month in Enumerable.Range(0,7).Select(i=>start.AddDays(i)).Select(d=>(d.Year,d.Month)).Distinct())
+        foreach(var month in Enumerable.Range(0,6).Select(i=>start.AddDays(i)).Select(d=>(d.Year,d.Month)).Distinct())
             foreach(var pair in await HolidaysAsync(month.Year,month.Month))holidays[pair.Key]=pair.Value;
         var titles=await service.GetSheetTitlesAsync();
         IList<IList<object>> rows=titles.Contains(AppConfig.EventSheetName)?await service.GetValuesAsync("'"+AppConfig.EventSheetName.Replace("'","''")+"'!A:B"):new List<IList<object>>();

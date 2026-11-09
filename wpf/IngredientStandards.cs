@@ -89,13 +89,12 @@ public partial class GoogleSheetsService
             int id = await GetSheetIdByTitleAsync(sheet).ConfigureAwait(false) ?? throw new InvalidOperationException("원가 탭이 없습니다.");
             var requests = StandardRequests(id, rows, validated);
             if (requests.Count == 0) return;
-            var metadata = _sheetsService.Spreadsheets.Get(SpreadsheetId); metadata.Fields = "sheets(properties)";
-            var book = await metadata.ExecuteAsync().ConfigureAwait(false); int columns = book.Sheets.First(s => s.Properties.SheetId == id).Properties.GridProperties.ColumnCount ?? 0;
+            var book = await ReadBookAsync(SpreadsheetId).ConfigureAwait(false); int columns = book.Sheets.First(s => s.Properties.SheetId == id).Properties.GridProperties.ColumnCount ?? 0;
             if (columns < 12) requests.Insert(0, new Request { AppendDimension = new AppendDimensionRequest { SheetId = id, Dimension = "COLUMNS", Length = 12 - columns } });
             requests.Insert(0, new Request { UpdateCells = new UpdateCellsRequest { Start = new GridCoordinate { SheetId = id, RowIndex = 0, ColumnIndex = 0 }, Rows = [new RowData { Values = CostHeaders.Select(TextCell).ToList() }], Fields = "userEnteredValue" } });
             // Expand before writing headers when migrating an older sheet.
             if (columns < 12) { var expand = requests[1]; requests.RemoveAt(1); requests.Insert(0, expand); }
-            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest { Requests = requests }, SpreadsheetId).ConfigureAwait(false);
             _mealCostCache = null;
         }
         finally { _entryGate.Release(); }

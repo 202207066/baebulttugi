@@ -203,9 +203,10 @@
                             <StackPanel Orientation="Horizontal"><TextBlock Text="☷" FontSize="17" Margin="0,0,14,0"/><TextBlock Text="관리자 요청함"/></StackPanel>
                         </RadioButton>
 
-                        <TextBlock Text="구글 시트 열기" Style="{StaticResource NavGroup}"/>
+                        <TextBlock Text="자료 보기 · 옮기기" Style="{StaticResource NavGroup}"/>
                         <Button Content="공공 메뉴 자료 보기" Click="OpenPublicData_Click" Margin="18,4" Padding="10,8" ToolTip="앱에 포함된 공식 메뉴·식재료 표를 열람합니다"/>
-                        <Button Content="내 식단 자료 보기" Click="OpenMyData_Click" Margin="18,4" Padding="10,8" ToolTip="내 구글 드라이브에 저장된 자료를 엽니다"/>
+                        <Button x:Name="MyDataButton" Content="내 식단 자료 보기" Click="OpenMyData_Click" Margin="18,4" Padding="10,8" ToolTip="내 구글 드라이브에 저장된 자료를 엽니다"/>
+                        <Button Content="내 자료 · 엑셀" Click="OpenDataTransfer_Click" Margin="18,4" Padding="10,8"/>
                         <Border Margin="18,12,18,14" Padding="12" CornerRadius="12" Background="#17421B" BorderBrush="#527958" BorderThickness="1">
                             <StackPanel>
                                 <TextBlock Text="급식소 관리" Foreground="#C3DCC6" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
@@ -332,7 +333,7 @@
                                                    Foreground="{StaticResource Brand}"/>
                                         <TextBlock Margin="0,6,0,0" FontSize="13" TextWrapping="Wrap"
                                                    Foreground="{StaticResource InkMuted}"
-                                                   Text="나이대, 식사 날짜와 끼니, 한 끼 목표 영양소를 선택하면 일주일 식단을 만들고 내 구글 시트에 저장합니다. 꼭 포함할 메뉴도 선택할 수 있습니다."/>
+                                                   Text="나이대, 식사 날짜와 끼니, 한 끼 목표 영양소를 선택하면 일주일 식단을 만들고 내 자료에 저장합니다. 꼭 포함할 메뉴도 선택할 수 있습니다."/>
                                     </StackPanel>
                                 </Border>
 
@@ -362,7 +363,7 @@
                                                    Foreground="#2F5233"/>
                                         <TextBlock Margin="0,6,0,0" FontSize="13" TextWrapping="Wrap"
                                                    Foreground="#2F5233"
-                                                   Text="로그인한 구글 계정의 드라이브에 «나만의 스마트 식단 및 알러지 DB» 스프레드시트로 저장됩니다. 구글 시트에서 직접 열어 확인할 수 있습니다."/>
+                                                   x:Name="HelpStorageText" Text="내 자료 저장 위치"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

@@ -13,6 +13,8 @@ public partial class Menu_table : Page
     private bool _busy;
     private int _loadVersion;
     private IReadOnlyList<WeekDayNotice> _days=[];
+    private IReadOnlyList<MealDisplayColumn> _weekDisplay=[];
+    private bool _settingMealView;
     private readonly Dictionary<int,bool> _choicesBeforeClosure=[];
     private MealTargets? _profileTargets;
     private List<SavedCost> _savedCosts = [];
@@ -23,6 +25,7 @@ public partial class Menu_table : Page
     public Menu_table(string ageGroup = "", DateTime? selectedDate = null)
     {
         InitializeComponent();
+        SettingsPanel.IsEnabledChanged += (_, e) => MainPane.IsEnabled = (bool)e.NewValue;
         GridDietResult.SelectedCellsChanged += (_,_) => {
             var meal = MealPresentation.Selected(GridDietResult);
             string Number(double? value) => value.HasValue ? value.Value.ToString("0.#") : "미확인";
@@ -33,7 +36,7 @@ public partial class Menu_table : Page
         var choices=DayPanel.Children.OfType<CheckBox>().OrderBy(c=>int.Parse(c.Tag.ToString()!)).ToArray();
         DayPanel.Children.Clear();foreach(var choice in choices)DayPanel.Children.Add(choice);
         _service = AppServices.Require();
-        WeekPicker.SelectedDate = WeeklyMealPlanner.Sunday(selectedDate ?? DateTime.Today);
+        WeekPicker.SelectedDate = WeeklyMealPlanner.Monday(selectedDate ?? DateTime.Today);
         CboAgeGroup.SelectedIndex = ageGroup is "6-18" or "6-11" or "12-18" ? 1 : 0;
         CboNutritionAge.SelectedIndex = ageGroup is "6-18" or "6-11" or "12-18" ? 1 : 0;
         CboSex.SelectedIndex = 0;
@@ -135,7 +138,7 @@ public partial class Menu_table : Page
         int review=catalog.Menus.Count(GoogleSheetsService.NeedsAllergenReview);
         int proteinPending=catalog.Menus.Count(m=>MenuClassification.UsesProteinCriteria(m)&&!MenuClassification.AutomaticCandidate(m));
         DataStatus.Text = $"{catalog.Title} · 메뉴 {catalog.Menus.Count:N0}개 · 영양정보 등록 {ready:N0}개" +
-            (ready==0 ? "\n아직 메뉴별 영양정보가 준비되지 않았습니다. 영양정보 등록 후 식단을 만들 수 있어요." : "\n등록된 1인분 영양정보로 조합하고, 완성된 식단은 내 구글 시트에 저장합니다.");
+            (ready==0 ? "\n아직 메뉴별 영양정보가 준비되지 않았습니다. 영양정보 등록 후 식단을 만들 수 있어요." : "\n등록된 1인분 영양정보로 조합하고, 완성된 식단은 내 자료에 저장합니다.");
         if(review>0) DataStatus.Text += $"\n알레르기 확인 필요: 코드 누락·잘못된 코드·원재료 확인이 필요한 {review}개 메뉴는 생성 후보에서 제외됩니다.";
         if(proteinPending>0)DataStatus.Text+=$" 제공량·단백질 자료 확인이 필요한 주찬·부찬 {proteinPending}개는 자동 생성에서 제외합니다.";
         KimchiPreferenceChanged(this,new RoutedEventArgs());
@@ -155,6 +158,25 @@ public partial class Menu_table : Page
         return new(c.Value, p.Value, f.Value, t.Value, calories);
     }
 
+    private void OpenSettings_Click(object sender,RoutedEventArgs e)
+    {
+        if(_busy)return;
+        var dialog=new PageDetailWindow(this,SettingsDetailsHost,"식단 생성 설정",SettingsPanel,SaveStatus,UpdateSettingsSummary);
+        dialog.ShowAttachedDialog();
+    }
+    private void OpenDataStatus_Click(object sender,RoutedEventArgs e)
+    {
+        if(_busy)return;
+        new PageDetailWindow(this,DataDetailsHost,"메뉴 자료 상태",SettingsPanel).ShowAttachedDialog();
+    }
+    private void UpdateSettingsSummary()
+    {
+        if(SettingsSummary==null)return;
+        string days=string.Join("·",DayPanel.Children.OfType<CheckBox>().Where(c=>c.IsChecked==true).Select(c=>"일월화수목금토"[int.Parse(c.Tag.ToString()!)]));
+        string meals=string.Join("·",MealPanel.Children.OfType<CheckBox>().Where(c=>c.IsChecked==true).Select(c=>c.Content));
+        SettingsSummary.Text=$"{days} / {meals} · 대상 {NutritionAge}세 · 알레르기 제외 {(ExcludeAllergens.IsChecked==true?"켜짐":"꺼짐")}"+(FixedBaechuKimchiBox.IsChecked==true?" · 배추김치 고정":"");
+    }
+
     private DayOfWeek[] SelectedOpenDays() => DayPanel.Children.OfType<CheckBox>()
         .Where(c => c.IsChecked == true)
         .Select(c => (DayOfWeek)int.Parse(c.Tag.ToString()!))
@@ -169,7 +191,7 @@ public partial class Menu_table : Page
         RetrySave.Visibility = Visibility.Collapsed;
         try
         {
-            var week = WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate??throw new InvalidOperationException("날짜를 선택해 주세요."));
+            var week = WeeklyMealPlanner.Monday(WeekPicker.SelectedDate??throw new InvalidOperationException("날짜를 선택해 주세요."));
             ApplyDays(await WeekSchedule.LoadAsync(_service,week));
             var targets = ReadTargets();
             var days = SelectedOpenDays();
@@ -199,7 +221,7 @@ public partial class Menu_table : Page
             var eligible = catalog.Menus.Where(m => MenuClassification.AutomaticCandidate(m) && !GoogleSheetsService.NeedsAllergenReview(m) && !GoogleSheetsService.MatchesRegisteredAllergen(m, allergens)).ToList();
             if (!eligible.Any(m=>m.Category=="주찬")) throw new InvalidOperationException("사용할 수 있는 고단백 주찬 후보가 없습니다. 반찬의 100g당 단백질이 11g 이상인지, 제공량·영양정보가 입력되어 있는지, 알레르기 제외 조건에 해당하는지 확인해 주세요.");
             SaveStatus.Text = "주간 식단을 조합하는 중입니다…";
-            var generated = await Task.Run(() => WeeklyMealPlanner.Generate(eligible, week, days, meals, age, catalog.Title, targets, fixedIds, sundayFirst:true));
+            var generated = await Task.Run(() => WeeklyMealPlanner.Generate(eligible, week, days, meals, age, catalog.Title, targets, fixedIds));
             _results = generated;
 
             await SaveAsync();
@@ -214,7 +236,7 @@ public partial class Menu_table : Page
 
     private async Task SaveAsync()
     {
-        SaveStatus.Text = "개인 구글 시트에 저장하는 중입니다…";
+        SaveStatus.Text = "내 자료에 저장하는 중입니다…";
         try
         {
             if(_results.Count==0)throw new InvalidOperationException("저장할 식단이 없습니다.");
@@ -247,7 +269,7 @@ public partial class Menu_table : Page
     {
         TxtCarb.Clear(); TxtProtein.Clear(); TxtFat.Clear(); TxtTolerance.Text = "15";
         TxtTargetCost.Text = "5000";
-        WeekPicker.SelectedDate = WeeklyMealPlanner.Sunday(DateTime.Today);
+        WeekPicker.SelectedDate = WeeklyMealPlanner.Monday(DateTime.Today);
         foreach (var c in DayPanel.Children.OfType<CheckBox>()) c.IsChecked = c.IsEnabled && c.Tag.ToString() is not ("0" or "6");
         foreach (var c in MealPanel.Children.OfType<CheckBox>()) c.IsChecked = c.Tag.ToString() == "중식";
         foreach (var c in _fixed.Values) c.SelectedIndex = 0;
@@ -301,11 +323,11 @@ public partial class Menu_table : Page
         _busy = true;
         try
         {
-            var week = WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate ?? DateTime.Today);
+            var week = WeeklyMealPlanner.Monday(WeekPicker.SelectedDate ?? DateTime.Today);
             var age = Age;
             var facility = _service.CurrentFacility?.Name ?? "우리 급식소";
             using var activity = AppActivity.Begin("저장된 식단으로 PDF를 만드는 중입니다…");
-            var meals = await _service.GetStoredMealsAsync(week, age, sundayFirst:true);
+            var meals = await _service.GetStoredMealsAsync(week, age, excludeSunday:true);
             if (meals.Count == 0) { SaveStatus.Text = "선택한 주에 저장된 식단이 없습니다. 식단을 저장한 뒤 PDF를 만들어 주세요."; return; }
             var display = await _service.DisplayMealsAsync(meals);
             var cooking = await _service.GetCookingMethodsAsync();
@@ -314,7 +336,7 @@ public partial class Menu_table : Page
             var schedule=await WeekSchedule.LoadAsync(_service,week);
             var dialog = new Microsoft.Win32.SaveFileDialog { Filter="PDF 문서 (*.pdf)|*.pdf", DefaultExt=".pdf", FileName=$"식단표_{week:yyyy-MM-dd}_{age}세.pdf" };
             if(dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-            MealPlanPdf.Save(dialog.FileName, facility, week, display, cooking, allergens, sundayFirst:true,schedule:schedule);
+            MealPlanPdf.Save(dialog.FileName, facility, week, display, cooking, allergens,schedule:schedule);
             SaveStatus.Text = "PDF를 저장했습니다: " + dialog.FileName;
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dialog.FileName){UseShellExecute=true}); }
             catch(Exception openError) { SaveStatus.Text="PDF 저장 완료 / 자동 열기 실패: "+dialog.FileName+"\n"+openError.Message; }
@@ -324,22 +346,37 @@ public partial class Menu_table : Page
     }
 
     private int _weekVersion;
+    private void MealViewChanged(object sender,SelectionChangedEventArgs e)
+    {
+        if(!_settingMealView && GridDietResult!=null && _days.Count>0)ShowSelectedMeal();
+    }
+    private void ShowSelectedMeal()=>WeekMealTable.Show(GridDietResult,
+        _weekDisplay.Where(m=>m.Stored?.Meal==MealView.SelectedItem?.ToString()).ToArray(),_days);
     private async void WeekChanged(object? sender, SelectionChangedEventArgs e) { if (_ready && !_busy) await LoadWeekAsync(); }
     private async void LoadWeek_Click(object sender, RoutedEventArgs e) { if (!_busy) await LoadWeekAsync(); }
     private async Task LoadWeekAsync()
     {
         int version=++_weekVersion;
-        var week=WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate??DateTime.Today);string age=Age;
-        WeekTitle.Text=$"{week:M월 d일} ~ {week.AddDays(6):M월 d일} 식단";
+        var week=WeeklyMealPlanner.Monday(WeekPicker.SelectedDate??DateTime.Today);string age=Age;
+        UpdateSettingsSummary();
+        WeekTitle.Text=$"{week:M월 d일} ~ {week.AddDays(5):M월 d일} 식단";
         GridDietResult.ItemsSource=null;
+        _weekDisplay=[];
         try
         {
             using var activity=AppActivity.Begin("한 주의 식단과 휴무·일정을 확인하는 중입니다…");
             var notices=await WeekSchedule.LoadAsync(_service,week);if(version!=_weekVersion)return;
             ApplyDays(notices);
-            var meals=await _service.GetStoredMealsAsync(week,age,sundayFirst:true);if(version!=_weekVersion)return;
+            var meals=await _service.GetStoredMealsAsync(week,age,excludeSunday:true);if(version!=_weekVersion)return;
             var display=await _service.DisplayMealsAsync(meals);if(version!=_weekVersion)return;
-            WeekMealTable.Show(GridDietResult,display,_days);
+            _weekDisplay=display;
+            string? previous=MealView.SelectedItem?.ToString();
+            var kinds=display.Select(m=>m.Stored!.Meal).Distinct().OrderBy(k=>k=="조식"?0:k=="중식"?1:2).ToArray();
+            if(kinds.Length==0)kinds=["중식"];
+            _settingMealView=true;
+            try{MealView.ItemsSource=kinds;MealView.SelectedItem=previous!=null&&kinds.Contains(previous)?previous:kinds.Contains("중식")?"중식":kinds[0];}
+            finally{_settingMealView=false;}
+            ShowSelectedMeal();
         }
         catch(Exception ex) { if(version==_weekVersion){SaveStatus.Text="주간 식단·일정 조회 실패: "+ex.Message;ScheduleStatus.Text="일정을 확인하지 못했습니다. 새로고침해 주세요.";} }
     }
@@ -360,6 +397,7 @@ public partial class Menu_table : Page
             box.ToolTip=day.IsClosed?"선택 불가 · "+day.Reason:day.Description;
             ToolTipService.SetShowOnDisabled(box,true);
         }
+        UpdateSettingsSummary();
         ScheduleStatus.Text=string.Join("\n",days.Where(d=>d.Description.Length>0).Select(d=>$"{d.Date:M/d} ({"일월화수목금토"[(int)d.Date.DayOfWeek]}) · "+(d.IsClosed?"자동 생성 제외: "+d.Reason:d.Description)));
     }
     private async void TableClick(object sender,System.Windows.Input.MouseButtonEventArgs e)
@@ -398,7 +436,7 @@ public partial class Menu_table : Page
     private async Task EditDayAsync(DateTime date)
     {
         if(_busy || GridDietResult.Tag is not WeekMealTableState state)return;
-        var meals=state.Meals.Where(m=>m.Stored?.Date.Date==date).Select(m=>m.Stored!).ToArray();
+        var meals=(_weekDisplay.Count>0?_weekDisplay:state.Meals).Where(m=>m.Stored?.Date.Date==date).Select(m=>m.Stored!).ToArray();
         if(meals.Length==0){SaveStatus.Text=$"{date:M/d}에 저장된 식단이 없습니다.";return;}
         _busy=true;SettingsPanel.IsEnabled=false;
         try
@@ -416,14 +454,14 @@ public partial class Menu_table : Page
     private async void DeleteWeekMeals_Click(object sender, RoutedEventArgs e)
     {
         if(_busy)return;
-        var week=WeeklyMealPlanner.Sunday(WeekPicker.SelectedDate??DateTime.Today);
+        var week=WeeklyMealPlanner.Monday(WeekPicker.SelectedDate??DateTime.Today);
         _busy=true;SettingsPanel.IsEnabled=false;
         try
         {
             await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
-            if(MessageBox.Show($"{week:M월 d일} ~ {week.AddDays(6):M월 d일}에 화면에 표시된 식단을 모두 삭제할까요?", "이번 주 식단 전체 삭제",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+            if(MessageBox.Show($"{week:M월 d일} ~ {week.AddDays(5):M월 d일} 월~토의 모든 끼니를 삭제할까요?", "이번 주 식단 전체 삭제",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
             using var activity=AppActivity.Begin("이번 주 식단을 삭제하는 중입니다…");
-            int count=await _service.DeleteStoredMealsForWeekAsync(week,Age,sundayFirst:true);
+            int count=await _service.DeleteStoredMealsForWeekAsync(week,Age,excludeSunday:true);
             await LoadWeekAsync();SaveStatus.Text=count==0?"삭제할 식단이 없습니다.":$"이번 주 식단 {count}끼를 삭제했습니다.";
         }
         catch(Exception ex){SaveStatus.Text="이번 주 식단 삭제 실패: "+ex.Message;}

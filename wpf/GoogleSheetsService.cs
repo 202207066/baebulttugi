@@ -99,10 +99,10 @@ namespace wpf
         }
 
         /// <summary>구글 시트 API 원본 핸들. 각 페이지가 이것을 공유합니다.</summary>
-        public SheetsService Sheets => _sheetsService;
+        public SheetsService Sheets => !IsLocal ? _sheetsService : throw new InvalidOperationException("로컬 버전은 Google 연결을 사용하지 않습니다.");
 
         /// <summary>구글 드라이브 API 원본 핸들.</summary>
-        public DriveService Drive => _driveService;
+        public DriveService Drive => !IsLocal ? _driveService : throw new InvalidOperationException("로컬 버전은 Google 연결을 사용하지 않습니다.");
 
         /// <summary>
         /// 로그인한 구글 계정 정보. LoadCurrentUserAsync() 호출 전에는 null입니다.
@@ -119,6 +119,7 @@ namespace wpf
         /// </summary>
         public async Task<GoogleUserInfo> LoadCurrentUserAsync()
         {
+            if (IsLocal) return CurrentUser = new GoogleUserInfo { DisplayName = "이 PC 사용자", Email = "로컬 저장 · Google 로그인 없음" };
             try
             {
                 var request = _driveService.About.Get();
@@ -163,7 +164,7 @@ namespace wpf
         /// </summary>
         public async Task<string> SetupUserDatabaseAsync(CancellationToken cancellationToken = default)
         {
-            var book = await _sheetsService.Spreadsheets.Create(new Spreadsheet {
+            var book = await CreateBookAsync(new Spreadsheet {
                 Properties = new SpreadsheetProperties { Title = "배불뚝이 · 내 식단 자료" },
                 Sheets = [new Sheet { Properties = new SheetProperties { Title = "사용 안내" }, Data = [new GridData {
                     RowData = new List<RowData> {
@@ -172,7 +173,7 @@ namespace wpf
                         new() { Values = new List<CellData> { TextCell("공식 메뉴 자료는 앱에 포함되어 있으며 개인 자료와 별도로 업데이트됩니다.") } }
                     }
                 }] }]
-            }).ExecuteAsync(cancellationToken);
+            }, cancellationToken);
             SetUserSpreadsheetId(book.SpreadsheetId);
             return book.SpreadsheetId;
         }
@@ -181,17 +182,13 @@ namespace wpf
         // 페이지마다 같은 코드를 반복하지 않도록 여기에 모읍니다.
 
         /// <summary>지정한 범위를 읽어 옵니다. 값이 없으면 빈 목록을 돌려줍니다.</summary>
-        public async Task<IList<IList<object>>> GetValuesAsync(string range)
-        {
-            var request = _sheetsService.Spreadsheets.Values.Get(SpreadsheetId, range);
-            ValueRange response = await request.ExecuteAsync();
-            return response.Values ?? new List<IList<object>>();
-        }
+        public Task<IList<IList<object>>> GetValuesAsync(string range) => ReadValuesAsync(SpreadsheetId, range);
 
         /// <summary>범위 끝에 행을 덧붙입니다.</summary>
         public async Task AppendRowAsync(string range, IList<object> row)
         {
             RequirePersonalWrite();
+            if (_localStore != null) { _localStore.UpdateValues(SpreadsheetId, range, [row], append: true); return; }
             var valueRange = new ValueRange { Values = new List<IList<object>> { row } };
             var request = _sheetsService.Spreadsheets.Values.Append(valueRange, SpreadsheetId, range);
             request.ValueInputOption =
@@ -203,6 +200,7 @@ namespace wpf
         public async Task UpdateValuesAsync(string range, IList<IList<object>> values)
         {
             RequirePersonalWrite();
+            if (_localStore != null) { _localStore.UpdateValues(SpreadsheetId, range, values); return; }
             var valueRange = new ValueRange { Values = values };
             var request = _sheetsService.Spreadsheets.Values.Update(valueRange, SpreadsheetId, range);
             request.ValueInputOption =
@@ -214,6 +212,7 @@ namespace wpf
         public async Task ClearValuesAsync(string range)
         {
             RequirePersonalWrite();
+            if (_localStore != null) { _localStore.ClearValues(SpreadsheetId, [range]); return; }
             var request = _sheetsService.Spreadsheets.Values.Clear(
                 new ClearValuesRequest(), SpreadsheetId, range);
             await request.ExecuteAsync();
@@ -222,9 +221,7 @@ namespace wpf
         /// <summary>시트(탭) 제목으로 내부 sheetId를 찾습니다. 없으면 null.</summary>
         public async Task<int?> GetSheetIdByTitleAsync(string title)
         {
-            var metadata = _sheetsService.Spreadsheets.Get(SpreadsheetId);
-            metadata.Fields = "sheets(properties)";
-            var spreadsheet = await metadata.ExecuteAsync();
+            var spreadsheet = await ReadBookAsync(SpreadsheetId);
             if (spreadsheet.Sheets == null) return null;
 
             foreach (var sheet in spreadsheet.Sheets)
@@ -269,7 +266,7 @@ namespace wpf
                 }
             };
 
-            await _sheetsService.Spreadsheets.BatchUpdate(request, SpreadsheetId).ExecuteAsync();
+            await ApplyBookChangesAsync(request, SpreadsheetId);
             return true;
         }
 
@@ -291,7 +288,7 @@ namespace wpf
                     }
                 }
             };
-            await _sheetsService.Spreadsheets.BatchUpdate(request, spreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(request, spreadsheetId).ConfigureAwait(false);
             InvalidateSheetTitles(spreadsheetId);
         }
 
@@ -411,14 +408,12 @@ namespace wpf
                         return cached.Titles.ToList();
                     version = owner._sheetTitlesVersion;
                 }
-                var metadata = _sheetsService.Spreadsheets.Get(id);
-                metadata.Fields = "sheets(properties)";
                 Spreadsheet spreadsheet;
-                try { spreadsheet = await metadata.ExecuteAsync(cancellationToken).ConfigureAwait(false); }
+                try { spreadsheet = await ReadBookAsync(id, cancellationToken).ConfigureAwait(false); }
                 catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(1.5), cancellationToken).ConfigureAwait(false);
-                    spreadsheet = await metadata.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+                    spreadsheet = await ReadBookAsync(id, cancellationToken).ConfigureAwait(false);
                 }
                 var titles = spreadsheet.Sheets?.Select(sheet => sheet.Properties?.Title)
                     .Where(title => !string.IsNullOrEmpty(title)).Select(title => title!).ToArray() ?? [];

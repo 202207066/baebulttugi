@@ -10,6 +10,7 @@ public partial class GoogleSheetsService
     public Facility? CurrentFacility { get; private set; }
     private GoogleSheetsService(GoogleSheetsService registry, Facility facility)
     {
+        _localStore = registry._localStore;
         _credential = registry._credential;
         _sheetsService = registry._sheetsService;
         _driveService = registry._driveService;
@@ -68,12 +69,12 @@ public partial class GoogleSheetsService
                 var titles = await scope.GetSheetTitlesAsync();
                 var ranges = titles.Where(t => stored.BookId != SpreadsheetId || Normalize(t) != Normalize(AppConfig.FacilitySheetName)).Select(QuoteTitle).ToList();
                 if (ranges.Count > 0)
-                    await _sheetsService.Spreadsheets.Values.BatchClear(new BatchClearValuesRequest { Ranges = ranges }, stored.BookId).ExecuteAsync();
+                    await ClearBookValuesAsync(stored.BookId, ranges);
                 bookId = "";
             }
             if (existing == null)
             {
-                var book = await _sheetsService.Spreadsheets.Create(new Spreadsheet { Properties = new SpreadsheetProperties { Title = "배불뚝이 · " + name.Trim() }, Sheets = [new Sheet { Properties = new SheetProperties { Title = "급식소정보" } }] }).ExecuteAsync();
+                var book = await CreateBookAsync(new Spreadsheet { Properties = new SpreadsheetProperties { Title = "배불뚝이 · " + name.Trim() }, Sheets = [new Sheet { Properties = new SheetProperties { Title = "급식소정보" } }] });
                 bookId = book.SpreadsheetId;
             }
             var updated = new Facility(existing?.Id ?? Guid.NewGuid().ToString("N"), delete ? "" : name.Trim(), bookId, delete ? 0 : diners, select && !delete, delete);

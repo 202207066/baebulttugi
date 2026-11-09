@@ -48,8 +48,7 @@ public partial class GoogleSheetsService
             var current=ParseStoredMeals(await GetValuesAsync(QuoteTitle(sheet)).ConfigureAwait(false));
             int id=await GetSheetIdByTitleAsync(sheet).ConfigureAwait(false)??throw new InvalidOperationException("식단 탭이 없습니다.");
             var requests=new List<Request>();
-            var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
-            var book=await metadata.ExecuteAsync().ConfigureAwait(false);
+            var book = await ReadBookAsync(SpreadsheetId).ConfigureAwait(false);
             int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
             if(columns<WeeklyHeaders.Length)requests.Add(new Request{AppendDimension=new AppendDimensionRequest{SheetId=id,Dimension="COLUMNS",Length=WeeklyHeaders.Length-columns}});
             requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=0,ColumnIndex=0},Rows=[new RowData{Values=WeeklyHeaders.Select(TextCell).ToList()}],Fields="userEnteredValue"}});
@@ -59,7 +58,7 @@ public partial class GoogleSheetsService
                 if(latest==null || latest.Snapshot!=change.Meal.Snapshot)throw new InvalidOperationException("식단이 다른 곳에서 변경되었습니다. 새로고침 후 다시 수정해 주세요.");
                 requests.Add(new Request{UpdateCells=new UpdateCellsRequest{Start=new GridCoordinate{SheetId=id,RowIndex=latest.RowIndex,ColumnIndex=0},Rows=[new RowData{Values=EditedMealValues(change.Meal,change.Items).Select(DataCell).ToList()}],Fields="userEnteredValue"}});
             }
-            await _sheetsService.Spreadsheets.BatchUpdate(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ExecuteAsync().ConfigureAwait(false);
+            await ApplyBookChangesAsync(new BatchUpdateSpreadsheetRequest{Requests=requests},SpreadsheetId).ConfigureAwait(false);
         }
         finally{_mealSaveGate.Release();}
     }

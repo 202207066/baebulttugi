@@ -95,8 +95,7 @@ public partial class GoogleSheetsService
         var rows=await GetValuesAsync(QuoteTitle(title)+"!A:Z").ConfigureAwait(false);
         ValidateCalculationHeaders(rows);
         int id=await GetSheetIdByTitleAsync(title).ConfigureAwait(false)??throw new InvalidOperationException("원가 계산 결과 탭을 찾을 수 없습니다.");
-        var metadata=_sheetsService.Spreadsheets.Get(SpreadsheetId);metadata.Fields="sheets(properties)";
-        var book=await metadata.ExecuteAsync().ConfigureAwait(false);
+        var book = await ReadBookAsync(SpreadsheetId).ConfigureAwait(false);
         int columns=book.Sheets.First(s=>s.Properties.SheetId==id).Properties.GridProperties.ColumnCount??0;
         var requests=new List<Request>();
         if(columns<MealCalculationHeaders.Length) requests.Add(new Request { AppendDimension=new AppendDimensionRequest { SheetId=id,Dimension="COLUMNS",Length=MealCalculationHeaders.Length-columns } });

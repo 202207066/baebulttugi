@@ -72,6 +72,7 @@ public static class OfficialCatalog
     private sealed record UpdateManifest(int SchemaVersion,string Version,string File,string Sha256,int Bytes);
     public static async Task<string> UpdateAsync(CancellationToken cancellationToken=default)
     {
+        if (RuntimeEdition.IsLocal) return "로컬 버전의 공식 자료는 새 배포 파일로 업데이트합니다. 기존 PC의 개인 자료는 유지됩니다.";
         await updateGate.WaitAsync(cancellationToken);
         try{
             using var http=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(45)};

@@ -27,10 +27,13 @@ internal static class Program
 
     private static void Run(string[] args)
     {
+        if(args.Length>1 && args[0]=="layout-checks"){LayoutChecks.Run(args[1]);return;}
+        if(args.Length>1 && args[0]=="layout-preview"){LayoutChecks.Run(args[1],true);return;}
         if (args.Contains("login-recovery")) { LoginRecoveryChecks.Run(); return; }
         if (args.Contains("login-recovery-preview")) { LoginRecoveryChecks.Preview(); return; }
         if (args.Contains("criteria-preview")) { CriteriaPreview.Run(); return; }
         if (args.Length>1&&args[0]=="cost-calculation-preview") { CostCalculationPreview.Run(args[1]); return; }
+        if (args.Length>1&&args[0]=="cost-missing-preview") { CostCalculationPreview.Run(args[1],true); return; }
         if (args.Length > 1 && args[0] == "criteria-planner-preview") { NovemberPreview.Run(args[1], true); return; }
         if(args.Length>1 && args[0]=="november-preview"){NovemberPreview.Run(args[1]);return;}
         if(args.Contains("release-preview")) { ReleasePreview.Run(); return; }
@@ -166,6 +169,8 @@ internal static class Program
         NovemberChecks.Run(Check,Reject);
         CriteriaChecks.Run(Check);
         CostCalculationChecks.Run(Check,Reject);
+        LocalStorageChecks.Run(Check,Reject);
+        MissingCostInputChecks.Run(Check,Reject);
         var app = new wpf.App();
         app.InitializeComponent();
         RequestUiChecks.Run(Check);
