@@ -1,0 +1,533 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+
+namespace wpf
+{
+    public partial class AllergyManagementPage : Page
+    {
+        private readonly GoogleSheetsService _service;
+        private readonly System.Windows.Threading.DispatcherTimer _monitorTimer=new(){Interval=TimeSpan.FromSeconds(30)};
+        private int _monitorVersion;
+        private bool _monitorBusy;
+        private int? _selectedPatientId;
+
+
+        // 💡 메모리 DB 대신, 프로그램 내부에서 구글 시트 데이터를 담고 있을 실시간 리스트입니다.
+        private List<PatientModel> _patientList = new List<PatientModel>();
+
+        /// <summary>화면에서 날짜별로 등록한 제공 메뉴.</summary>
+        private List<MenuModel> _menuList = new List<MenuModel>();
+
+        /// <summary>메뉴명 → "재료, 알러지" 문자열. MenuDatabase 시트에서 읽어 옵니다.</summary>
+        private readonly Dictionary<string, string> _menuCatalog =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        public AllergyManagementPage()
+        {
+            InitializeComponent();
+
+            // 페이지에서 따로 인증하지 않고 로그인 때 만든 서비스를 씁니다.
+            _service = AppServices.Require();
+
+            Loaded += AllergyManagementPage_Loaded;
+            Unloaded += (_,_)=>{_monitorTimer.Stop();++_monitorVersion;_monitorBusy=false;};
+            DpMonitorDate.SelectedDate=DateTime.Today;
+            DpMonitorDate.SelectedDateChanged+=async (_,_)=>{if(IsLoaded)await RefreshMonitorAsync();};
+            _monitorTimer.Tick+=async (_,_)=>{if(IsLoaded&&!_monitorBusy&&!TxtPatientName.IsKeyboardFocusWithin&&!TxtPatientNote.IsKeyboardFocusWithin&&!PatientAllergens.IsKeyboardFocusWithin&&!PatientAllergyState.IsKeyboardFocusWithin)await RefreshMonitorAsync();};
+
+            // 버튼 이벤트 연결
+            BtnSavePatient.Click += BtnSavePatient_Click;
+            BtnSearchPatient.Click += BtnSearchPatient_Click;
+            BtnUpdatePatient.Click += BtnUpdatePatient_Click;
+            BtnDeletePatient.Click += BtnDeletePatient_Click;
+            BtnScanAllergy.Click += BtnScanAllergy_Click;
+            BtnManualMenuInput.Click += BtnManualMenuInput_Click;
+            BtnConfirmAlternativeMenu.Click += BtnConfirmAlternativeMenu_Click;
+
+            // 리스트 행 선택 시 입력창 바인딩 이벤트
+            DgPatients.SelectionChanged += DgPatients_SelectionChanged;
+        }
+
+        private async void AllergyManagementPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            await RefreshMonitorAsync();
+            if(IsLoaded)_monitorTimer.Start();
+        }
+
+        private async Task RefreshMonitorAsync()
+        {
+            int version=++_monitorVersion;_monitorBusy=true;
+            var date=(DpMonitorDate.SelectedDate??DateTime.Today).Date;
+            BtnScanAllergy.IsEnabled=false;BtnConfirmAlternativeMenu.IsEnabled=false;
+            MonitorStatus.Text="식단·알레르기를 대조하고 대체식단을 만드는 중입니다…";
+            DgAllergicMatches.ItemsSource=null;
+            try
+            {
+                var patients=await _service.GetPatientsAsync();
+                var stored=(await _service.GetStoredMealsAsync(date)).Where(m=>m.Date.Date==date).ToList();
+                var catalogs=new Dictionary<string,IReadOnlyList<TrackMenu>>();
+                foreach(var age in stored.Select(m=>m.AgeGroup.Length==0?"3-5":m.AgeGroup).Distinct())
+                    catalogs[age]=(await _service.GetTrackCatalogAsync(age)).Menus;
+                var alternatives=(await Task.Run(()=>AllergyAlternatives.Build(stored,patients,catalogs))).ToList();
+                if(version!=_monitorVersion)return;
+                _patientList=patients;UpdatePatientGrid(patients);
+                var labels=new List<object>();
+                _menuCatalog.Clear();
+                foreach(var item in catalogs.Values.SelectMany(c=>c))
+                {
+                    _menuCatalog.TryGetValue(item.Name,out var prior);
+                    _menuCatalog[item.Name]=string.Join(", ",new[]{prior,item.Allergens}.Where(x=>!string.IsNullOrWhiteSpace(x)).Distinct());
+                }
+                foreach(var meal in stored)
+                {
+                    var catalog=catalogs[meal.AgeGroup.Length==0?"3-5":meal.AgeGroup];
+                    var keys=meal.MenuKeys;
+                    for(int i=0;i<meal.Menus.Length;i++)
+                    {
+                        var matches=catalog.Where(m=>m.Name==meal.Menus[i]&&m.Category==MealSnapshot.CategoryAt(i)).ToList();
+                        var menu=meal.SavedItems?.ElementAtOrDefault(i)??matches.FirstOrDefault(m=>i<keys.Length&&m.Key==keys[i])??(matches.Count==1?matches[0]:null);
+                        labels.Add(new{DisplayName=$"{meal.Meal} · {meal.AgeGroup}세 · "+MealPresentation.Label(meal.Menus[i],menu?.DisplayCalories),Ingredients=string.IsNullOrWhiteSpace(menu?.Allergens)?"정보 미확인":GoogleSheetsService.NeedsAllergenReview(menu)?"알레르기 확인 필요 · "+menu.Allergens:menu.Allergens});
+                        if(menu!=null)_menuCatalog.TryAdd(menu.Name,menu.Allergens);
+                    }
+                }
+                foreach(var manual in _menuList.Where(m=>m.ServingDate.Date==date))
+                {
+                    labels.Add(new{DisplayName="직접 입력 · "+manual.DisplayName,Ingredients=string.Join(", ",manual.Ingredients)});
+                    alternatives.Add(new AllergyAlternative("직접 입력 메뉴","확인 필요",manual.MenuName+": 연령·끼니·분류를 확인할 수 없어 자동 대체하지 않았습니다. 저장된 식단에 등록해 주세요."));
+                }
+                DgDailyMenu.ItemsSource=labels;DgAllergicMatches.ItemsSource=alternatives;
+                MonitorStatus.Text=$"{date:yyyy-MM-dd} · {DateTime.Now:HH:mm:ss} 갱신 · "+(stored.Count==0?"저장된 식단이 없습니다.":$"{stored.Count}끼 대조 · 대상자별 대체·확인 항목 {alternatives.Count}건")+"\n30초마다 자동 갱신 · 원본 식단을 유지한 대상자별 제안입니다. 배식 전 실제 재료를 확인해 주세요.";
+            }
+            catch(Exception ex)
+            {
+                if(version!=_monitorVersion)return;
+                DgDailyMenu.ItemsSource=null;DgAllergicMatches.ItemsSource=null;
+                MonitorStatus.Text="자동 확인 실패: "+ex.Message+" · 다음 갱신 때 다시 확인합니다.";
+            }
+            finally
+            {
+                if(version==_monitorVersion){_monitorBusy=false;BtnScanAllergy.IsEnabled=true;BtnConfirmAlternativeMenu.IsEnabled=true;}
+            }
+        }
+
+        // ========================================================
+        // 🟢 [핵심 추가] 구글 시트 서버에서 기존 환자 데이터 전부 원격으로 읽어오기
+        // ========================================================
+        private async Task LoadPatientsFromGoogleSheetAsync()
+        {
+            using var activity = AppActivity.Begin("알레르기 대상자 명단을 불러오는 중입니다…");
+            try
+            {
+                // 시트 → PatientModel 변환은 GoogleSheetsService에 한 벌만 둡니다.
+                // (대시보드도 같은 코드를 씁니다.)
+                _patientList = await _service.GetPatientsAsync();
+
+                UpdatePatientGrid(_patientList);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"구글 시트 서버 로드 실패:\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // ========================================================
+        // 🟢 [핵심 추가] 구글 시트 서버의 전체 데이터를 갱신(덮어쓰기)하는 로직
+        // ========================================================
+        /// <summary>
+        /// 메모리 목록을 시트에 반영합니다.
+        ///
+        /// 예전에는 ① 시트 전체를 Clear 하고 ② 다시 업로드하는 순서였습니다.
+        /// ①과 ② 사이에 네트워크가 끊기거나 ②가 실패하면 시트가 텅 빈 채로 남아
+        /// 전체 명단이 사라집니다. 순서를 뒤집어, 먼저 덮어쓰고 남는 꼬리 행만
+        /// 지웁니다. 이렇게 하면 데이터가 비는 순간이 없습니다.
+        /// </summary>
+        private async Task<bool> SaveAllPatientsToGoogleSheetAsync()
+        {
+            using var activity = AppActivity.Begin("대상자 정보를 저장하는 중입니다…");
+            IsEnabled = false;
+            try
+            {
+                await _service.SavePatientsAsync(_patientList);
+                await RefreshMonitorAsync();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"구글 시트 동기화에 실패했습니다.\n\n{ex.Message}\n\n" +
+                    "화면의 목록을 서버 상태로 되돌립니다.",
+                    "연동 오류", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                // 메모리와 서버가 어긋난 채로 남지 않도록 서버 상태를 다시 읽어 옵니다.
+                await LoadPatientsFromGoogleSheetAsync();
+                return false;
+            }
+            finally { IsEnabled = true; }
+        }
+
+        private void UpdatePatientGrid(List<PatientModel> list)
+        {
+            DgPatients.ItemsSource = null;
+            DgPatients.ItemsSource = list.Select(p => new
+            {
+                p.Id,
+                p.Name,
+                p.Category,
+                Allergies = p.Allergies,
+                AllergyDisplay = p.AllergyStatus+" · "+p.Allergies + (p.NeedsAllergyReview ? "\n확인 필요: "+p.AllergyReview : ""),
+                p.AllergyReview, p.AllergyStatus,
+                p.Note
+            }).ToList();
+        }
+
+        // ==========================================
+        // 🟢 데이터그리드 선택 시 왼쪽 입력창 복원
+        // ==========================================
+        private void DgPatients_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DgPatients.SelectedItem == null) return;
+
+            dynamic selectedPatient = DgPatients.SelectedItem;
+            _selectedPatientId=(int)selectedPatient.Id;
+            string name = selectedPatient.Name;
+            string category = selectedPatient.Category;
+            string allergiesText = selectedPatient.Allergies;
+            string note = selectedPatient.Note;
+
+            TxtPatientName.Text = name;
+            TxtPatientNote.Text = note;
+
+            foreach (ComboBoxItem item in CmbPatientCategory.Items)
+            {
+                if (item.Content?.ToString() == category)
+                {
+                    CmbPatientCategory.SelectedItem = item;
+                    break;
+                }
+            }
+
+            PatientAllergens.Text=allergiesText;
+            string state=selectedPatient.AllergyStatus;
+            PatientAllergyState.SelectedIndex=state=="없음 확인"?1:state=="있음 확인"?2:0;
+        }
+
+        // ==========================================
+        // 🟢 피급식자 등록 기능 (구글 시트 서버에 추가)
+        // ==========================================
+        private async void BtnSavePatient_Click(object sender, RoutedEventArgs e)
+        {
+            string inputName=TxtPatientName.Text.Trim();
+            string state=StateInput();string allergyValue;
+            try{allergyValue=AllergyInput(state);}catch(Exception ex){MessageBox.Show(ex.Message,"알레르기 상태 확인");return;}
+            string category = CmbPatientCategory?.SelectedItem is ComboBoxItem item ? (item.Content?.ToString() ?? "일반") : "일반";
+
+            // 고유 ID 부여 (가장 큰 ID + 1)
+            int nextId = _patientList.Count > 0 ? _patientList.Max(p => p.Id) + 1 : 1;
+
+            if(inputName.Length==0)inputName=$"대상자-{nextId:D4}";
+            var newPatient = new PatientModel
+            {
+                Id = nextId,
+                Name = inputName,
+                Category = category,
+                Allergies = allergyValue, AllergyState=state,
+                Note = TxtPatientNote?.Text?.Trim() ?? string.Empty
+            };
+
+            // 내부 목록에 추가 후 서버 동기화
+            _patientList.Add(newPatient);
+
+            bool isSuccess = await SaveAllPatientsToGoogleSheetAsync();
+
+            if (isSuccess)
+            {
+                UpdatePatientGrid(_patientList);
+                ClearInputFields();
+                MessageBox.Show($"구글 서버에 '{inputName}' 피급식자 등록이 완료되었습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            // 실패한 경우 SaveAllPatientsToGoogleSheetAsync가 서버 상태를 다시 읽어
+            // 화면까지 되돌려 놓으므로, 여기서 따로 롤백하지 않습니다.
+        }
+
+        // ==========================================
+        // 🟢 피급식자 정보 수정 기능
+        // ==========================================
+        private async void BtnUpdatePatient_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedPatientId == null)
+            {
+                MessageBox.Show("수정할 대상을 목록에서 먼저 선택해 주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            int selectedId = _selectedPatientId!.Value;
+
+            var target = _patientList.FirstOrDefault(p => p.Id == selectedId);
+            if (target != null)
+            {
+                string state=StateInput();string updated;
+                try{updated=state=="미확인"&&target.NeedsAllergyReview?target.Allergies:AllergyInput(state);}catch(Exception ex){MessageBox.Show(ex.Message,"알레르기 상태 확인");return;}
+                if(updated!=target.Allergies||state!=target.AllergyStatus){
+                    if(MessageBox.Show($"알레르기 정보를 통합 저장할까요?\n기존: {target.AllergyStatus} / {target.Allergies}\n변경: {state} / {updated}\n관련 열의 알레르기 정보는 확인한 내용으로 통합됩니다.","알레르기 정보 변경",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes)return;
+                    target.AllergyChangeConfirmed=true;
+                }
+                target.AllergyState=state;
+                // 값 업데이트
+                target.Name = TxtPatientName.Text.Trim().Length==0?$"대상자-{target.Id:D4}":TxtPatientName.Text.Trim();
+                target.Category = CmbPatientCategory.SelectedItem is ComboBoxItem item ? (item.Content?.ToString() ?? "일반") : "일반";
+                target.Allergies = updated;
+                target.Note = TxtPatientNote?.Text?.Trim() ?? string.Empty;
+
+                // 구글 시트 전면 동기화
+                bool isSuccess = await SaveAllPatientsToGoogleSheetAsync();
+                if (isSuccess)
+                {
+                    UpdatePatientGrid(_patientList);
+                    ClearInputFields();
+                    MessageBox.Show("선택한 정보가 구글 시트 데이터베이스 서버에 실시간 수정되었습니다.", "수정 완료");
+                }
+            }
+        }
+
+        // ==========================================
+        // 🟢 피급식자 정보 삭제 기능
+        // ==========================================
+        private async void BtnDeletePatient_Click(object sender, RoutedEventArgs e)
+        {
+            if (DgPatients.SelectedItem == null)
+            {
+                MessageBox.Show("삭제할 대상을 목록에서 먼저 선택해 주세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            dynamic selectedItem = DgPatients.SelectedItem;
+            int selectedId = selectedItem.Id;
+
+            if (MessageBox.Show("선택한 피급식자 데이터를 구글 서버에서 영구 삭제하시겠습니까?", "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                var target = _patientList.FirstOrDefault(p => p.Id == selectedId);
+                if (target != null)
+                {
+                    _patientList.Remove(target);
+
+                    // 구글 서버에 변경 상태 업로드
+                    bool isSuccess = await SaveAllPatientsToGoogleSheetAsync();
+                    if (isSuccess)
+                    {
+                        UpdatePatientGrid(_patientList);
+                        ClearInputFields();
+                        MessageBox.Show("구글 서버에서 삭제 처리가 완료되었습니다.", "삭제 완료");
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 🟢 검색 기능
+        // ==========================================
+        private void BtnSearchPatient_Click(object sender, RoutedEventArgs e)
+        {
+            string searchKeyword = TxtSearchPatient.Text.Trim();
+            if (string.IsNullOrWhiteSpace(searchKeyword))
+            {
+                UpdatePatientGrid(_patientList);
+                return;
+            }
+
+            var filtered = _patientList.Where(p => p.Name.Contains(searchKeyword)).ToList();
+            UpdatePatientGrid(filtered);
+        }
+
+        // ==========================================
+        // 🟢 알러지 스캔 매칭 기능
+        // ==========================================
+        /// <summary>
+        /// 그날 제공 메뉴와 등록된 알러지를 교차 검사합니다.
+        ///
+        /// 예전에는 patientAllergySet.Contains(재료명)으로 완전 일치만 잡아
+        /// "땅콩" 알러지가 "땅콩분태" 같은 표기를 놓쳤습니다. 부분 일치로 바꿉니다.
+        /// </summary>
+        private async void BtnScanAllergy_Click(object sender, RoutedEventArgs e)=>await RefreshMonitorAsync();
+
+        /// <summary>
+        /// 메뉴 DB를 읽어 캐시합니다.
+        ///
+        /// 예전에는 "땅콩소스 닭강정", "소고기 미역국" 두 건이 코드에 박혀 있어
+        /// 알러지 스캔이 사실상 그 두 개에 대해서만 동작했습니다.
+        /// </summary>
+        private async Task LoadMenuCatalogAsync()
+        {
+            using var activity = AppActivity.Begin("메뉴의 재료와 알레르기 정보를 확인하는 중입니다…");
+            try
+            {
+                _menuCatalog.Clear();
+                foreach (string age in new[] { "3-5", "6-18" })
+                {
+                    var catalog = await _service.GetTrackCatalogAsync(age);
+                    foreach (var menu in catalog.Menus)
+                    {
+                        _menuCatalog.TryGetValue(menu.Name, out string? prior);
+                        _menuCatalog[menu.Name] = string.Join(", ", new[] { prior, menu.Allergens }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("메뉴 알레르기 정보를 불러오지 못했습니다. " + ex.Message, "자료 확인 필요");
+            }
+        }
+
+        private int _dailyLoadVersion;
+        private async Task LoadSavedDailyMenusAsync()
+        {
+            int version = ++_dailyLoadVersion;
+            using var activity = AppActivity.Begin("선택한 날짜의 식단을 불러오는 중입니다…");
+            DateTime date = DpMonitorDate.SelectedDate ?? DateTime.Today;
+            BtnScanAllergy.IsEnabled = false;
+            try
+            {
+                var meals = await _service.GetSavedMealsAsync(date);
+                var stored = (await _service.GetStoredMealsAsync(date)).Where(m => m.Date == date.Date).ToList();
+                var displays = await _service.DisplayMealsAsync(stored);
+                var labels = displays.SelectMany(m => m.Stored!.Menus.Select((n,i) => (Name:n, Label:m.Menus[i]))).GroupBy(x => x.Name).ToDictionary(g => g.Key, g => string.Join(" / ", g.Select(x=>x.Label).Distinct()));
+                if (version != _dailyLoadVersion) return;
+                _menuList = meals.SelectMany(m => m.Menus).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()
+                    .Select(n => new MenuModel { MenuName=n, DisplayLabel=labels.GetValueOrDefault(n), ServingDate=date,
+                        Ingredients=_menuCatalog.TryGetValue(n, out var info) && !string.IsNullOrWhiteSpace(info) ? new List<string> { info } : new() }).ToList();
+                RefreshDailyMenuGrid();
+                BtnScanAllergy.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                if (version != _dailyLoadVersion) return;
+                _menuList.Clear(); RefreshDailyMenuGrid();
+                MessageBox.Show("식단을 불러오지 못했습니다. " + ex.Message, "연결 확인");
+            }
+        }
+
+        private void RefreshDailyMenuGrid()
+        {
+            DateTime targetDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
+            var filteredMenus = _menuList.Where(m => m.ServingDate.Date == targetDate.Date).ToList();
+
+            DgDailyMenu.ItemsSource = filteredMenus.Select(m => new
+            {
+                m.DisplayName,
+                Ingredients = string.Join(", ", m.Ingredients)
+            }).ToList();
+        }
+
+        /// <summary>
+        /// 그날 제공할 메뉴를 추가합니다.
+        /// 메뉴 DB에 있는 이름을 고르면 재료·알러지 정보가 자동으로 붙습니다.
+        /// </summary>
+        private async void BtnManualMenuInput_Click(object sender, RoutedEventArgs e)
+        {
+            DateTime targetDate = DpMonitorDate?.SelectedDate ?? DateTime.Today;
+
+            string? menuName = PromptDialog.Show(
+                Window.GetWindow(this),
+                "메뉴 직접 입력",
+                $"{targetDate:yyyy년 MM월 dd일}에 제공할 메뉴명을 입력하세요.\n" +
+                "메뉴 DB에 등록된 이름을 고르면 재료·알러지 정보가 자동으로 채워집니다.",
+                _menuCatalog.Keys.OrderBy(k => k, StringComparer.Ordinal));
+
+            if (menuName == null) return;
+
+            // 메뉴 DB에서 재료·알러지 정보를 찾습니다.
+            string info = _menuCatalog.TryGetValue(menuName, out var found) ? found : "";
+
+            var ingredients = info
+                .Split(new[] { ',', '/', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0 && s != "없음")
+                .Distinct()
+                .ToList();
+
+            if (ingredients.Count == 0)
+            {
+                MessageBox.Show(
+                    $"'{menuName}'의 재료·알러지 정보가 메뉴 DB에 없습니다.\n" +
+                    "메뉴는 추가되지만 알러지 스캔에서는 걸러지지 않습니다.",
+                    "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+
+            _menuList.Add(new MenuModel
+            {
+                MenuName = menuName,
+                ServingDate = targetDate,
+                Ingredients = ingredients
+            });
+
+            await RefreshMonitorAsync();
+        }
+
+        private async void BtnConfirmAlternativeMenu_Click(object sender, RoutedEventArgs e)=>await RefreshMonitorAsync();
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject? depObj) where T : DependencyObject
+        {
+            if (depObj != null)
+            {
+                for (int i = 0; i < VisualTreeHelper.GetChildrenCount(depObj); i++)
+                {
+                    DependencyObject? child = VisualTreeHelper.GetChild(depObj, i);
+                    if (child is T t) yield return t;
+                    if (child != null)
+                    {
+                        foreach (T childOfChild in FindVisualChildren<T>(child)) yield return childOfChild;
+                    }
+                }
+            }
+        }
+
+        private string StateInput()=>(PatientAllergyState.SelectedItem as ComboBoxItem)?.Content?.ToString()??"미확인";
+        private string AllergyInput(string state){var value=PatientAllergens.Text;if(state=="없음 확인"){if(value.Length>0)throw new InvalidOperationException("없음 확인을 선택했다면 알레르기 항목 선택을 해제해 주세요.");return "없음";}if(state=="있음 확인"&&(value.Length==0||PatientAllergyInfo.Merge([value]).Review.Length>0))throw new InvalidOperationException("있음 확인은 해당 알레르기 항목을 선택한 후 저장하세요.");return value;}
+        private void ClearInputFields()
+        {
+            _selectedPatientId=null;PatientAllergyState.SelectedIndex=0;PatientAllergens.Clear();
+            if (TxtPatientName != null) TxtPatientName.Text = string.Empty;
+            if (TxtPatientNote != null) TxtPatientNote.Text = string.Empty;
+            var currentContent = this.Content as DependencyObject;
+            if (currentContent != null)
+            {
+                foreach (var child in FindVisualChildren<CheckBox>(currentContent))
+                {
+                    if (child != null) child.IsChecked = false;
+                }
+            }
+            if (DgPatients != null) DgPatients.SelectedItem = null;
+        }
+    }
+
+    // ==========================================
+    // 💡 구글 시트 연동 전용 단순화 모델 클래스
+    // ==========================================
+    public class PatientModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Allergies { get; set; } = string.Empty;
+        public string AllergyReview { get; set; } = string.Empty;
+        public string AllergyState {get;set;}="";
+        public string AllergyStatus => new[]{"미확인","없음 확인","있음 확인"}.Contains(AllergyState)?AllergyState:AllergyReview.Length>0||Allergies.Length==0?"미확인":PatientAllergyInfo.IsNone(Allergies)?"없음 확인":"있음 확인";
+        public bool NeedsAllergyReview => AllergyReview.Length>0||AllergyState=="미확인";
+        public bool AllergyChangeConfirmed { get; set; }
+        public string Note { get; set; } = string.Empty;
+    }
+
+    public class MenuModel
+    {
+        public string? DisplayLabel { get; set; }
+        public string DisplayName => DisplayLabel ?? MealPresentation.Label(MenuName, null);
+        public string MenuName { get; set; } = string.Empty;
+        public DateTime ServingDate { get; set; }
+        public List<string> Ingredients { get; set; } = new List<string>();
+    }
+}
