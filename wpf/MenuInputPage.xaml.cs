@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Globalization;
 using System.Collections.ObjectModel;
@@ -16,7 +16,7 @@ public partial class MenuInputPage : Page
     private bool ready,busy,loading;
     private int version;
     private string Age => (Track.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "3-5";
-    public MenuInputPage(){InitializeComponent();CategoryBox.ItemsSource=WeeklyMealPlanner.Categories;CategoryBox.SelectedIndex=0;Track.SelectedIndex=0;Loaded+=async(_,_)=>{if(!ready){ready=true;await Load();}};}
+    public MenuInputPage(){InitializeComponent();RecipeIngredients.PreviewMouseWheel+=WeekMealTable.Wheel;MenuGrid.PreviewMouseWheel+=WeekMealTable.Wheel;CategoryBox.ItemsSource=WeeklyMealPlanner.Categories;CategoryBox.SelectedIndex=0;Track.SelectedIndex=0;Loaded+=async(_,_)=>{if(!ready){ready=true;await Load();}};}
     private async void TrackChanged(object sender,SelectionChangedEventArgs e){if(ready&&!busy&&!loading){Clear();menus=[];ingredients.Clear();Filter();await Load();}}
     private async Task Load(bool force=false)
     {

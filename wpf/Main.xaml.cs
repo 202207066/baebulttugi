@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -32,6 +32,7 @@ namespace wpf
 
             SizeChanged += (_,_) => { TxtToday.Visibility=ActualWidth<1350?Visibility.Collapsed:Visibility.Visible; };
             this.Loaded += Main_Loaded;
+            InitializeRequestNotifications();
             AppActivity.Changed += OnActivityChanged;
             Closed += (_, _) => AppActivity.Changed -= OnActivityChanged;
         }
@@ -45,6 +46,7 @@ namespace wpf
             try
             {
                 await RestoreAccountAsync();
+                _ = RefreshRequestBadgesAsync();
                 await LoadFacilitiesAsync();
                 BtnDashboard.IsChecked = true;
                 SetHeader("종합 대시보드", "오늘의 식단과 알러지 현황을 한눈에 봅니다");

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 
 namespace wpf;
@@ -174,7 +174,7 @@ public partial class Menu_table : Page
         if(SettingsSummary==null)return;
         string days=string.Join("·",DayPanel.Children.OfType<CheckBox>().Where(c=>c.IsChecked==true).Select(c=>"일월화수목금토"[int.Parse(c.Tag.ToString()!)]));
         string meals=string.Join("·",MealPanel.Children.OfType<CheckBox>().Where(c=>c.IsChecked==true).Select(c=>c.Content));
-        SettingsSummary.Text=$"{days} / {meals} · 대상 {NutritionAge}세 · 알레르기 제외 {(ExcludeAllergens.IsChecked==true?"켜짐":"꺼짐")}"+(FixedBaechuKimchiBox.IsChecked==true?" · 배추김치 고정":"");
+        SettingsSummary.Text=$"메뉴 출처 {Age}세 · {(Age=="3-5"?"트랙A":"트랙B")} / {days} / {meals} · 대상 {NutritionAge}세 · 알레르기 제외 {(ExcludeAllergens.IsChecked==true?"켜짐":"꺼짐")}"+(FixedBaechuKimchiBox.IsChecked==true?" · 배추김치 고정":"");
     }
 
     private DayOfWeek[] SelectedOpenDays() => DayPanel.Children.OfType<CheckBox>()

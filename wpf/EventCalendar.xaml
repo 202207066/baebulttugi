@@ -22,9 +22,115 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <Border x:Name="EventEditorHost" Visibility="Collapsed">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock Text="목록에서 일정을 선택해 수정하거나, 내용을 입력해 새 일정을 등록하세요." TextWrapping="Wrap" Margin="0,0,0,12"/>
+                            <!-- 일정 목록 -->
+                            <StackPanel Orientation="Horizontal" Margin="2,12,0,10">
+                                <TextBlock Text="급식소 일정" FontSize="14" FontWeight="Bold"
+                                           Foreground="{StaticResource Ink}"/>
+                                <Border Background="{StaticResource CanvasSoft}" CornerRadius="9"
+                                        Padding="8,2" Margin="9,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="txtEventCount" Text="0"
+                                               FontSize="11" FontWeight="Bold"
+                                               Foreground="{StaticResource InkSubtle}"/>
+                                </Border>
+                            </StackPanel>
+
+                            <Border Background="{StaticResource CanvasSoft}" CornerRadius="10"
+                                    Padding="6" Margin="0,0,0,8">
+                                <Grid>
+                                    <ListBox FontFamily="Segoe UI Emoji, Malgun Gothic" x:Name="lstEvents"
+                                             SelectionChanged="lstEvents_SelectionChanged"
+                                             MinHeight="118" MaxHeight="190"
+                                             Background="Transparent" BorderThickness="0"
+                                             FontSize="14"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate><DataTemplate><emoji:TextBlock Text="{Binding Mode=OneWay}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate><ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Padding" Value="10,9"/>
+                                                <Setter Property="Margin" Value="0,0,0,3"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <Border x:Name="Bd" CornerRadius="8"
+                                                                    Background="White"
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    Margin="{TemplateBinding Margin}">
+                                                                <ContentPresenter/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsSelected" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background"
+                                                                            Value="{StaticResource BrandTint}"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background"
+                                                                            Value="#F0F6F1"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                    </ListBox>
+
+                                    <!-- 일정이 없을 때 -->
+                                    <TextBlock x:Name="txtNoEvents"
+                                               Text="등록된 일정이 없습니다"
+                                               FontSize="13" Foreground="{StaticResource InkFaint}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                            </Border>
+                    <!-- 입력 + 버튼 -->
+                    <Border  Background="{StaticResource CanvasSoft}"
+                            CornerRadius="0,0,12,12" Padding="24,18">
+                        <StackPanel>
+                            <TextBlock Text="일정 내용" Style="{StaticResource Caption}" Margin="2,0,0,7"/>
+
+                            <WrapPanel Margin="0,0,0,8">
+                                <RadioButton x:Name="EventOnce" GroupName="EventRepeat" Content="반복 안 함" IsChecked="True" Margin="0,0,18,4"/>
+                                <RadioButton x:Name="EventYearly" GroupName="EventRepeat" Content="반복 이벤트 · 매년" Margin="0,0,0,4"/>
+                            </WrapPanel>
+                            <TextBlock Text="매년 같은 월·일에 반복됩니다. 2월 29일은 윤년에만 표시됩니다." TextWrapping="Wrap" FontSize="11" Foreground="#718276" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="EventClosed" Content="휴무일 · 자동 식단 생성에서 제외" Margin="0,0,0,10"/><StackPanel Orientation="Horizontal" Margin="0,0,0,8"><TextBlock Text="이벤트 아이콘" VerticalAlignment="Center" Margin="0,0,12,0"/><emoji:RichTextBox x:Name="EventIconPicker" Width="110" Height="46" FontSize="20" ToolTip="Win + . 키로 이모지를 입력하세요"/></StackPanel>
+                            <WrapPanel x:Name="QuickEventIcons" Margin="0,0,0,8"/><TextBlock Text="다른 아이콘은 위 입력란에서 직접 입력할 수 있습니다." FontSize="11" Foreground="#718276" TextWrapping="Wrap" Margin="0,0,0,8"/><emoji:RichTextBox x:Name="txtEventInput" Height="72"
+
+                                     VerticalContentAlignment="Top" Padding="10,8"
+                                     VerticalScrollBarVisibility="Auto"/>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0" x:Name="btnAddEvent" Click="btnAddEvent_Click"
+                                        Content="＋  일정 등록" Style="{StaticResource PrimaryButton}"/>
+
+                                <Button Grid.Column="2" x:Name="btnEditEvent" Click="btnEditEvent_Click"
+                                        Content="수정" Width="76" Height="42"
+                                        ToolTip="목록에서 일정을 고른 뒤 내용을 바꾸고 누르세요"/>
+
+                                <Button Grid.Column="4" x:Name="btnDeleteEvent" Click="btnDeleteEvent_Click"
+                                        Content="삭제" Width="76" Height="42"
+                                        Style="{StaticResource DangerButton}"
+                                        ToolTip="목록에서 고른 일정을 지웁니다"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
         <!-- 머리말 -->
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="식단과 일정" Style="{StaticResource PageTitle}"/><TextBlock x:Name="HolidayStatus" Text="공휴일 정보 확인 중" TextWrapping="Wrap" FontSize="12" Foreground="#60766A" Margin="0,6,0,0"/>
+            <TextBlock Text="식단과 일정 · 날짜를 더블클릭해 일정 관리" Style="{StaticResource PageTitle}"/><TextBlock x:Name="HolidayStatus" Text="공휴일 정보 확인 중" TextWrapping="Wrap" FontSize="12" Foreground="#60766A" Margin="0,6,0,0"/>
             
         </StackPanel>
 
@@ -104,109 +210,11 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- 일정 목록 -->
-                            <StackPanel Orientation="Horizontal" Margin="2,12,0,10">
-                                <TextBlock Text="급식소 일정" FontSize="14" FontWeight="Bold"
-                                           Foreground="{StaticResource Ink}"/>
-                                <Border Background="{StaticResource CanvasSoft}" CornerRadius="9"
-                                        Padding="8,2" Margin="9,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="txtEventCount" Text="0"
-                                               FontSize="11" FontWeight="Bold"
-                                               Foreground="{StaticResource InkSubtle}"/>
-                                </Border>
-                            </StackPanel>
-
-                            <Border Background="{StaticResource CanvasSoft}" CornerRadius="10"
-                                    Padding="6" Margin="0,0,0,8">
-                                <Grid>
-                                    <ListBox FontFamily="Segoe UI Emoji, Malgun Gothic" x:Name="lstEvents"
-                                             SelectionChanged="lstEvents_SelectionChanged"
-                                             MinHeight="118" MaxHeight="190"
-                                             Background="Transparent" BorderThickness="0"
-                                             FontSize="14"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                        <ListBox.ItemTemplate><DataTemplate><emoji:TextBlock Text="{Binding Mode=OneWay}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate><ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <Setter Property="Padding" Value="10,9"/>
-                                                <Setter Property="Margin" Value="0,0,0,3"/>
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="ListBoxItem">
-                                                            <Border x:Name="Bd" CornerRadius="8"
-                                                                    Background="White"
-                                                                    Padding="{TemplateBinding Padding}"
-                                                                    Margin="{TemplateBinding Margin}">
-                                                                <ContentPresenter/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsSelected" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background"
-                                                                            Value="{StaticResource BrandTint}"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background"
-                                                                            Value="#F0F6F1"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                            </Style>
-                                        </ListBox.ItemContainerStyle>
-                                    </ListBox>
-
-                                    <!-- 일정이 없을 때 -->
-                                    <TextBlock x:Name="txtNoEvents"
-                                               Text="등록된 일정이 없습니다"
-                                               FontSize="13" Foreground="{StaticResource InkFaint}"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               IsHitTestVisible="False"/>
-                                </Grid>
-                            </Border>
 
                         </StackPanel>
                     </ScrollViewer>
 
-                    <!-- 입력 + 버튼 -->
-                    <Border Grid.Row="1" Background="{StaticResource CanvasSoft}"
-                            CornerRadius="0,0,12,12" Padding="24,18">
-                        <StackPanel>
-                            <TextBlock Text="일정 내용" Style="{StaticResource Caption}" Margin="2,0,0,7"/>
 
-                            <WrapPanel Margin="0,0,0,8">
-                                <RadioButton x:Name="EventOnce" GroupName="EventRepeat" Content="반복 안 함" IsChecked="True" Margin="0,0,18,4"/>
-                                <RadioButton x:Name="EventYearly" GroupName="EventRepeat" Content="반복 이벤트 · 매년" Margin="0,0,0,4"/>
-                            </WrapPanel>
-                            <TextBlock Text="매년 같은 월·일에 반복됩니다. 2월 29일은 윤년에만 표시됩니다." TextWrapping="Wrap" FontSize="11" Foreground="#718276" Margin="0,0,0,8"/>
-                            <CheckBox x:Name="EventClosed" Content="휴무일 · 자동 식단 생성에서 제외" Margin="0,0,0,10"/><StackPanel Orientation="Horizontal" Margin="0,0,0,8"><TextBlock Text="이벤트 아이콘" VerticalAlignment="Center" Margin="0,0,12,0"/><emoji:RichTextBox x:Name="EventIconPicker" Width="110" Height="46" FontSize="20" ToolTip="Win + . 키로 이모지를 입력하세요"/></StackPanel>
-                            <WrapPanel x:Name="QuickEventIcons" Margin="0,0,0,8"/><TextBlock Text="다른 아이콘은 위 입력란에서 직접 입력할 수 있습니다." FontSize="11" Foreground="#718276" TextWrapping="Wrap" Margin="0,0,0,8"/><emoji:RichTextBox x:Name="txtEventInput" Height="72"
-
-                                     VerticalContentAlignment="Top" Padding="10,8"
-                                     VerticalScrollBarVisibility="Auto"/>
-
-                            <Grid Margin="0,14,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <Button Grid.Column="0" x:Name="btnAddEvent" Click="btnAddEvent_Click"
-                                        Content="＋  일정 등록" Style="{StaticResource PrimaryButton}"/>
-
-                                <Button Grid.Column="2" x:Name="btnEditEvent" Click="btnEditEvent_Click"
-                                        Content="수정" Width="76" Height="42"
-                                        ToolTip="목록에서 일정을 고른 뒤 내용을 바꾸고 누르세요"/>
-
-                                <Button Grid.Column="4" x:Name="btnDeleteEvent" Click="btnDeleteEvent_Click"
-                                        Content="삭제" Width="76" Height="42"
-                                        Style="{StaticResource DangerButton}"
-                                        ToolTip="목록에서 고른 일정을 지웁니다"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
                 </Grid>
             </Border>
         </Grid>

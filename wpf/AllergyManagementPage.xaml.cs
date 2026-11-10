@@ -11,9 +11,8 @@ namespace wpf
     public partial class AllergyManagementPage : Page
     {
         private readonly GoogleSheetsService _service;
-        private readonly System.Windows.Threading.DispatcherTimer _monitorTimer=new(){Interval=TimeSpan.FromSeconds(30)};
         private int _monitorVersion;
-        private bool _monitorBusy;
+
         private int? _selectedPatientId;
 
 
@@ -35,10 +34,9 @@ namespace wpf
             _service = AppServices.Require();
 
             Loaded += AllergyManagementPage_Loaded;
-            Unloaded += (_,_)=>{_monitorTimer.Stop();++_monitorVersion;_monitorBusy=false;};
+            Unloaded += (_,_)=>{++_monitorVersion;};
             DpMonitorDate.SelectedDate=DateTime.Today;
             DpMonitorDate.SelectedDateChanged+=async (_,_)=>{if(IsLoaded)await RefreshMonitorAsync();};
-            _monitorTimer.Tick+=async (_,_)=>{if(IsLoaded&&!_monitorBusy&&!TxtPatientName.IsKeyboardFocusWithin&&!TxtPatientNote.IsKeyboardFocusWithin&&!PatientAllergens.IsKeyboardFocusWithin&&!PatientAllergyState.IsKeyboardFocusWithin)await RefreshMonitorAsync();};
 
             // 버튼 이벤트 연결
             BtnSavePatient.Click += BtnSavePatient_Click;
@@ -56,12 +54,11 @@ namespace wpf
         private async void AllergyManagementPage_Loaded(object sender, RoutedEventArgs e)
         {
             await RefreshMonitorAsync();
-            if(IsLoaded)_monitorTimer.Start();
         }
 
         private async Task RefreshMonitorAsync()
         {
-            int version=++_monitorVersion;_monitorBusy=true;
+            int version=++_monitorVersion;
             var date=(DpMonitorDate.SelectedDate??DateTime.Today).Date;
             BtnScanAllergy.IsEnabled=false;BtnConfirmAlternativeMenu.IsEnabled=false;
             MonitorStatus.Text="식단·알레르기를 대조하고 대체식단을 만드는 중입니다…";
@@ -101,17 +98,17 @@ namespace wpf
                     alternatives.Add(new AllergyAlternative("직접 입력 메뉴","확인 필요",manual.MenuName+": 연령·끼니·분류를 확인할 수 없어 자동 대체하지 않았습니다. 저장된 식단에 등록해 주세요."));
                 }
                 DgDailyMenu.ItemsSource=labels;DgAllergicMatches.ItemsSource=alternatives;
-                MonitorStatus.Text=$"{date:yyyy-MM-dd} · {DateTime.Now:HH:mm:ss} 갱신 · "+(stored.Count==0?"저장된 식단이 없습니다.":$"{stored.Count}끼 대조 · 대상자별 대체·확인 항목 {alternatives.Count}건")+"\n30초마다 자동 갱신 · 원본 식단을 유지한 대상자별 제안입니다. 배식 전 실제 재료를 확인해 주세요.";
+                MonitorStatus.Text=$"{date:yyyy-MM-dd} · {DateTime.Now:HH:mm:ss} 갱신 · "+(stored.Count==0?"저장된 식단이 없습니다.":$"{stored.Count}끼 대조 · 대상자별 대체·확인 항목 {alternatives.Count}건")+"\n날짜 변경 또는 지금 다시 확인 버튼으로 갱신 · 원본 식단을 유지한 대상자별 제안입니다. 배식 전 실제 재료를 확인해 주세요.";
             }
             catch(Exception ex)
             {
                 if(version!=_monitorVersion)return;
                 DgDailyMenu.ItemsSource=null;DgAllergicMatches.ItemsSource=null;
-                MonitorStatus.Text="자동 확인 실패: "+ex.Message+" · 다음 갱신 때 다시 확인합니다.";
+                MonitorStatus.Text="확인 실패: "+ex.Message+" · 지금 다시 확인 버튼을 눌러 다시 시도해 주세요.";
             }
             finally
             {
-                if(version==_monitorVersion){_monitorBusy=false;BtnScanAllergy.IsEnabled=true;BtnConfirmAlternativeMenu.IsEnabled=true;}
+                if(version==_monitorVersion){BtnScanAllergy.IsEnabled=true;BtnConfirmAlternativeMenu.IsEnabled=true;}
             }
         }
 

@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="wpf.Menu_table" Title="식단 만들기" Background="#F4F7F3" Foreground="#263E2F" FontSize="14" FontFamily="{StaticResource UiFont}">
+﻿<Page xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="wpf.Menu_table" Title="식단 만들기" Background="#F4F7F3" Foreground="#263E2F" FontSize="14" FontFamily="{StaticResource UiFont}">
  <Page.Resources>
   <ResourceDictionary>
    <ResourceDictionary.MergedDictionaries>
@@ -15,13 +15,7 @@
    </Grid.RowDefinitions>
    <StackPanel Grid.Row="0">
     <WrapPanel Margin="0,0,0,6">
-     <StackPanel Width="250" Margin="0,0,16,4">
-      <TextBlock Text="메뉴 출처" Foreground="#718276" Margin="0,0,0,8" />
-      <ComboBox x:Name="CboAgeGroup" FontWeight="Bold" SelectionChanged="AgeChanged" Height="36">
-       <ComboBoxItem Content="만 3~5세 · 트랙A" Tag="3-5" />
-       <ComboBoxItem Content="만 6~18세 · 트랙B" Tag="6-18" />
-      </ComboBox>
-     </StackPanel>
+
      <StackPanel Width="210" Margin="0,0,16,4">
       <TextBlock Text="날짜 선택 · 해당 주의 월~토" Foreground="#718276" Margin="0,0,0,8" />
       <DatePicker x:Name="WeekPicker" FontWeight="Bold" FirstDayOfWeek="Monday" SelectedDateChanged="WeekChanged" Height="36" />
@@ -107,6 +101,13 @@
         <StackPanel>
          <TextBlock Text="01   언제, 누구에게 제공하나요?" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,20" />
          <WrapPanel Margin="0,0,0,12">
+     <StackPanel Width="250" Margin="0,0,16,4">
+      <TextBlock Text="메뉴 출처" Foreground="#718276" Margin="0,0,0,8" />
+      <ComboBox x:Name="CboAgeGroup" FontWeight="Bold" SelectionChanged="AgeChanged" Height="36">
+       <ComboBoxItem Content="만 3~5세 · 트랙A" Tag="3-5" />
+       <ComboBoxItem Content="만 6~18세 · 트랙B" Tag="6-18" />
+      </ComboBox>
+     </StackPanel>
           <StackPanel Width="150" Margin="0,0,18,8">
            <TextBlock Text="대상 연령" Foreground="#718276" Margin="0,0,0,8" />
            <ComboBox x:Name="CboNutritionAge" FontWeight="Bold" SelectionChanged="NutritionProfileChanged" Height="36">

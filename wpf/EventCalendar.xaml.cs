@@ -59,10 +59,58 @@ namespace wpf
             MainCalendar.DisplayDateChanged += async (_,_) => { if(_calendarReady){ await FetchHolidaysForMonthAsync(MainCalendar.DisplayDate.Year,MainCalendar.DisplayDate.Month); PaintDates(); } };
             MainCalendar.SelectedDatesChanged += MainCalendar_SelectedDatesChanged;
             MainCalendar.PreviewMouseWheel += CalendarWheel;
+            MainCalendar.PreviewMouseLeftButtonDown += CalendarDoubleClick;
+            lstEvents.MouseDoubleClick += OpenEventEditor_Click;
             MainCalendar.MouseLeave += (_,_) => _wheelDelta = 0;
             MainCalendar.DisplayModeChanged += (_,_) => _wheelDelta = 0;
             MainCalendar.SelectedDate = DateTime.Today; // 오늘 날짜 기본 선택
             Loaded += async (_, _) => { _calendarReady = true; await UpdateUI(); };
+        }
+
+        private async void CalendarDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ClickCount != 2) return;
+            var node = e.OriginalSource as DependencyObject;
+            while (node != null && node is not System.Windows.Controls.Primitives.CalendarDayButton)
+                node = node is System.Windows.Media.Visual ? System.Windows.Media.VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
+            if (node is not System.Windows.Controls.Primitives.CalendarDayButton day || day.DataContext is not DateTime date || day.IsBlackedOut) return;
+            e.Handled = true;
+            MainCalendar.SelectedDate = date.Date;
+            await UpdateUI(date.Date);
+            if (MainCalendar.SelectedDate?.Date == date.Date) OpenEventEditor_Click(sender, e);
+        }
+
+        private void OpenEventEditor_Click(object sender, RoutedEventArgs e)
+        {
+            if (EventEditorHost.Child is not UIElement editor) return;
+            var window = new Window
+            {
+                Title = $"{MainCalendar.SelectedDate:yyyy-MM-dd} 일정 관리",
+                Owner = Window.GetWindow(this),
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Width = Math.Min(720, SystemParameters.WorkArea.Width),
+                Height = Math.Min(820, SystemParameters.WorkArea.Height),
+                FontFamily = FontFamily,
+                Background = System.Windows.Media.Brushes.White
+            };
+            window.Resources.MergedDictionaries.Add(Resources);
+            var layout = new DockPanel { Margin = new Thickness(20) };
+            var close = new Button { Content = "닫기", Padding = new Thickness(24, 8, 24, 8), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            close.Click += (_, _) => window.Close();
+            DockPanel.SetDock(close, Dock.Bottom);
+            layout.Children.Add(close);
+            EventEditorHost.Child = null;
+            try
+            {
+                layout.Children.Add(editor);
+                window.Content = layout;
+                window.ShowDialog();
+            }
+            finally
+            {
+                layout.Children.Remove(editor);
+                EventEditorHost.Child = editor;
+            }
         }
 
         private void CalendarWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
